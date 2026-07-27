@@ -1,0 +1,306 @@
+import express from 'express';
+import db from '../db.js';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { JWT_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD, INITIAL_BALANCE } from '../config.js';
+import { makeReferralCode } from '../utils.js';
+import { v4 as uuidv4 } from 'uuid';
+import { deliverEmail, deliverPasswordResetEmail } from '../utils/email.js';
+import { generateDepositAddress } from '../payments/cryptoService.js';
+
+const router = express.Router();
+
+const upsertSecurityStmt = db.prepare(`
+  INSERT INTO user_security (user_id, email_verified, phone_verified, email_code, phone_code, email_expires_at, phone_expires_at, phone_number)
+  VALUES (?, 0, 0, NULL, NULL, NULL, NULL, NULL)
+  ON CONFLICT(user_id) DO NOTHING
+`);
+
+function generateCode() {
+  return Math.floor(100000 + Math.random() * 900000).toString()
+}
+
+function expireMinutes(minutes) {
+  return new Date(Date.now() + minutes * 60 * 1000).toISOString()
+}
+
+const upsertAdminPermissionsStmt = db.prepare(`
+  INSERT INTO admin_permissions (user_id, permissions)
+  VALUES (?, json(?))
+  ON CONFLICT(user_id) DO UPDATE SET permissions = json(?), updated_at = CURRENT_TIMESTAMP
+`);
+
+// Bootstrap admin if not exists
+function ensureAdmin() {
+  const stmt = db.prepare('SELECT id FROM users WHERE email = ?');
+  const existing = stmt.get(ADMIN_EMAIL);
+  if (!existing) {
+    const hash = bcrypt.hashSync(ADMIN_PASSWORD, 10);
+    const code = makeReferralCode();
+    const insert = db.prepare(`
+      INSERT INTO users (email, password_hash, name, handle, referral_code, role)
+      VALUES (?, ?, 'Admin', 'admin', ?, 'admin')
+    `);
+    insert.run(ADMIN_EMAIL, hash, code);
+    const admin = db.prepare('SELECT id FROM users WHERE email = ?').get(ADMIN_EMAIL);
+    db.prepare('INSERT OR IGNORE INTO balances (user_id, available, locked) VALUES (?, ?, 0)').run(admin.id, INITIAL_BALANCE);
+    upsertAdminPermissionsStmt.run(admin.id, JSON.stringify(['all']), JSON.stringify(['all']));
+    console.log('[BOOT] Admin user created:', ADMIN_EMAIL);
+  } else {
+    upsertAdminPermissionsStmt.run(existing.id, JSON.stringify(['all']), JSON.stringify(['all']));
+  }
+}
+ensureAdmin();
+
+router.post('/check-email', (req, res) => {
+  const { email } = req.body || {};
+  if (!email) return res.json({ exists: false });
+  const normalizedEmail = email.trim().toLowerCase();
+  const exists = db.prepare('SELECT id FROM users WHERE email = ?').get(normalizedEmail);
+  res.json({ exists: !!exists });
+});
+
+router.post('/signup/send-otp', async (req, res) => {
+  const { email, password, name, ref } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  const normalizedEmail = email.trim().toLowerCase();
+  
+  const exists = db.prepare('SELECT id FROM users WHERE email = ?').get(normalizedEmail);
+  if (exists) return res.status(409).json({ error: 'Email already registered' });
+  
+  const hash = bcrypt.hashSync(password, 10);
+  const referral_code = makeReferralCode();
+  const otpCode = generateCode();
+  const expires = expireMinutes(10);
+  
+  db.prepare(`
+    INSERT INTO pending_signups (email, password_hash, name, referral_code, referred_by, otp_code, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(email) DO UPDATE SET
+      password_hash = excluded.password_hash,
+      name = excluded.name,
+      referral_code = excluded.referral_code,
+      referred_by = excluded.referred_by,
+      otp_code = excluded.otp_code,
+      expires_at = excluded.expires_at,
+      created_at = CURRENT_TIMESTAMP
+  `).run(normalizedEmail, hash, name || '', referral_code, ref || null, otpCode, expires);
+
+  let emailResult = { delivered: false };
+  try {
+    emailResult = await deliverEmail(normalizedEmail, otpCode);
+  } catch (err) {
+    console.log('[AUTH] Email dispatch error:', err);
+  }
+
+  if (!emailResult.delivered) {
+    console.log(`[AUTH] OTP fallback for ${normalizedEmail}: ${otpCode}`);
+  }
+
+  res.json({
+    ok: true,
+    message: 'OTP sent to email',
+    devOtp: !emailResult.delivered ? emailResult.devCode : undefined
+  });
+});
+
+router.post('/signup/resend-otp', async (req, res) => {
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ error: 'Email required' });
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const pending = db.prepare('SELECT * FROM pending_signups WHERE email = ?').get(normalizedEmail);
+  if (!pending) return res.status(400).json({ error: 'No pending registration found for this email' });
+
+  const otpCode = generateCode();
+  const expires = expireMinutes(10);
+
+  db.prepare(`
+    UPDATE pending_signups
+    SET otp_code = ?, expires_at = ?, created_at = CURRENT_TIMESTAMP
+    WHERE email = ?
+  `).run(otpCode, expires, normalizedEmail);
+
+  let emailResult = { delivered: false };
+  try {
+    emailResult = await deliverEmail(normalizedEmail, otpCode);
+  } catch (err) {
+    console.log('[AUTH] Resend OTP email dispatch error:', err);
+  }
+
+  if (!emailResult.delivered) {
+    console.log(`[AUTH] Resend OTP fallback for ${normalizedEmail}: ${otpCode}`);
+  }
+
+  res.json({
+    ok: true,
+    message: 'A new 6-digit verification code has been sent to your email.',
+    devOtp: !emailResult.delivered ? emailResult.devCode : undefined
+  });
+});
+
+router.post('/signup/verify', (req, res) => {
+  const { email, otp } = req.body || {};
+  if (!email || !otp) return res.status(400).json({ error: 'Email and OTP required' });
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const pending = db.prepare('SELECT * FROM pending_signups WHERE email = ?').get(normalizedEmail);
+  if (!pending) return res.status(400).json({ error: 'No signup request found' });
+  
+  if (pending.otp_code !== otp) return res.status(400).json({ error: 'Invalid OTP' });
+  if (new Date(pending.expires_at).getTime() < Date.now()) return res.status(400).json({ error: 'OTP expired' });
+
+  // OTP verified, create user
+  const ins = db.prepare(`
+    INSERT INTO users (email, password_hash, name, referral_code, referred_by)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  
+  try {
+    ins.run(normalizedEmail, pending.password_hash, pending.name, pending.referral_code, pending.referred_by);
+  } catch (err) {
+    if (err.message.includes('UNIQUE constraint failed')) {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
+    throw err;
+  }
+
+  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(normalizedEmail);
+  db.prepare('INSERT OR IGNORE INTO balances (user_id, available, locked) VALUES (?, ?, 0)').run(user.id, INITIAL_BALANCE);
+
+  // Pre-generate a 100% unique crypto deposit address for the newly created user account
+  try {
+    generateDepositAddress(user.id);
+  } catch (err) {
+    console.warn('[AUTH] Error pre-generating deposit address for new user:', err);
+  }
+
+  if (pending.referred_by) {
+    const referrer = db.prepare('SELECT id FROM users WHERE referral_code = ?').get(pending.referred_by);
+    if (referrer) {
+      db.prepare('INSERT OR IGNORE INTO referrals (referrer_id, referee_id) VALUES (?, ?)').run(referrer.id, user.id);
+    }
+  }
+
+  // Set as email_verified = 1 automatically
+  upsertSecurityStmt.run(user.id);
+  db.prepare('UPDATE user_security SET email_verified = 1 WHERE user_id = ?').run(user.id);
+  db.prepare('DELETE FROM pending_signups WHERE email = ?').run(normalizedEmail);
+
+  const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+  res.json({ token, user: { id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role, referral_code: user.referral_code } });
+});
+
+router.post('/login', (req, res) => {
+  const { email, password } = req.body || {};
+  const normalizedEmail = (email || '').trim().toLowerCase();
+  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(normalizedEmail);
+  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+  const ok = bcrypt.compareSync(password, user.password_hash);
+  if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+  const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+  res.json({ token, user: { id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role, referral_code: user.referral_code } });
+});
+
+router.post('/admin/login', (req, res) => {
+  const { email, password } = req.body || {};
+  const normalizedEmail = (email || '').trim().toLowerCase();
+  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(normalizedEmail);
+  if (!user || !['admin', 'subadmin'].includes(user.role)) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  const ok = bcrypt.compareSync(password, user.password_hash);
+  if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+  const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+  const permissionsRow = db.prepare('SELECT permissions FROM admin_permissions WHERE user_id = ?').get(user.id);
+  const permissions = (() => {
+    if (!permissionsRow) return user.role === 'admin' ? ['all'] : [];
+    try {
+      const parsed = JSON.parse(permissionsRow.permissions || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (err) {
+      return [];
+    }
+  })();
+  res.json({
+    token,
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      permissions
+    }
+  });
+});
+
+router.post('/request-password-reset', async (req, res) => {
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(normalizedEmail);
+  
+  if (!user) {
+    return res.json({ ok: true, message: 'If an account with that email exists, a password reset link has been sent.' });
+  }
+
+  const token = uuidv4();
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 30).toISOString(); // 30 mins
+  db.prepare('INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)').run(user.id, token, expiresAt);
+
+  const origin = req.headers.origin || (req.protocol + '://' + req.get('host'));
+  const link = `${origin}/reset-password?token=${token}`;
+
+  let emailResult = { delivered: false };
+  try {
+    emailResult = await deliverPasswordResetEmail(user.email, link);
+  } catch (err) {
+    console.error('[RESET] Password reset email dispatch error:', err);
+  }
+
+  if (!emailResult.delivered) {
+    console.log(`[RESET] Password reset link for ${user.email} (dev fallback): ${link}`);
+  }
+
+  res.json({
+    ok: true,
+    message: 'If an account with that email exists, a password reset link has been sent.',
+    devLink: !emailResult.delivered ? emailResult.devLink : undefined
+  });
+});
+
+router.get('/verify-reset-token', (req, res) => {
+  const token = req.query.token;
+  if (!token) return res.status(400).json({ valid: false, error: 'Token is required' });
+
+  const row = db.prepare('SELECT * FROM password_reset_tokens WHERE token = ? AND used = 0').get(token);
+  if (!row) return res.json({ valid: false, error: 'Invalid or already used token' });
+  if (new Date(row.expires_at).getTime() < Date.now()) {
+    return res.json({ valid: false, error: 'Reset token has expired' });
+  }
+
+  res.json({ valid: true });
+});
+
+router.post('/reset-password', (req, res) => {
+  const { token, new_password } = req.body || {};
+  if (!token || !new_password) {
+    return res.status(400).json({ error: 'Token and new password are required' });
+  }
+  if (new_password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+
+  const row = db.prepare('SELECT * FROM password_reset_tokens WHERE token = ? AND used = 0').get(token);
+  if (!row) return res.status(400).json({ error: 'Invalid or already used token' });
+  if (new Date(row.expires_at).getTime() < Date.now()) {
+    return res.status(400).json({ error: 'Reset link has expired' });
+  }
+
+  const hash = bcrypt.hashSync(new_password, 10);
+  db.prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(hash, row.user_id);
+  db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE id = ?').run(row.id);
+  res.json({ ok: true, message: 'Password updated successfully' });
+});
+
+export default router;

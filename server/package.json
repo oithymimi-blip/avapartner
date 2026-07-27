@@ -1,0 +1,26 @@
+{
+  "name": "otc-market-server",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-rekognition": "^3.933.0",
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^12.10.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "ethers": "^6.16.0",
+    "expo": "^54.0.22",
+    "express": "^4.19.2",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^8.0.8",
+    "socket.io": "^4.7.5",
+    "twilio": "^6.0.2",
+    "uuid": "^9.0.1",
+    "ws": "^8.21.0"
+  }
+}
