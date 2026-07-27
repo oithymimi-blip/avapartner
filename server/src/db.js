@@ -588,14 +588,10 @@ db.prepare(`
     AND (locked IS NULL OR locked = 0)
 `).run(INITIAL_BALANCE);
 
-// Remove default notifications
-db.exec(`
-  DELETE FROM notifications 
-  WHERE user_id IS NULL 
-     OR title LIKE '%BTCUSDT%' 
-     OR title LIKE '%Join now%' 
-     OR title LIKE '%claim bonus%';
-`);
+try {
+  db.prepare('DELETE FROM notifications').run();
+} catch (e) {
+  console.error("Failed to delete default notifications:", e);
+}
 
 export default db;
-

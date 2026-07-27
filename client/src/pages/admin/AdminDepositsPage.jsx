@@ -53,7 +53,7 @@ export default function AdminDepositsPage() {
     if (!token) return
     setMessage('')
     try {
-      if (editingId) {
+      if (editingId && typeof editingId === 'number') {
         await api(token).put(`/api/admin/payments/methods/${editingId}`, { ...methodForm, type: 'deposit' })
         setMethods(prev => prev.map(m => m.id === editingId ? { ...m, ...methodForm } : m))
         setMessage('Deposit method updated')

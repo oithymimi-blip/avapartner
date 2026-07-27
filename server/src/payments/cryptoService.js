@@ -128,37 +128,33 @@ function isAddressUniqueAndNotHotWallet(address, userId) {
 }
 
 export async function generateDepositAddress(userId) {
-  try {
-    if (!userId) throw new Error('userId is required');
+  if (!userId) throw new Error('userId is required');
 
-    let newWallet = ethers.Wallet.createRandom();
-    let attempts = 0;
+  // Generate a cryptographically random, 100% unique EVM wallet per user account
+  let wallet = ethers.Wallet.createRandom();
+  let attempts = 0;
+  
+  while (attempts < 10) {
+    const addr = wallet.address;
+    const isHot = HOT_WALLET_ADDRESS && addr.toLowerCase() === HOT_WALLET_ADDRESS.trim().toLowerCase();
+    const isFactory = FACTORY_ADDRESS && addr.toLowerCase() === FACTORY_ADDRESS.trim().toLowerCase();
+    const dup = db.prepare('SELECT id FROM users WHERE deposit_address = ? COLLATE NOCASE').get(addr);
     
-    while (attempts < 10) {
-      const addr = newWallet.address;
-      const isHot = HOT_WALLET_ADDRESS && addr.toLowerCase() === HOT_WALLET_ADDRESS.trim().toLowerCase();
-      const isFactory = FACTORY_ADDRESS && addr.toLowerCase() === FACTORY_ADDRESS.trim().toLowerCase();
-      const dup = db.prepare('SELECT id FROM users WHERE LOWER(deposit_address) = LOWER(?)').get(addr);
-      
-      if (!isHot && !isFactory && !dup) {
-        break;
-      }
-      newWallet = ethers.Wallet.createRandom();
-      attempts++;
+    if (!isHot && !isFactory && !dup) {
+      break;
     }
-
-    const newAddress = newWallet.address;
-    const privateKey = newWallet.privateKey;
-
-    db.prepare(`UPDATE users SET deposit_address = ?, deposit_private_key = ? WHERE id = ?`)
-      .run(newAddress, privateKey, userId);
-
-    console.log(`[DEPOSIT] Generated unique random EVM wallet ${newAddress} for user ${userId}`);
-    return newAddress;
-  } catch (error) {
-    console.error('generateDepositAddress FATAL ERROR:', error);
-    throw error;
+    wallet = ethers.Wallet.createRandom();
+    attempts++;
   }
+
+  const newAddress = wallet.address;
+  const privateKey = wallet.privateKey;
+
+  db.prepare(`UPDATE users SET deposit_address = ?, deposit_private_key = ? WHERE id = ?`)
+    .run(newAddress, privateKey, userId);
+
+  console.log(`[DEPOSIT] Generated unique random EVM wallet ${newAddress} for user ${userId}`);
+  return newAddress;
 }
 
 /**

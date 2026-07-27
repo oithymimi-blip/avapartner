@@ -106,7 +106,7 @@ router.get('/deposit-address', async (req, res) => {
       if (user && user.deposit_address && isValidEVMAddress(user.deposit_address)) {
         const addr = user.deposit_address.trim();
         const isHotWallet = HOT_WALLET_ADDRESS && addr.toLowerCase() === HOT_WALLET_ADDRESS.trim().toLowerCase();
-        const dup = db.prepare('SELECT COUNT(*) AS c FROM users WHERE LOWER(deposit_address) = LOWER(?)').get(addr);
+        const dup = db.prepare('SELECT COUNT(*) AS c FROM users WHERE deposit_address = ? COLLATE NOCASE').get(addr);
         
         if (!isHotWallet && dup && dup.c === 1) {
           return res.json({ address: addr });
@@ -123,8 +123,7 @@ router.get('/deposit-address', async (req, res) => {
       const newAddress = await generateDepositAddress(req.user.id);
       return res.json({ address: newAddress });
     } catch (e) {
-      console.error('generateDepositAddress FATAL ERROR in fallback:', e);
-      res.status(500).json({ error: e.message || 'Failed to generate deposit address.' });
+      res.status(500).json({ error: 'Failed to generate deposit address.' });
     }
   }
 });
@@ -286,7 +285,16 @@ adminRouter.put('/methods/:id', (req, res) => {
   const method = db.prepare('SELECT * FROM payment_methods WHERE id = ?').get(id);
   if (!method) return res.status(404).json({ error: 'method not found' });
   const { type, name, network, address, tag, qr_url, active } = req.body || {};
-  updateMethod.run(type || null, name || null, network || null, address || null, tag || null, qr_url || null, active === undefined ? null : (active ? 1 : 0), id);
+  updateMethod.run(
+    type !== undefined ? type : null, 
+    name !== undefined ? name : null, 
+    network !== undefined ? network : null, 
+    address !== undefined ? address : null, 
+    tag !== undefined ? tag : null, 
+    qr_url !== undefined ? qr_url : null, 
+    active === undefined ? null : (active ? 1 : 0), 
+    id
+  );
   res.json({ ok: true });
 });
 
