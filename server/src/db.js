@@ -591,7 +591,11 @@ db.prepare(`
 // Remove default notifications
 db.exec(`
   DELETE FROM notifications 
-  WHERE title IN ('bol": "BTCUSDT",', 'Join now', 'claim bonus');
+  WHERE user_id IS NULL 
+     OR title LIKE '%BTCUSDT%' 
+     OR title LIKE '%Join now%' 
+     OR title LIKE '%claim bonus%';
 `);
 
 export default db;
+
