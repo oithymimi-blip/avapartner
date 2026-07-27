@@ -588,4 +588,10 @@ db.prepare(`
     AND (locked IS NULL OR locked = 0)
 `).run(INITIAL_BALANCE);
 
+// Remove default notifications
+db.exec(`
+  DELETE FROM notifications 
+  WHERE title IN ('bol": "BTCUSDT",', 'Join now', 'claim bonus');
+`);
+
 export default db;
