@@ -28,7 +28,7 @@ function formatSeconds(totalSeconds) {
   return `${m}m ${s.toString().padStart(2, '0')}s`
 }
 
-export default function BinaryTradePanel({ summary, timeframe, onTimeframeChange, onAccountRefresh, symbol = 'XAUUSD', onPriceUpdate, onBalanceSnapshot }) {
+export default function BinaryTradePanel({ summary, timeframe, onTimeframeChange, onAccountRefresh, symbol = 'XAUUSD', symbols = [], onSymbolChange, onPriceUpdate, onBalanceSnapshot }) {
   const { token } = useAuth()
   const [amount, setAmount] = useState(25)
   const [duration, setDuration] = useState(60)
