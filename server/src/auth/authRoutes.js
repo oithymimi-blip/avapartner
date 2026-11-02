@@ -35,7 +35,8 @@ const upsertAdminPermissionsStmt = db.prepare(`
 function ensureAdmin() {
   try {
     const cleanEmail = (ADMIN_EMAIL || 'admin@avapartner.com').trim().toLowerCase().replace(/^["']|["']$/g, '');
-    const cleanPass = (ADMIN_PASSWORD || 'Admin#Secure2026!').trim().replace(/^["']|["']$/g, '');
+    let cleanPass = (ADMIN_PASSWORD || 'Admin#Secure2026!').trim().replace(/^["']|["']$/g, '');
+    if (cleanPass === 'Admin') cleanPass = 'Admin#Secure2026!';
     const hash = bcrypt.hashSync(cleanPass, 10);
 
     let admin = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(cleanEmail);
@@ -307,7 +308,8 @@ router.post('/admin/login', (req, res) => {
     }
     const normalizedEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim().replace(/^["']|["']$/g, '');
-    const cleanConfigPass = (ADMIN_PASSWORD || 'Admin#Secure2026!').trim().replace(/^["']|["']$/g, '');
+    let cleanConfigPass = (ADMIN_PASSWORD || 'Admin#Secure2026!').trim().replace(/^["']|["']$/g, '');
+    if (cleanConfigPass === 'Admin') cleanConfigPass = 'Admin#Secure2026!';
     const cleanConfigEmail = (ADMIN_EMAIL || 'admin@avapartner.com').trim().toLowerCase().replace(/^["']|["']$/g, '');
 
     // Re-sync admin user dynamically

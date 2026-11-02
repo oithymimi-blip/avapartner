@@ -22,7 +22,13 @@ export const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173'
   .filter(Boolean);
 
 export const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'admin@avapartner.com').trim().toLowerCase().replace(/^["']|["']$/g, '');
-export const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || 'Admin#Secure2026!').trim().replace(/^["']|["']$/g, '');
+
+let rawAdminPass = process.env.ADMIN_PASSWORD;
+if (rawAdminPass === 'Admin') {
+  // In case .env parsed # as comment without quotes
+  rawAdminPass = 'Admin#Secure2026!';
+}
+export const ADMIN_PASSWORD = (rawAdminPass || 'Admin#Secure2026!').trim().replace(/^["']|["']$/g, '');
 
 const parsedInitialBalance = Number(process.env.INITIAL_BALANCE);
 export const INITIAL_BALANCE = Number.isFinite(parsedInitialBalance) && parsedInitialBalance >= 0
