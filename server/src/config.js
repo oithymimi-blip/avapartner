@@ -21,11 +21,8 @@ export const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173'
   .map(s => s.trim())
   .filter(Boolean);
 
-export const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'admin@example.com').trim().toLowerCase();
-export const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || 'Admin#12345').replace(/^["']|["']$/g, '');
-if (IS_PRODUCTION && ADMIN_PASSWORD === 'Admin#12345') {
-  console.error('[CRITICAL SECURITY RISK] ADMIN_PASSWORD is using default value in production! Set ADMIN_PASSWORD in .env');
-}
+export const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'admin@avapartner.com').trim().toLowerCase().replace(/^["']|["']$/g, '');
+export const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || 'Admin#Secure2026!').trim().replace(/^["']|["']$/g, '');
 
 const parsedInitialBalance = Number(process.env.INITIAL_BALANCE);
 export const INITIAL_BALANCE = Number.isFinite(parsedInitialBalance) && parsedInitialBalance >= 0

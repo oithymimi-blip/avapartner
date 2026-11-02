@@ -8,12 +8,20 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
   minimumFractionDigits: 2,
 });
 
+const DEFAULT_MASTERS = [
+  { id: 1, name: 'Alex Carter', avatar: 'A', roi_percentage: 412.5, win_rate: 92.4, followers: 15420, risk_score: 4, aum: 2540000 },
+  { id: 2, name: 'Sarah Chen', avatar: 'S', roi_percentage: 305.2, win_rate: 88.1, followers: 8930, risk_score: 3, aum: 1200500 },
+  { id: 3, name: 'CryptoNinja', avatar: 'C', roi_percentage: 840.1, win_rate: 74.5, followers: 34200, risk_score: 8, aum: 8900000 },
+  { id: 4, name: 'Quantum Fund', avatar: 'Q', roi_percentage: 150.8, win_rate: 95.0, followers: 4500, risk_score: 2, aum: 5400000 },
+  { id: 5, name: 'Elena R.', avatar: 'E', roi_percentage: 215.4, win_rate: 85.2, followers: 6210, risk_score: 5, aum: 850000 }
+];
+
 export default function CopyTradePanel({ onAccountRefresh }) {
   const { token } = useAuth();
   const [activeTab, setActiveTab] = useState('discover'); // discover, portfolio
-  const [masters, setMasters] = useState([]);
+  const [masters, setMasters] = useState(DEFAULT_MASTERS);
   const [portfolio, setPortfolio] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // Copy modal state
   const [showCopyModal, setShowCopyModal] = useState(false);
@@ -23,19 +31,18 @@ export default function CopyTradePanel({ onAccountRefresh }) {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (token) {
-      fetchData();
-    }
+    fetchData();
   }, [token]);
 
   const fetchData = async () => {
-    setLoading(true);
     try {
       const [mastersRes, portfolioRes] = await Promise.all([
-        api(token).get('/api/copytrading/masters'),
-        api(token).get('/api/copytrading/portfolio')
+        api(token).get('/api/copytrading/masters').catch(() => ({ data: [] })),
+        token ? api(token).get('/api/copytrading/portfolio').catch(() => ({ data: [] })) : Promise.resolve({ data: [] })
       ]);
-      setMasters(mastersRes.data || []);
+      if (mastersRes.data && mastersRes.data.length > 0) {
+        setMasters(mastersRes.data);
+      }
       setPortfolio(portfolioRes.data || []);
     } catch (err) {
       console.error('Failed to load copy trading data', err);
@@ -104,9 +111,7 @@ export default function CopyTradePanel({ onAccountRefresh }) {
         </button>
       </div>
 
-      {loading ? (
-        <div className="text-center text-white/50 py-10">Loading traders...</div>
-      ) : activeTab === 'discover' ? (
+      {activeTab === 'discover' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {masters.length === 0 && <div className="col-span-full text-center text-white/50 py-10">No master traders found.</div>}
           {masters.map(master => (

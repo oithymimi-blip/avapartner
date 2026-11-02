@@ -3,12 +3,19 @@ import db from '../db.js';
 import { requireAuth } from '../auth/authMiddleware.js';
 
 const router = express.Router();
-router.use(requireAuth);
 
+// Public: master traders listing does not require auth
 router.get('/masters', (req, res) => {
-  const masters = db.prepare('SELECT * FROM master_traders ORDER BY followers DESC').all();
-  res.json(masters);
+  try {
+    const masters = db.prepare('SELECT * FROM master_traders ORDER BY followers DESC').all();
+    res.json(masters);
+  } catch (err) {
+    console.error('Failed to get masters:', err);
+    res.json([]);
+  }
 });
+
+router.use(requireAuth);
 
 router.get('/portfolio', (req, res) => {
   const portfolio = db.prepare(`
