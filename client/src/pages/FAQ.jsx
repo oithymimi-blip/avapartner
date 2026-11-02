@@ -6,12 +6,12 @@ export default function FAQ() {
 
   const faqs = [
     {
-      question: "What is the AvaPartner Affiliate Program?",
-      answer: "The AvaPartner Affiliate Program (avapartner.marketing) is a premium partnership network that allows you to earn commissions by referring clients to our industry-leading trading platforms. Whether you are a digital marketer, introducing broker (IB), or influencer, our program provides the tools and lucrative commission structures needed to monetize your traffic."
+      question: "What is the Fexova Affiliate Program?",
+      answer: "The Fexova Affiliate Program (fexova.com) is a premium partnership network that allows you to earn commissions by referring clients to our industry-leading trading platforms. Whether you are a digital marketer, introducing broker (IB), or influencer, our program provides the tools and lucrative commission structures needed to monetize your traffic."
     },
     {
       question: "How much does it cost to join?",
-      answer: "Joining the AvaPartner Affiliate Program is absolutely free. There are no setup fees, hidden charges, or monthly subscriptions. You simply sign up, get your unique tracking links, and start earning."
+      answer: "Joining the Fexova Affiliate Program is absolutely free. There are no setup fees, hidden charges, or monthly subscriptions. You simply sign up, get your unique tracking links, and start earning."
     },
     {
       question: "What commission structures are available?",
@@ -31,7 +31,7 @@ export default function FAQ() {
     },
     {
       question: "Can I promote assets other than Forex?",
-      answer: "Yes! AvaPartner allows you to promote a complete asset index. Your referrals can trade Forex majors and minors, cryptocurrencies, global stocks, commodities, bonds, ETFs, and vanilla options. Promoting a diverse asset index significantly increases your conversion rates."
+      answer: "Yes! Fexova allows you to promote a complete asset index. Your referrals can trade Forex majors and minors, cryptocurrencies, global stocks, commodities, bonds, ETFs, and vanilla options. Promoting a diverse asset index significantly increases your conversion rates."
     },
     {
       question: "Do I need financial experience to become a partner?",
@@ -44,7 +44,7 @@ export default function FAQ() {
       <div className="text-center mb-12">
         <div className="inline-block px-3 py-1 bg-brand/10 text-brand text-xs font-bold uppercase tracking-widest rounded-full mb-4">Support Center</div>
         <h1 className="text-4xl md:text-5xl font-extrabold mb-4">Frequently Asked Questions</h1>
-        <p className="text-white/60 text-lg">Find answers to the most common questions about the AvaPartner network.</p>
+        <p className="text-white/60 text-lg">Find answers to the most common questions about the Fexova network.</p>
       </div>
 
       <div className="space-y-4">

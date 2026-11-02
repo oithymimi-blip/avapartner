@@ -6,6 +6,7 @@ import BinaryTradePanel from '../components/BinaryTradePanel'
 import SpotTradePanel from '../components/SpotTradePanel'
 import CopyTradePanel from '../components/CopyTradePanel'
 import AITradePanel from '../components/AITradePanel'
+import ErrorBoundary from '../components/ErrorBoundary'
 import { api } from '../api'
 import { useAuth } from '../store'
 import { useAccount } from '../accountStore'
@@ -43,11 +44,12 @@ function formatCurrency(value) {
 
 function formatPair(sym) {
   if (!sym) return ''
-  if (sym === 'USOIL') return 'USOIL/USD'
-  if (sym.endsWith('USD')) {
-    return `${sym.slice(0, -3)}/USD`
+  const str = typeof sym === 'string' ? sym : (sym.symbol ? String(sym.symbol) : String(sym))
+  if (str === 'USOIL') return 'USOIL/USD'
+  if (str.endsWith('USD')) {
+    return `${str.slice(0, -3)}/USD`
   }
-  return sym
+  return str
 }
 
 const customLogos = {
@@ -59,9 +61,10 @@ const customLogos = {
 
 function getLogoUrl(sym) {
   if (!sym) return ''
-  if (customLogos[sym]) return customLogos[sym]
-  let base = sym
-  if (sym.endsWith('USD')) base = sym.slice(0, -3)
+  const str = typeof sym === 'string' ? sym : (sym.symbol ? String(sym.symbol) : String(sym))
+  if (customLogos[str]) return customLogos[str]
+  let base = str
+  if (str.endsWith('USD')) base = str.slice(0, -3)
   return `https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/${base.toLowerCase()}.svg`
 }
 
@@ -136,15 +139,19 @@ export default function UserDashboard() {
         const res = await fetch(`${API_BASE}/api/market/states`)
         const data = await res.json()
         
-        const forexSymbols = ['XAUUSD', 'EURUSD', 'GBPUSD', 'USOIL'];
-        data.sort((a, b) => {
-           const aIsFx = forexSymbols.includes(a.symbol);
-           const bIsFx = forexSymbols.includes(b.symbol);
-           if (aIsFx && !bIsFx) return -1;
-           if (!aIsFx && bIsFx) return 1;
-           if (aIsFx && bIsFx) return forexSymbols.indexOf(a.symbol) - forexSymbols.indexOf(b.symbol);
-           return 0; 
-        });
+        const topPriority = ['XAUUSD', 'EURUSD', 'GBPUSD', 'USOIL', 'BTCUSD', 'ETHUSD', 'BNBUSD', 'SOLUSD', 'US30', 'NAS100'];
+        if (Array.isArray(data)) {
+          data.sort((a, b) => {
+             const aSym = a?.symbol || '';
+             const bSym = b?.symbol || '';
+             const aIdx = topPriority.indexOf(aSym);
+             const bIdx = topPriority.indexOf(bSym);
+             if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+             if (aIdx !== -1) return -1;
+             if (bIdx !== -1) return 1;
+             return aSym.localeCompare(bSym); 
+          });
+        }
         
         setStates(data)
         
@@ -442,53 +449,59 @@ export default function UserDashboard() {
             ))}
           </div>
           {mode === 'forex' && (
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,320px)] items-start">
-              <div className="space-y-4 min-w-0">
-                <CandlestickChart
-                  symbol={selectedSymbol}
-                  symbols={states.map(s => s.symbol)}
-                  onSymbolChange={setSelectedSymbol}
-                  mode="FOREX"
-                  trades={openTrades}
-                  onPriceUpdate={setCurrentPrice}
-                  timeframe={timeframe}
-                  onTimeframeChange={setTimeframe}
-                  summary={chartSummary}
-                />
+            <ErrorBoundary>
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,320px)] items-start">
+                <div className="space-y-4 min-w-0">
+                  <CandlestickChart
+                    symbol={selectedSymbol}
+                    symbols={states.map(s => s?.symbol).filter(Boolean)}
+                    onSymbolChange={setSelectedSymbol}
+                    mode="FOREX"
+                    trades={openTrades}
+                    onPriceUpdate={setCurrentPrice}
+                    timeframe={timeframe}
+                    onTimeframeChange={setTimeframe}
+                    summary={chartSummary}
+                  />
+                </div>
+                <div className="bg-black/20 p-3 sm:p-5 rounded-2xl sm:rounded-3xl border border-white/10 min-w-0 w-full">
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-white/60 mb-3">Forex Order</div>
+                  <OrderTicket
+                    variant="embedded"
+                    symbol={selectedSymbol}
+                    onPlaced={(payload) => {
+                      applyOverview(payload)
+                    }}
+                  />
+                </div>
               </div>
-              <div className="bg-black/20 p-3 sm:p-5 rounded-2xl sm:rounded-3xl border border-white/10 min-w-0 w-full">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-white/60 mb-3">Forex Order</div>
-                <OrderTicket
-                  variant="embedded"
-                  symbol={selectedSymbol}
-                  onPlaced={(payload) => {
-                    applyOverview(payload)
-                  }}
-                />
-              </div>
-            </div>
+            </ErrorBoundary>
           )}
           {mode === 'binary' && (
-            <div className="space-y-4">
-              <BinaryTradePanel
-                summary={chartSummary}
-                timeframe={timeframe}
-                onTimeframeChange={setTimeframe}
-                onAccountRefresh={refreshTrades}
-                symbol={selectedSymbol}
-                symbols={states.map(s => s.symbol)}
-                onSymbolChange={setSelectedSymbol}
-                onPriceUpdate={setCurrentPrice}
-                onBalanceSnapshot={handleBinaryBalance}
-              />
-            </div>
+            <ErrorBoundary>
+              <div className="space-y-4">
+                <BinaryTradePanel
+                  summary={chartSummary}
+                  timeframe={timeframe}
+                  onTimeframeChange={setTimeframe}
+                  onAccountRefresh={refreshTrades}
+                  symbol={selectedSymbol}
+                  symbols={states.map(s => s?.symbol).filter(Boolean)}
+                  onSymbolChange={setSelectedSymbol}
+                  onPriceUpdate={setCurrentPrice}
+                  onBalanceSnapshot={handleBinaryBalance}
+                />
+              </div>
+            </ErrorBoundary>
           )}
           {mode === 'spot' && (
-            <SpotTradePanel
-              onSelectPrice={(market) => {
-                setCurrentPrice(market?.price ?? currentPrice)
-              }}
-            />
+            <ErrorBoundary>
+              <SpotTradePanel
+                onSelectPrice={(market) => {
+                  setCurrentPrice(market?.price ?? currentPrice)
+                }}
+              />
+            </ErrorBoundary>
           )}
           {mode === 'web3' && (
             <div className="rounded-3xl border border-white/10 bg-black/20 p-6 text-sm text-white/60">
@@ -496,10 +509,14 @@ export default function UserDashboard() {
             </div>
           )}
           {mode === 'copytrading' && (
-            <CopyTradePanel onAccountRefresh={refreshTrades} />
+            <ErrorBoundary>
+              <CopyTradePanel onAccountRefresh={refreshTrades} />
+            </ErrorBoundary>
           )}
           {mode === 'ai_trade' && (
-            <AITradePanel onAccountRefresh={refreshTrades} />
+            <ErrorBoundary>
+              <AITradePanel onAccountRefresh={refreshTrades} />
+            </ErrorBoundary>
           )}
         </section>
 

@@ -4,6 +4,7 @@ import { requireAuth, requireAdminRole } from '../auth/authMiddleware.js';
 import { generateDepositAddress, flushForwarder, getHotWalletStatus } from './cryptoService.js';
 import { HOT_WALLET_ADDRESS } from '../config.js';
 import { deliverEmail } from '../utils/email.js';
+import { notifyAdmin } from '../notifications/adminNotifications.js';
 
 const router = express.Router();
 
@@ -82,6 +83,13 @@ router.post('/deposit', (req, res) => {
   const method = db.prepare('SELECT * FROM payment_methods WHERE id = ?').get(method_id);
   if (!method || method.type !== 'deposit') return res.status(400).json({ error: 'Invalid deposit method' });
   insertRequest.run(req.user.id, 'deposit', method.id, amt, null, null, tx_ref || null);
+  notifyAdmin({
+    type: 'deposit',
+    title: '💳 New Deposit Request',
+    message: `$${amt} deposit request submitted by ${req.user.email}.`,
+    user_email: req.user.email,
+    link: '/admin/deposits'
+  });
   res.json({ ok: true });
 });
 
@@ -237,6 +245,14 @@ router.post('/withdraw/verify', (req, res) => {
   // Process the withdrawal
   db.prepare('UPDATE balances SET available = available - ? WHERE user_id = ?').run(pending.amount, req.user.id);
   insertRequest.run(req.user.id, 'withdraw', pending.method_id, pending.amount, pending.address, pending.tag || null, null);
+
+  notifyAdmin({
+    type: 'withdrawal',
+    title: '💸 New Withdrawal Request',
+    message: `$${pending.amount} withdrawal request submitted by ${req.user.email}.`,
+    user_email: req.user.email,
+    link: '/admin/withdrawals'
+  });
 
   // Clean up the pending OTP
   db.prepare('DELETE FROM pending_withdraw_otps WHERE user_id = ?').run(req.user.id);

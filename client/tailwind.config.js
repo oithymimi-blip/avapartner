@@ -8,11 +8,16 @@ export default {
     extend: {
       colors: {
         brand: {
-          DEFAULT: "#00df9a",
-          dark: "#00b87a"
+          DEFAULT: "#6366f1",
+          light: "#818cf8",
+          dark: "#4f46e5"
         },
-        bg: "#0b0f13",
-        panel: "#11161d"
+        accent: {
+          DEFAULT: "#06b6d4",
+          purple: "#a855f7"
+        },
+        bg: "#090d16",
+        panel: "#0f172a"
       },
       boxShadow: {
         soft: "0 10px 20px rgba(0,0,0,0.3)"

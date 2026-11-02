@@ -138,6 +138,48 @@ router.get('/state', (req, res) => {
   res.json({ ...s, currentPrice: currentPrice(s.symbol) });
 });
 
+function generateSyntheticCandles(symbol, intervalSec, count = 150) {
+  const settings = db.prepare('SELECT base_price, volatility FROM market_settings WHERE symbol = ?').get(symbol);
+  const basePrice = settings?.base_price || (symbol === 'XAUUSD' ? 2450 : symbol === 'BTCUSD' ? 65000 : 100);
+  const vol = settings?.volatility || 0.005;
+
+  const now = Math.floor(Date.now() / 1000);
+  const startTime = (Math.floor(now / intervalSec) - count) * intervalSec;
+  
+  let price = basePrice;
+  const candles = [];
+  const insertStmt = db.prepare(`
+    INSERT OR IGNORE INTO candles (symbol, open, high, low, close, volume, ts)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+  const insertTick = db.prepare(`
+    INSERT OR IGNORE INTO ticks (symbol, price, ts) VALUES (?, ?, ?)
+  `);
+
+  try {
+    const tx = db.transaction(() => {
+      for (let i = 0; i < count; i++) {
+        const ts = startTime + i * intervalSec;
+        const changePercent = (Math.random() - 0.495) * (vol * 2);
+        const open = price;
+        const close = Math.max(0.0001, open * (1 + changePercent));
+        const high = Math.max(open, close) * (1 + Math.random() * (vol * 0.5));
+        const low = Math.min(open, close) * (1 - Math.random() * (vol * 0.5));
+        const volume = Math.random() * 5 + 1;
+        price = close;
+
+        insertStmt.run(symbol, open, high, low, close, volume, ts);
+        insertTick.run(symbol, close, ts);
+        candles.push({ time: ts, open, high, low, close, volume });
+      }
+    });
+    tx();
+  } catch (err) {
+    console.error('Synthetic candle generation error:', err);
+  }
+  return candles;
+}
+
 router.get('/candles', (req, res) => {
   const { symbol = 'BTCUSD', from, to, limit = 500, tf } = req.query;
   const normalizedSymbol = normalizeSymbol(symbol);
@@ -151,6 +193,10 @@ router.get('/candles', (req, res) => {
     rows = aggregateTicks(normalizedSymbol, intervalSec, safeLimit, fromTs, toTs);
   } else {
     rows = aggregateCandles(normalizedSymbol, intervalSec, safeLimit, fromTs, toTs);
+  }
+
+  if (!Array.isArray(rows) || rows.length < 10) {
+    rows = generateSyntheticCandles(normalizedSymbol, intervalSec, 150);
   }
 
   res.json(rows);

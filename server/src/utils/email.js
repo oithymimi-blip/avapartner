@@ -49,8 +49,8 @@ export async function deliverPasswordResetEmail(to, resetLink) {
           <!-- Header -->
           <tr>
             <td style="padding: 30px; text-align: center; border-bottom: 1px solid #2a2e39; background: linear-gradient(135deg, #161a1e 0%, #1e2329 100%);">
-              <div style="font-size: 24px; font-weight: 800; color: #00f2fe; letter-spacing: 1px;">
-                <span style="color: #00f2fe;">AvaPartner</span>
+              <div style="font-size: 24px; font-weight: 800; color: #6366f1; letter-spacing: 1px;">
+                <span style="color: #6366f1;">Fexova</span>
               </div>
             </td>
           </tr>
@@ -62,15 +62,15 @@ export async function deliverPasswordResetEmail(to, resetLink) {
                 We received a request to reset the password associated with your account. Click the button below to choose a new password:
               </p>
               <div style="text-align: center; margin: 32px 0;">
-                <a href="${resetLink}" target="_blank" style="display: inline-block; padding: 14px 32px; background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%); color: #000000; text-decoration: none; font-weight: 700; font-size: 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0, 242, 254, 0.3);">
+                <a href="${resetLink}" target="_blank" style="display: inline-block; padding: 14px 32px; background: linear-gradient(90deg, #6366f1 0%, #a855f7 100%); color: #ffffff; text-decoration: none; font-weight: 700; font-size: 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
                   Reset Password
                 </a>
               </div>
               <p style="margin:0 0 12px 0; font-size:13px; line-height:1.6; color:#6c757d;">
                 If the button above does not work, copy and paste the following link into your web browser:
               </p>
-              <div style="word-break: break-all; font-size:12px; color:#00f2fe; background:#0b0e11; padding:12px; border-radius:6px; border:1px solid #2a2e39; margin-bottom:24px;">
-                <a href="${resetLink}" style="color:#00f2fe; text-decoration:none;">${resetLink}</a>
+              <div style="word-break: break-all; font-size:12px; color:#818cf8; background:#0b0e11; padding:12px; border-radius:6px; border:1px solid #2a2e39; margin-bottom:24px;">
+                <a href="${resetLink}" style="color:#818cf8; text-decoration:none;">${resetLink}</a>
               </div>
               <hr style="border:none; border-top:1px solid #2a2e39; margin:24px 0;" />
               <p style="margin:0; font-size:12px; line-height:1.5; color:#8c9199;">
@@ -81,7 +81,7 @@ export async function deliverPasswordResetEmail(to, resetLink) {
           <!-- Footer -->
           <tr>
             <td style="padding: 20px 30px; background-color:#0e1114; text-align: center; border-top: 1px solid #2a2e39; font-size: 12px; color: #6c757d;">
-              © ${new Date().getFullYear()} AvaPartner. All rights reserved.
+              © ${new Date().getFullYear()} Fexova. All rights reserved.
             </td>
           </tr>
         </table>
@@ -105,7 +105,7 @@ This link will expire in 30 minutes. If you did not request this, please ignore 
     const info = await mailTransport.sendMail({
       from: SMTP_USER,
       to,
-      subject: 'Reset Your Password - AvaPartner',
+      subject: 'Reset Your Password - Fexova',
       text: textContent,
       html: htmlContent
     })

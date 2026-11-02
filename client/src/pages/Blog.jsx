@@ -17,10 +17,10 @@ export default function Blog() {
       image: "https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&q=80&w=800"
     },
     {
-      title: "AvaPartner Wins Best Affiliate Program at Forex Expo",
+      title: "Fexova Wins Best Affiliate Program at Financial Summit",
       category: "Company News",
       date: "September 15, 2026",
-      excerpt: "We are thrilled to announce that AvaPartner has been recognized globally as the Best Financial Affiliate Program at the annual Forex Expo Awards in Dubai.",
+      excerpt: "We are thrilled to announce that Fexova has been recognized globally as the Best Financial Affiliate Program at the annual Fintech Expo in Dubai.",
       image: "https://images.unsplash.com/photo-1561489413-985b06da5bee?auto=format&fit=crop&q=80&w=800"
     }
   ];
@@ -28,7 +28,7 @@ export default function Blog() {
   return (
     <div className="max-w-6xl mx-auto py-16 px-4">
       <div className="text-center mb-16">
-        <h1 className="text-4xl md:text-5xl font-extrabold mb-4">AvaPartner Blog</h1>
+        <h1 className="text-4xl md:text-5xl font-extrabold mb-4">Fexova Blog</h1>
         <p className="text-white/60 text-lg max-w-2xl mx-auto">
           Insights, strategies, and news from the world's leading financial affiliate network.
         </p>

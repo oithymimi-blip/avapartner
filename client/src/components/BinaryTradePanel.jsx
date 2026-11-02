@@ -117,6 +117,7 @@ export default function BinaryTradePanel({ summary, timeframe, onTimeframeChange
     setMessage('')
     try {
       await api(token).post('/api/binary-trades', {
+        symbol,
         direction,
         amount: numericAmount,
         duration

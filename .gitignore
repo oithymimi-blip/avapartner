@@ -1,10 +1,68 @@
+# Dependencies
 node_modules/
+**/node_modules/
+
+# Environment and Credentials (CRITICAL - NEVER COMMIT)
 .env
 .env.*
-server/.env
-dist/
-build/
-.DS_Store
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+*.pem
+*.key
+*.cert
+*.crt
+
+# Database files (CRITICAL - NEVER COMMIT)
 *.db
+*.db-*
 *.db-shm
 *.db-wal
+**/*.db
+**/*.db-*
+**/*.db-shm
+**/*.db-wal
+*.sqlite
+*.sqlite3
+**/*.sqlite*
+server/market_settings_dump.sql
+
+# VPS Deployment & Server Config Scripts (Contains VPS IP/passwords)
+deploy_*.sh
+setup_*.sh
+*.conf
+
+# Scratch and Temporary Debug Scripts
+fix_*.cjs
+fix_*.js
+test-*.js
+dump_*.js
+scratch.*
+scratch/
+
+# Build & Bundled Output
+dist/
+**/dist/
+build/
+**/build/
+contracts/artifacts/
+contracts/cache/
+mobile/.expo/
+mobile/android/
+mobile/ios/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor & OS Metadata
+.DS_Store
+Thumbs.db
+.vscode
+.vscode/
+.codex
+.codex/

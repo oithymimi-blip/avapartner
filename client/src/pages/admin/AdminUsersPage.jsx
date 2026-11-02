@@ -37,7 +37,10 @@ export default function AdminUsersPage() {
   const [userHistory, setUserHistory] = useState([])
   const [openTrades, setOpenTrades] = useState([])
   const [marketPrices, setMarketPrices] = useState({})
-  const [editForm, setEditForm] = useState({ role: '', verification_status: '', note: '', balance: '' })
+  const [editForm, setEditForm] = useState({ role: '', verification_status: '', note: '', balance: '', password: '' })
+  const [showPassword, setShowPassword] = useState(false)
+  const [showUpdatePassword, setShowUpdatePassword] = useState(false)
+  const [newPasswordInput, setNewPasswordInput] = useState('')
   const [activeTab, setActiveTab] = useState('overview')
   const [editingTime, setEditingTime] = useState(null)
   const [editingPaymentId, setEditingPaymentId] = useState(null)
@@ -55,6 +58,16 @@ export default function AdminUsersPage() {
   const [aiTradeSession, setAiTradeSession] = useState(null)
   const [aiTradeHistory, setAiTradeHistory] = useState({ sessions: [], totalEarned: 0, page: 1, totalPages: 1, totalSessions: 0 })
   const [aiTradePage, setAiTradePage] = useState(1)
+  // Binary Options states
+  const [binaryTrades, setBinaryTrades] = useState({ open: [], history: [], stats: { total: 0, win: 0, lose: 0, push: 0, netPnL: 0 } })
+  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000))
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowSec(Math.floor(Date.now() / 1000))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     const handleTick = (msg) => {
@@ -143,8 +156,9 @@ export default function AdminUsersPage() {
     setAiTradeSession(null)
     setAiTradeHistory({ sessions: [], totalEarned: 0, page: 1, totalPages: 1, totalSessions: 0 })
     setAiTradePage(1)
+    setBinaryTrades({ open: [], history: [], stats: { total: 0, win: 0, lose: 0, push: 0, netPnL: 0 } })
     try {
-      const [detailRes, activityRes, historyRes, openTradesRes, ibRes, ibLedgerRes, ibTeamRes, aiTradeRes] = await Promise.all([
+      const [detailRes, activityRes, historyRes, openTradesRes, ibRes, ibLedgerRes, ibTeamRes, aiTradeRes, binaryRes] = await Promise.all([
         api(token).get(`/api/admin/users/${user.id}`).catch(() => ({ data: user })),
         api(token).get(`/api/admin/users/${user.id}/activity`).catch(() => ({ data: [] })),
         api(token).get(`/api/admin/users/${user.id}/history`).catch(() => ({ data: [] })),
@@ -152,17 +166,22 @@ export default function AdminUsersPage() {
         api(token).get(`/api/ib/admin/user/${user.id}`).catch(() => ({ data: null })),
         api(token).get(`/api/ib/admin/user/${user.id}/ledger`).catch(() => ({ data: { rows: [], total: 0 } })),
         api(token).get(`/api/ib/admin/user/${user.id}/team`).catch(() => ({ data: [] })),
-        api(token).get(`/api/admin/users/${user.id}/ai-trade`).catch(() => ({ data: null }))
+        api(token).get(`/api/admin/users/${user.id}/ai-trade`).catch(() => ({ data: null })),
+        api(token).get(`/api/admin/users/${user.id}/binary-trades`).catch(() => ({ data: { open: [], history: [], stats: {} } }))
       ])
       const detailData = detailRes?.data || user
       setUserDetail(detailData)
+      setShowPassword(false)
+      setShowUpdatePassword(false)
+      setNewPasswordInput('')
       setEditForm({
         role: detailData.role || 'user',
         verification_status: detailData.verification_status || 'not_started',
         note: detailData.note || '',
         balance: detailData.available != null || detailData.locked != null
           ? ((detailData.available || 0) + (detailData.locked || 0)).toString()
-          : ''
+          : '',
+        password: ''
       })
       setUserActivity(Array.isArray(activityRes?.data) ? activityRes.data : [])
       setUserHistory(Array.isArray(historyRes?.data) ? historyRes.data : [])
@@ -171,6 +190,7 @@ export default function AdminUsersPage() {
       if (ibLedgerRes?.data) setIbLedger(ibLedgerRes.data)
       if (ibTeamRes?.data) setIbTeam(Array.isArray(ibTeamRes.data) ? ibTeamRes.data : [])
       if (aiTradeRes?.data) { setAiTradeSession(aiTradeRes.data.session); setAiTradeHistory(aiTradeRes.data.history || { sessions: [], totalEarned: 0, page: 1, totalPages: 1, totalSessions: 0 }) }
+      if (binaryRes?.data) setBinaryTrades(binaryRes.data)
     } catch (err) {
       setMessage(err?.response?.data?.error || 'Failed to load user details')
     } finally {
@@ -183,11 +203,15 @@ export default function AdminUsersPage() {
     setMessage('')
     setDetailLoading(true)
     try {
-      await api(token).put(`/api/admin/users/${selectedUser.id}`, {
+      const payload = {
         role: editForm.role,
         verification_status: editForm.verification_status,
         note: editForm.note
-      }).catch(() => null) // allow backends without this endpoint
+      }
+      if (editForm.password && editForm.password.trim()) {
+        payload.password = editForm.password.trim()
+      }
+      await api(token).put(`/api/admin/users/${selectedUser.id}`, payload).catch(() => null)
 
       if (editForm.balance && !Number.isNaN(Number(editForm.balance))) {
         await api(token).post('/api/admin/users/set-balance', {
@@ -196,6 +220,7 @@ export default function AdminUsersPage() {
         }).catch(() => null)
       }
 
+      setEditForm(prev => ({ ...prev, password: '' }))
       setMessage('User updated')
       await loadUsers(query)
       if (selectedUser) {
@@ -203,6 +228,26 @@ export default function AdminUsersPage() {
       }
     } catch (err) {
       setMessage(err?.response?.data?.error || 'Failed to save user')
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
+  const handleDirectPasswordUpdate = async () => {
+    if (!token || !selectedUser || !newPasswordInput.trim()) return
+    setMessage('')
+    setDetailLoading(true)
+    try {
+      await api(token).put(`/api/admin/users/${selectedUser.id}`, {
+        password: newPasswordInput.trim()
+      })
+      setMessage('User password updated successfully')
+      setShowUpdatePassword(false)
+      setNewPasswordInput('')
+      await loadUsers(query)
+      openUserDetail(selectedUser)
+    } catch (err) {
+      setMessage(err?.response?.data?.error || 'Failed to update password')
     } finally {
       setDetailLoading(false)
     }
@@ -343,6 +388,17 @@ export default function AdminUsersPage() {
             {openTrades.length > 0 && <span className="ml-2 bg-rose-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{openTrades.length}</span>}
           </button>
           <button 
+            className={`px-4 py-2 text-sm font-semibold border-b-2 transition ${activeTab === 'binary_trades' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+            onClick={() => setActiveTab('binary_trades')}
+          >
+            Binary Options
+            {(binaryTrades?.open?.length || 0) > 0 && (
+              <span className="ml-2 bg-emerald-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                {binaryTrades.open.length}
+              </span>
+            )}
+          </button>
+          <button 
             className={`px-4 py-2 text-sm font-semibold border-b-2 transition ${activeTab === 'ib_affiliate' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
             onClick={() => setActiveTab('ib_affiliate')}
           >
@@ -429,6 +485,16 @@ export default function AdminUsersPage() {
                     />
                   </label>
                   <label className="text-[12px] font-semibold uppercase tracking-[0.1em] text-slate-500 space-y-1.5 block">
+                    <span>Password (Set New)</span>
+                    <input
+                      type="text"
+                      placeholder="Leave blank to keep unchanged"
+                      value={editForm.password || ''}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, password: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 font-medium focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none font-mono text-xs"
+                    />
+                  </label>
+                  <label className="text-[12px] font-semibold uppercase tracking-[0.1em] text-slate-500 space-y-1.5 block md:col-span-2">
                     <span>Admin Note</span>
                     <textarea
                       value={editForm.note}
@@ -477,6 +543,88 @@ export default function AdminUsersPage() {
               <div>
                 <div className="text-xs uppercase tracking-[0.2em] text-white/50 mb-1">Email Address</div>
                 <div className="font-mono text-sm break-all">{selectedUser.email}</div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-xs uppercase tracking-[0.2em] text-white/50">User Password</div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="text-[11px] text-indigo-400 hover:text-indigo-300 transition font-medium flex items-center gap-1"
+                  >
+                    {showPassword ? (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858-5.908a8.962 8.962 0 012.122-.363c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21f-9-9" /></svg>
+                        Hide
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                        Show
+                      </>
+                    )}
+                  </button>
+                </div>
+                <div className="font-mono text-sm break-all bg-slate-800/90 px-3.5 py-2.5 rounded-xl border border-slate-700/70 flex items-center justify-between gap-2">
+                  <span className="truncate selection:bg-indigo-500 selection:text-white">
+                    {showPassword 
+                      ? (userDetail?.raw_password || selectedUser?.raw_password || 'Password123!')
+                      : '••••••••••••'}
+                  </span>
+                  {showPassword && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const activePass = userDetail?.raw_password || selectedUser?.raw_password || 'Password123!';
+                        navigator.clipboard.writeText(activePass);
+                        setMessage('Password copied to clipboard');
+                      }}
+                      className="text-slate-400 hover:text-white transition p-1 shrink-0"
+                      title="Copy Password"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 012-2v-8a2 2 0 01-2-2h-8a2 2 0 01-2 2v8a2 2 0 012 2z" /></svg>
+                    </button>
+                  )}
+                </div>
+                
+                {showUpdatePassword ? (
+                  <div className="mt-3 space-y-2 border-t border-slate-800 pt-3">
+                    <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Set New Password</div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="New password..."
+                        value={newPasswordInput}
+                        onChange={(e) => setNewPasswordInput(e.target.value)}
+                        className="flex-1 rounded-xl bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-mono"
+                      />
+                      <button
+                        type="button"
+                        disabled={detailLoading || !newPasswordInput.trim()}
+                        onClick={handleDirectPasswordUpdate}
+                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition disabled:opacity-50"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setShowUpdatePassword(false); setNewPasswordInput('') }}
+                        className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowUpdatePassword(true)}
+                    className="mt-2 text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition flex items-center gap-1.5"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                    Update Password
+                  </button>
+                )}
               </div>
               {userDetail?.handle && (
                 <div>
@@ -732,6 +880,192 @@ export default function AdminUsersPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Binary Options Tab */}
+        {activeTab === 'binary_trades' && (
+          <div className="space-y-6">
+            {/* Stats Summary Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-soft">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400 mb-1">Total Binary Trades</div>
+                <div className="text-2xl font-bold text-slate-900">{binaryTrades.stats?.total || 0}</div>
+              </div>
+              <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-soft">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400 mb-1">Wins / Losses / Pushes</div>
+                <div className="text-lg font-bold flex items-center gap-2">
+                  <span className="text-emerald-600">{binaryTrades.stats?.win || 0}W</span>
+                  <span className="text-slate-300">/</span>
+                  <span className="text-rose-600">{binaryTrades.stats?.lose || 0}L</span>
+                  <span className="text-slate-300">/</span>
+                  <span className="text-amber-600">{binaryTrades.stats?.push || 0}P</span>
+                </div>
+              </div>
+              <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-soft">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400 mb-1">Total Stake Volume</div>
+                <div className="text-2xl font-bold text-slate-900">{currency(binaryTrades.stats?.totalStake || 0)}</div>
+              </div>
+              <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-soft">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400 mb-1">Net Binary P/L</div>
+                <div className={`text-2xl font-bold ${(binaryTrades.stats?.netPnL || 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {(binaryTrades.stats?.netPnL || 0) > 0 ? '+' : ''}{currency(binaryTrades.stats?.netPnL || 0)}
+                </div>
+              </div>
+            </div>
+
+            {/* Live Open Binary Positions */}
+            <div className="rounded-3xl bg-white shadow-soft border border-slate-100 p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                  <span>Live Binary Positions</span>
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                </div>
+                <span className="text-xs font-semibold text-slate-400">
+                  {binaryTrades.open?.length || 0} Open Position{(binaryTrades.open?.length || 0) !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="text-slate-500">
+                    <tr>
+                      <th className="py-2 text-left font-semibold uppercase tracking-wider text-[11px]">Time</th>
+                      <th className="py-2 text-left font-semibold uppercase tracking-wider text-[11px]">Symbol</th>
+                      <th className="py-2 text-left font-semibold uppercase tracking-wider text-[11px]">Direction</th>
+                      <th className="py-2 text-right font-semibold uppercase tracking-wider text-[11px]">Stake</th>
+                      <th className="py-2 text-right font-semibold uppercase tracking-wider text-[11px]">Entry Price</th>
+                      <th className="py-2 text-right font-semibold uppercase tracking-wider text-[11px]">Current Price</th>
+                      <th className="py-2 text-right font-semibold uppercase tracking-wider text-[11px]">Expiry In</th>
+                      <th className="py-2 text-right font-semibold uppercase tracking-wider text-[11px]">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {detailLoading ? (
+                      <tr><td colSpan={8} className="py-8 text-center text-slate-500">Loading open binary positions...</td></tr>
+                    ) : (binaryTrades.open || []).length === 0 ? (
+                      <tr><td colSpan={8} className="py-8 text-center text-slate-500">No active binary trades right now.</td></tr>
+                    ) : (
+                      (binaryTrades.open || []).map(trade => {
+                        const entryPrice = Number(trade.entry_price || 0);
+                        const sym = trade.symbol || 'BTCUSD';
+                        const currentPrice = marketPrices[sym] ?? marketPrices[`${sym}USD`] ?? marketPrices[`${sym}USDT`] ?? marketPrices[sym.replace('USDT', '')] ?? entryPrice;
+                        const direction = trade.direction?.toLowerCase();
+                        const isCall = direction === 'call';
+                        const isWinning = isCall ? currentPrice > entryPrice : currentPrice < entryPrice;
+                        const remainingSec = Math.max(0, Number(trade.expiry_ts || 0) - nowSec);
+                        const m = Math.floor(remainingSec / 60);
+                        const s = remainingSec % 60;
+                        const formattedTimeLeft = remainingSec <= 0 ? 'Settling...' : (m > 0 ? `${m}m ${s.toString().padStart(2, '0')}s` : `${s}s`);
+                        
+                        return (
+                          <tr key={trade.id} className="text-slate-700 hover:bg-slate-50 transition">
+                            <td className="py-3 font-medium text-slate-500">
+                              {trade.created_ts ? new Date(trade.created_ts * 1000).toLocaleTimeString() : '—'}
+                            </td>
+                            <td className="py-3 font-semibold text-slate-900">{trade.symbol}</td>
+                            <td className="py-3 font-bold uppercase text-[11px]">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${isCall ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                {isCall ? 'CALL ⬆' : 'PUT ⬇'}
+                              </span>
+                            </td>
+                            <td className="py-3 text-right font-mono font-semibold text-slate-900">{currency(trade.stake)}</td>
+                            <td className="py-3 text-right font-mono">{entryPrice.toFixed(2)}</td>
+                            <td className={`py-3 text-right font-mono font-semibold ${isWinning ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {currentPrice.toFixed(2)}
+                            </td>
+                            <td className="py-3 text-right font-mono text-indigo-600 font-bold">
+                              {formattedTimeLeft}
+                            </td>
+                            <td className="py-3 text-right">
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-600">
+                                Open
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Complete Binary Trade History */}
+            <div className="rounded-3xl bg-white shadow-soft border border-slate-100 p-6 space-y-4">
+              <div className="text-sm font-bold text-slate-800 uppercase tracking-wider">All Binary Trade History</div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="text-slate-500">
+                    <tr>
+                      <th className="py-2 text-left font-semibold uppercase tracking-wider text-[11px]">Created / Settled</th>
+                      <th className="py-2 text-left font-semibold uppercase tracking-wider text-[11px]">Symbol</th>
+                      <th className="py-2 text-left font-semibold uppercase tracking-wider text-[11px]">Direction</th>
+                      <th className="py-2 text-right font-semibold uppercase tracking-wider text-[11px]">Stake</th>
+                      <th className="py-2 text-right font-semibold uppercase tracking-wider text-[11px]">Entry Price</th>
+                      <th className="py-2 text-right font-semibold uppercase tracking-wider text-[11px]">Settle Price</th>
+                      <th className="py-2 text-right font-semibold uppercase tracking-wider text-[11px]">Outcome</th>
+                      <th className="py-2 text-right font-semibold uppercase tracking-wider text-[11px]">Payout</th>
+                      <th className="py-2 text-right font-semibold uppercase tracking-wider text-[11px]">Net P/L</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {detailLoading ? (
+                      <tr><td colSpan={9} className="py-8 text-center text-slate-500">Loading binary trade history...</td></tr>
+                    ) : (binaryTrades.history || []).length === 0 ? (
+                      <tr><td colSpan={9} className="py-8 text-center text-slate-500">No binary trade history recorded.</td></tr>
+                    ) : (
+                      (binaryTrades.history || []).map((trade, idx) => {
+                        const isCall = trade.direction?.toLowerCase() === 'call';
+                        const isWin = trade.result === 'win';
+                        const isPush = trade.result === 'push';
+                        const netPnl = trade.status === 'settled' ? (Number(trade.payout || 0) - Number(trade.stake || 0)) : 0;
+                        const createdDate = trade.created_ts ? new Date(trade.created_ts * 1000).toLocaleString() : '—';
+
+                        return (
+                          <tr key={trade.id || idx} className="text-slate-700 hover:bg-slate-50 transition group">
+                            <td className="py-3 whitespace-nowrap text-slate-500 relative">
+                              <span>{createdDate}</span>
+                              <button 
+                                onClick={() => setEditingTime({ table: 'binary_trades', id: trade.id, field: 'created_ts', value: createdDate })}
+                                className="ml-2 opacity-0 group-hover:opacity-100 text-indigo-500 hover:text-indigo-700 transition inline-flex align-middle"
+                                title="Edit Timestamp"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                              </button>
+                            </td>
+                            <td className="py-3 font-semibold text-slate-900">{trade.symbol}</td>
+                            <td className="py-3 font-bold uppercase text-[11px]">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${isCall ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                {isCall ? 'CALL ⬆' : 'PUT ⬇'}
+                              </span>
+                            </td>
+                            <td className="py-3 text-right font-mono font-semibold text-slate-900">{currency(trade.stake)}</td>
+                            <td className="py-3 text-right font-mono">{Number(trade.entry_price || 0).toFixed(2)}</td>
+                            <td className="py-3 text-right font-mono">{trade.settlement_price != null ? Number(trade.settlement_price).toFixed(2) : '—'}</td>
+                            <td className="py-3 text-right">
+                              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                isWin ? 'bg-emerald-50 text-emerald-600' :
+                                isPush ? 'bg-amber-50 text-amber-600' :
+                                trade.status === 'open' ? 'bg-slate-100 text-slate-600' : 'bg-rose-50 text-rose-600'
+                              }`}>
+                                {trade.status === 'open' ? 'Open' : (trade.result || 'Settled')}
+                              </span>
+                            </td>
+                            <td className="py-3 text-right font-mono text-slate-900">{currency(trade.payout || 0)}</td>
+                            <td className={`py-3 text-right font-mono font-semibold ${netPnl > 0 ? 'text-emerald-600' : netPnl < 0 ? 'text-rose-600' : 'text-slate-500'}`}>
+                              {trade.status === 'settled' ? `${netPnl > 0 ? '+' : ''}${currency(netPnl)}` : '—'}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

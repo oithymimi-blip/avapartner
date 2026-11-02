@@ -18,13 +18,13 @@ export default function RevShare() {
         <h2 className="text-3xl font-bold mb-6 text-indigo-400">How It Works</h2>
         <div className="prose prose-invert max-w-none text-white/70">
           <p>
-            The Revenue Share (RevShare) model is the ultimate choice for partners focused on lifetime value. Instead of a one-time payment, you receive a predetermined percentage of the net spread revenue that AvaTrade earns from the trading activity of your referred clients. As long as your referrals keep trading, you keep earning.
+            The Revenue Share (RevShare) model is the ultimate choice for partners focused on lifetime value. Instead of a one-time payment, you receive a predetermined percentage of the net spread revenue that Fexova earns from the trading activity of your referred clients. As long as your referrals keep trading, you keep earning.
           </p>
           
           <div className="bg-indigo-500/5 border border-indigo-500/20 p-6 rounded-2xl my-8">
             <h4 className="text-indigo-300 font-bold mb-2">The Power of Lifetime Value</h4>
             <p className="text-sm m-0">
-              AvaTrade possesses some of the highest client retention rates in the industry, backed by expert account managers and top-tier educational resources. This means your referrals trade longer, resulting in a exponentially higher long-term payout for your business compared to a standard CPA.
+              Fexova possesses some of the highest client retention rates in the industry, backed by expert account managers and top-tier educational resources. This means your referrals trade longer, resulting in an exponentially higher long-term payout for your business compared to a standard CPA.
             </p>
           </div>
         </div>
@@ -41,7 +41,7 @@ export default function RevShare() {
           </ul>
         </div>
         <div className="bg-black/30 border border-white/5 p-8 rounded-3xl">
-          <h3 className="text-xl font-bold mb-4 text-white">The AvaPartner Advantage</h3>
+          <h3 className="text-xl font-bold mb-4 text-white">The Fexova Advantage</h3>
           <ul className="space-y-3 text-white/60">
             <li className="flex items-start gap-2"><div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div> Highly competitive percentage splits.</li>
             <li className="flex items-start gap-2"><div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div> Revenue generated from a massive asset index (Stocks, Crypto, Forex, Options).</li>

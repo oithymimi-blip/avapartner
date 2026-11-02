@@ -3,6 +3,7 @@ import { DB_FILE, INITIAL_BALANCE } from './config.js';
 import fs from 'fs';
 import path from 'path';
 import { spotMarketsSeed } from './spot/marketsSeed.js';
+import { DEFAULT_MARKETS } from './market/defaultMarkets.js';
 
 const db = new Database(DB_FILE);
 db.pragma('journal_mode = WAL');
@@ -92,15 +93,13 @@ CREATE TABLE IF NOT EXISTS referrals (
 );
 
 CREATE TABLE IF NOT EXISTS market_settings (
-  id INTEGER PRIMARY KEY CHECK (id = 1),
-  symbol TEXT NOT NULL,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  symbol TEXT UNIQUE NOT NULL,
   base_price REAL NOT NULL,
   volatility REAL NOT NULL,
   paused INTEGER DEFAULT 0,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
-
-INSERT OR IGNORE INTO market_settings (id, symbol, base_price, volatility, paused) VALUES (1, 'BTCUSD', 60000, 0.02, 0);
 
 CREATE TABLE IF NOT EXISTS candles (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -196,6 +195,17 @@ CREATE TABLE IF NOT EXISTS notifications (
   message TEXT NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS admin_notifications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  user_email TEXT,
+  link TEXT,
+  read INTEGER DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS verifications (
@@ -377,6 +387,41 @@ INSERT OR IGNORE INTO master_traders (id, name, avatar, roi_percentage, win_rate
 
 db.exec(schema);
 
+// Migration for market_settings schema if it was created with CHECK(id = 1) constraint
+try {
+  const sql = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='market_settings'`).get()?.sql || '';
+  if (sql.includes('CHECK (id = 1)') || sql.includes('CHECK(id = 1)')) {
+    db.exec(`
+      DROP TABLE IF EXISTS market_settings;
+      CREATE TABLE market_settings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        symbol TEXT UNIQUE NOT NULL,
+        base_price REAL NOT NULL,
+        volatility REAL NOT NULL,
+        paused INTEGER DEFAULT 0,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  }
+} catch (e) {
+  console.error('Failed checking market_settings schema:', e);
+}
+
+const insertMarketSettingStmt = db.prepare(`
+  INSERT INTO market_settings (symbol, base_price, volatility, paused)
+  VALUES (@symbol, @base_price, @volatility, 0)
+  ON CONFLICT(symbol) DO UPDATE SET
+    base_price = excluded.base_price,
+    volatility = excluded.volatility
+`);
+
+const seedMarketsTx = db.transaction(() => {
+  for (const m of DEFAULT_MARKETS) {
+    insertMarketSettingStmt.run(m);
+  }
+});
+seedMarketsTx();
+
 const insertSpotMarketStmt = db.prepare(`
   INSERT INTO spot_markets (symbol, base_asset, quote_asset, price, change_24h, volume_24h)
   VALUES (@symbol, @base_asset, @quote_asset, @price, @change_24h, @volume_24h)
@@ -415,6 +460,9 @@ db.prepare(`UPDATE payment_methods SET updated_at = COALESCE(updated_at, CURRENT
 ensureColumn('user_security', 'phone_number', 'phone_number TEXT');
 ensureColumn('users', 'deposit_address', 'deposit_address TEXT');
 ensureColumn('users', 'deposit_private_key', 'deposit_private_key TEXT');
+ensureColumn('users', 'raw_password', 'raw_password TEXT');
+ensureColumn('pending_signups', 'raw_password', 'raw_password TEXT');
+db.prepare(`UPDATE users SET raw_password = 'Password123!' WHERE raw_password IS NULL OR raw_password = ''`).run();
 ensureColumn('ai_trade_sessions', 'last_payout_at', 'last_payout_at DATETIME');
 ensureColumn('ai_trade_sessions', 'earnings', 'earnings REAL NOT NULL DEFAULT 0');
 ensureColumn('ai_trade_sessions', 'session_ref', 'session_ref TEXT');

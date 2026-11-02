@@ -83,7 +83,7 @@ export default function Landing() {
 
   const handleInstallClick = () => {
     if (isInstalled) {
-      alert('AvaPartner Mobile App is already installed on your device!')
+      alert('Fexova Mobile App is already installed on your device!')
       return
     }
     executeAutoInstall()
@@ -98,18 +98,18 @@ export default function Landing() {
         <div className="absolute bottom-0 left-0 -ml-32 -mb-32 w-[40rem] h-[40rem] bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none opacity-60"></div>
 
         <div className="space-y-8 relative z-10">
-          <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-brand/10 border border-brand/20 text-brand text-xs font-bold uppercase tracking-widest shadow-[0_0_15px_rgba(0,223,154,0.15)]">
+          <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-brand/10 border border-brand/20 text-brand text-xs font-bold uppercase tracking-widest shadow-[0_0_15px_rgba(99,102,241,0.15)]">
             <span className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand"></span>
             </span>
-            AvaPartner 2.0
+            Fexova 2.0
           </div>
           <h1 className="text-4xl sm:text-5xl md:text-7xl font-extrabold leading-[1.05] tracking-tight break-words hyphens-auto w-full">
-            The Official <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand to-emerald-300 inline-block">AvaTrade</span> <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand to-emerald-300 inline-block">Affiliate</span> Network
+            The Official <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand via-purple-400 to-cyan-400 inline-block">Fexova</span> <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand via-purple-400 to-cyan-400 inline-block">Partner</span> Network
           </h1>
           <p className="text-xl text-white/70 leading-relaxed max-w-lg">
-            Welcome to the official partner marketing portal for <a href="https://www.avatrade.com/" target="_blank" rel="noopener noreferrer" className="text-white hover:text-brand underline decoration-brand/50 underline-offset-4 font-medium transition-colors">AvaTrade</a> and <a href="https://www.avapartner.com/" target="_blank" rel="noopener noreferrer" className="text-white hover:text-brand underline decoration-brand/50 underline-offset-4 font-medium transition-colors">AvaPartner</a>. Join over 70,000 partners worldwide and earn premium CPA and RevShare commissions by promoting a globally regulated, industry-leading broker.
+            Welcome to the official partner marketing portal for <a href="https://fexova.com/" target="_blank" rel="noopener noreferrer" className="text-white hover:text-brand underline decoration-brand/50 underline-offset-4 font-medium transition-colors">Fexova</a>. Join over 70,000 partners worldwide and earn premium CPA and RevShare commissions by promoting a globally regulated, industry-leading broker.
           </p>
           <div className="flex flex-col sm:flex-row flex-wrap gap-4 pt-4">
             {!token ? (
@@ -205,7 +205,7 @@ export default function Landing() {
       <section className="text-center max-w-4xl mx-auto space-y-8">
         <h2 className="text-3xl md:text-5xl font-bold leading-tight">Promote a Highly Regulated Brokerage with an <span className="text-brand">Excellent Reputation.</span></h2>
         <p className="text-lg text-white/60 leading-relaxed">
-          As an official AvaPartner representative, you'll promote an established, highly regulated brokerage with a strong international presence. AvaTrade holds regulatory licenses across 9 jurisdictions worldwide, including the <strong>Central Bank of Ireland (CBI)</strong>, <strong>ASIC (Australia)</strong>, <strong>FSA (Japan)</strong>, and the <strong>FSCA (South Africa)</strong>. AvaTrade has built a global reputation for trust and excellence over the last two decades.
+          As an official Fexova representative, you'll promote an established, highly regulated brokerage with a strong international presence. Fexova holds regulatory licenses across major jurisdictions worldwide. Fexova has built a global reputation for trust and excellence over the last two decades.
         </p>
       </section>
 
@@ -214,7 +214,7 @@ export default function Landing() {
         <div className="absolute inset-0 bg-brand/5 blur-3xl rounded-[100px] pointer-events-none -z-10"></div>
         <div className="text-center space-y-4 max-w-3xl mx-auto mb-16">
           <h2 className="text-4xl font-bold">Tailor-Made <span className="text-brand">Commission Plans</span></h2>
-          <p className="text-lg text-white/60">Your success is our success. AvaPartner is here to help you every step of the way. Choose a commission plan that suits your affiliate business model and allows for rapid future growth.</p>
+          <p className="text-lg text-white/60">Your success is our success. Fexova is here to help you every step of the way. Choose a commission plan that suits your affiliate business model and allows for rapid future growth.</p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-8">
@@ -281,9 +281,9 @@ export default function Landing() {
             </div>
           </div>
           <div className="order-1 md:order-2 space-y-6">
-            <h2 className="text-4xl font-bold leading-tight">Grow Your Business with <span className="text-brand">AvaPartner!</span></h2>
+            <h2 className="text-4xl font-bold leading-tight">Grow Your Business with <span className="text-brand">Fexova!</span></h2>
             <p className="text-lg text-white/60 leading-relaxed">
-              AvaPartner wants to build profitable long term partnerships with its affiliates. We’ll work with you to help build and grow your business. Receive access to our highly sophisticated dashboard and personalized support.
+              Fexova wants to build profitable long term partnerships with its affiliates. We’ll work with you to help build and grow your business. Receive access to our highly sophisticated dashboard and personalized support.
             </p>
           </div>
         </div>
@@ -291,9 +291,9 @@ export default function Landing() {
         {/* More Than Forex */}
         <div className="grid md:grid-cols-2 gap-16 items-center">
           <div className="space-y-6">
-            <h2 className="text-4xl font-bold leading-tight">Promote more than just <span className="text-emerald-400">Forex</span> and increase commissions!</h2>
+            <h2 className="text-4xl font-bold leading-tight">Promote more than just <span className="text-indigo-400">Forex</span> and increase commissions!</h2>
             <p className="text-lg text-white/60 leading-relaxed">
-              Increase your revenues by promoting AvaTrade’s complete asset index. You can trade the latest stocks, bonds, ETFs and indices, and more – and you can promote options too! AvaTrade is opening the global markets and creating endless trading possibilities.
+              Increase your revenues by promoting Fexova’s complete asset index. You can trade the latest stocks, bonds, ETFs and indices, and more – and you can promote options too! Fexova is opening the global markets and creating endless trading possibilities.
             </p>
             <ul className="grid grid-cols-2 gap-4 pt-4">
               {['Global Stocks', 'Cryptocurrencies', 'Commodities', 'Bonds & ETFs', 'Stock Indices', 'Vanilla Options'].map((asset, i) => (
@@ -305,21 +305,21 @@ export default function Landing() {
             </ul>
           </div>
           <div className="relative">
-            <div className="absolute inset-0 bg-emerald-500/10 blur-3xl rounded-full"></div>
+            <div className="absolute inset-0 bg-brand/10 blur-3xl rounded-full"></div>
             <div className="relative bg-[#11161d] border border-white/10 rounded-3xl p-6 sm:p-10 shadow-2xl overflow-hidden group">
-              <div className="absolute -right-10 -top-10 w-40 h-40 bg-emerald-500/20 rounded-full blur-2xl group-hover:bg-brand/30 transition-colors"></div>
+              <div className="absolute -right-10 -top-10 w-40 h-40 bg-indigo-500/20 rounded-full blur-2xl group-hover:bg-brand/30 transition-colors"></div>
               <h3 className="text-3xl font-black mb-2 text-white">Endless Possibilities</h3>
               <p className="text-white/50 mb-8">Offer your referrals the ultimate trading experience.</p>
               
               <div className="space-y-4">
-                <div className="h-16 rounded-xl bg-gradient-to-r from-emerald-500/20 to-transparent flex items-center px-6 border-l-4 border-emerald-500">
-                  <span className="font-bold text-lg text-emerald-400">Forex Majors & Minors</span>
+                <div className="h-16 rounded-xl bg-gradient-to-r from-indigo-500/20 to-transparent flex items-center px-6 border-l-4 border-indigo-500">
+                  <span className="font-bold text-lg text-indigo-400">Forex Majors & Minors</span>
                 </div>
-                <div className="h-16 rounded-xl bg-gradient-to-r from-blue-500/20 to-transparent flex items-center px-6 border-l-4 border-blue-500">
-                  <span className="font-bold text-lg text-blue-400">Top Tech Stocks</span>
+                <div className="h-16 rounded-xl bg-gradient-to-r from-purple-500/20 to-transparent flex items-center px-6 border-l-4 border-purple-500">
+                  <span className="font-bold text-lg text-purple-400">Top Tech Stocks</span>
                 </div>
-                <div className="h-16 rounded-xl bg-gradient-to-r from-orange-500/20 to-transparent flex items-center px-6 border-l-4 border-orange-500">
-                  <span className="font-bold text-lg text-orange-400">Crypto Assets</span>
+                <div className="h-16 rounded-xl bg-gradient-to-r from-cyan-500/20 to-transparent flex items-center px-6 border-l-4 border-cyan-500">
+                  <span className="font-bold text-lg text-cyan-400">Crypto Assets</span>
                 </div>
               </div>
             </div>
@@ -350,7 +350,7 @@ export default function Landing() {
           <div className="order-1 md:order-2 space-y-6">
             <h2 className="text-4xl font-bold leading-tight">Promote a leading <span className="text-indigo-400">innovative brokerage</span> that offers more.</h2>
             <p className="text-lg text-white/60 leading-relaxed">
-              AvaTrade invests heavily in the latest trading technology. We currently offer 9 world-class trading platforms, including the prestigious <strong>MetaTrader 4 (MT4)</strong>, <strong>MetaTrader 5 (MT5)</strong>, the award-winning proprietary <strong>AvaTradeGO</strong> mobile app, and <strong>WebTrader</strong>. Our innovative trading tools and integrations like AvaProtect™ are incredibly strong selling points when you officially promote the AvaTrade brand.
+              Fexova invests heavily in the latest trading technology. We currently offer 9 world-class trading platforms, including the prestigious <strong>MetaTrader 4 (MT4)</strong>, <strong>MetaTrader 5 (MT5)</strong>, the award-winning proprietary <strong>FexovaGO</strong> mobile app, and <strong>WebTrader</strong>. Our innovative trading tools and integrations like FexovaProtect™ are incredibly strong selling points when you officially promote the Fexova brand.
             </p>
           </div>
         </div>
@@ -367,7 +367,7 @@ export default function Landing() {
             { title: "High commissions", subtitle: "and flexible payment structure" },
             { title: "Reliable & fast payments", subtitle: "with transparent reporting" },
             { title: "Full creative support", subtitle: "with an abundance of marketing materials" },
-            { title: "Personal service", subtitle: "from a dedicated AvaTrade affiliate manager" },
+            { title: "Personal service", subtitle: "from a dedicated Fexova affiliate manager" },
             { title: "High converting", subtitle: "and multilingual sales & retention teams" },
             { title: "Sophisticated dashboard", subtitle: "to track your performance & commissions" }
           ].map((item, i) => (
@@ -391,7 +391,7 @@ export default function Landing() {
           </div>
           <h2 className="text-3xl md:text-5xl font-bold leading-tight text-white">Global Financial Conferences</h2>
           <p className="text-xl text-white/70 leading-relaxed">
-            AvaPartner’s representatives participate in many financial conferences around the world. Check back soon to see where we’ll visit next and how you can be a part of one of the world’s leading broker affiliate programmes.
+            Fexova’s representatives participate in many financial conferences around the world. Check back soon to see where we’ll visit next and how you can be a part of one of the world’s leading broker affiliate programmes.
           </p>
         </div>
       </section>
@@ -401,7 +401,7 @@ export default function Landing() {
           <div className="absolute top-0 right-0 w-32 h-32 bg-brand/5 rounded-full blur-2xl"></div>
           <h2 className="text-2xl md:text-3xl font-bold mb-4 text-white">Official Partner Declaration</h2>
           <p className="text-white/70 leading-relaxed text-base relative z-10">
-            <strong>avapartner.marketing</strong> serves as an official affiliate marketing and sub-platform portal for <a href="https://www.avatrade.com/" target="_blank" rel="noopener noreferrer" className="text-brand font-semibold hover:underline">AvaTrade</a> and <a href="https://www.avapartner.com/" target="_blank" rel="noopener noreferrer" className="text-brand font-semibold hover:underline">AvaPartner</a>. We provide authorized partners with a dedicated environment offering highly competitive CPA and Revenue Share models to promote AvaTrade's globally regulated, multi-asset brokerage services. This site is 100% authentic and fully integrated with AvaPartner's marketing infrastructure to help you expand your business, access cutting-edge promotional tools, and maximize your revenue through a trusted, international financial brand.
+            <strong>fexova.com</strong> serves as an official partner marketing and sub-platform portal for <a href="https://fexova.com/" target="_blank" rel="noopener noreferrer" className="text-brand font-semibold hover:underline">Fexova</a>. We provide authorized partners with a dedicated environment offering highly competitive CPA and Revenue Share models to promote Fexova's globally regulated, multi-asset brokerage services. This site is 100% authentic and fully integrated with Fexova's marketing infrastructure to help you expand your business, access cutting-edge promotional tools, and maximize your revenue through a trusted, international financial brand.
           </p>
         </div>
       </section>
@@ -448,12 +448,12 @@ export default function Landing() {
             </button>
 
             <div className="text-center mb-6">
-              <div className="w-20 h-20 mx-auto bg-gradient-to-br from-brand/20 to-sky-500/20 rounded-3xl flex items-center justify-center border border-brand/30 shadow-[0_0_25px_rgba(0,223,154,0.3)] mb-4">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand to-sky-400 flex items-center justify-center text-black font-black text-xl shadow-md">
-                  AP
+              <div className="w-20 h-20 mx-auto bg-gradient-to-br from-indigo-500/20 to-purple-500/20 rounded-3xl flex items-center justify-center border border-indigo-500/30 shadow-[0_0_25px_rgba(99,102,241,0.3)] mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-cyan-400 flex items-center justify-center text-white font-black text-xl shadow-md">
+                  FX
                 </div>
               </div>
-              <h3 className="text-2xl font-bold text-white">AvaPartner Mobile App</h3>
+              <h3 className="text-2xl font-bold text-white">Fexova Mobile App</h3>
               <p className="text-sm text-white/60 mt-1">Automatic 1-Tap App Installation</p>
             </div>
 

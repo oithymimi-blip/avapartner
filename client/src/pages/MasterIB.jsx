@@ -10,7 +10,7 @@ export default function MasterIB() {
         </div>
         <h1 className="text-4xl md:text-5xl font-extrabold mb-4">Master Introducing Broker</h1>
         <p className="text-white/60 text-lg max-w-2xl mx-auto">
-          Scale your business exponentially. Refer other affiliates and Introducing Brokers to AvaPartner and earn a percentage of their success.
+          Scale your business exponentially. Refer other affiliates and Introducing Brokers to Fexova and earn a percentage of their success.
         </p>
       </div>
 
@@ -19,7 +19,7 @@ export default function MasterIB() {
         <h2 className="text-3xl font-bold mb-6 text-purple-400 relative z-10">Expand Your Network</h2>
         <div className="prose prose-invert max-w-none text-white/70 relative z-10">
           <p>
-            The Master IB (Introducing Broker) program is a multi-tier affiliate structure designed for established marketers and networkers. As a Master IB, you are not just referring traders; you are recruiting sub-affiliates to join the AvaPartner network under your umbrella.
+            The Master IB (Introducing Broker) program is a multi-tier affiliate structure designed for established marketers and networkers. As a Master IB, you are not just referring traders; you are recruiting sub-affiliates to join the Fexova network under your umbrella.
           </p>
           <p>
             Every time a sub-affiliate in your network generates a commission—whether through CPA or RevShare—you receive an overriding percentage of their earnings. This allows you to build a massive, decentralized marketing machine that generates revenue around the clock.

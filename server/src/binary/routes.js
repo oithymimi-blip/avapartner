@@ -1,7 +1,7 @@
 import express from 'express';
 import db from '../db.js';
 import { requireAuth } from '../auth/authMiddleware.js';
-import { currentPrice } from '../market/engine.js';
+import { currentPrice, emitSocket } from '../market/engine.js';
 import { nowTs } from '../utils.js';
 import { INITIAL_BALANCE } from '../config.js';
 import { ibEngine } from '../ib/commissionEngine.js';
@@ -63,12 +63,34 @@ function getOrInitBalance(userId) {
   };
 }
 
-function priceAt(symbol, ts) {
-  const row = selectTickBeforeStmt.get(symbol, ts);
-  if (row && Number.isFinite(Number(row.price))) {
+function cleanSymbol(value) {
+  if (!value) return 'BTCUSD';
+  const cleaned = String(value).replace(/[^A-Za-z]/g, '').toUpperCase();
+  if (cleaned.endsWith('USDT')) return cleaned.slice(0, -1);
+  return cleaned || 'BTCUSD';
+}
+
+function getLatestPrice(symbol) {
+  const norm = cleanSymbol(symbol);
+  const row = db.prepare('SELECT price FROM ticks WHERE symbol = ? ORDER BY ts DESC LIMIT 1').get(norm);
+  if (row && Number.isFinite(Number(row.price)) && Number(row.price) > 0) {
     return Number(row.price);
   }
-  return currentPrice();
+  const cp = currentPrice(norm);
+  if (Number.isFinite(cp) && cp > 0) return cp;
+  const setRow = db.prepare('SELECT base_price FROM market_settings WHERE symbol = ?').get(norm);
+  if (setRow && Number.isFinite(setRow.base_price) && setRow.base_price > 0) return setRow.base_price;
+  const anyRow = db.prepare('SELECT base_price FROM market_settings LIMIT 1').get();
+  return anyRow ? anyRow.base_price : 100;
+}
+
+function priceAt(symbol, ts) {
+  const norm = cleanSymbol(symbol);
+  const row = selectTickBeforeStmt.get(norm, ts);
+  if (row && Number.isFinite(Number(row.price)) && Number(row.price) > 0) {
+    return Number(row.price);
+  }
+  return getLatestPrice(norm);
 }
 
 function normaliseTradePayload(trade) {
@@ -92,7 +114,7 @@ function normaliseTradePayload(trade) {
   };
 }
 
-function settleExpiredTrades(userId) {
+export function settleExpiredTrades(userId) {
   const now = nowTs();
   const open = selectExpiredBinaryTradesStmt.all(userId, now);
   if (!open.length) return;
@@ -131,6 +153,7 @@ function settleExpiredTrades(userId) {
   }
 
   updateBalanceStmt.run(round2(available), round2(locked), userId);
+  emitSocket('admin_trade_update', { userId, type: 'binary_settled' });
 }
 
 function buildStats(userId) {
@@ -164,7 +187,7 @@ function buildStats(userId) {
   };
 }
 
-function getOverview(userId, limit = 15) {
+export function getOverview(userId, limit = 15) {
   settleExpiredTrades(userId);
   const balance = getOrInitBalance(userId);
   const openRows = selectOpenBinaryTradesStmt.all(userId).map(normaliseTradePayload);
@@ -200,7 +223,8 @@ router.get('/overview', (req, res) => {
 
 router.post('/', (req, res) => {
   try {
-    const { direction, amount, duration, symbol = 'BTCUSDT' } = req.body || {};
+    const { direction, amount, duration, symbol } = req.body || {};
+    const normSymbol = cleanSymbol(symbol);
     const normalizedDirection = String(direction || '').toLowerCase();
     if (!['call', 'put'].includes(normalizedDirection)) {
       return res.status(400).json({ error: 'direction must be call or put' });
@@ -219,7 +243,7 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: 'Insufficient balance' });
     }
 
-    const entry = currentPrice();
+    const entry = getLatestPrice(normSymbol);
     if (!Number.isFinite(entry) || entry <= 0) {
       return res.status(500).json({ error: 'Invalid market price' });
     }
@@ -229,7 +253,7 @@ router.post('/', (req, res) => {
 
     insertBinaryTradeStmt.run(
       req.user.id,
-      symbol,
+      normSymbol,
       normalizedDirection,
       stake,
       DEFAULT_PAYOUT_RATE,
@@ -249,6 +273,8 @@ router.post('/', (req, res) => {
 
     // IB commission: triggered on every binary trade execution
     ibEngine.processBinaryTradeCommission(req.user.id, stake);
+
+    emitSocket('admin_trade_update', { userId: req.user.id, type: 'binary_placed' });
 
     res.json({ ok: true, entry_price: entry, ...overview });
   } catch (err) {

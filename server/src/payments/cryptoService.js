@@ -4,6 +4,7 @@ import { BSC_RPC_URL, FACTORY_ADDRESS, ADMIN_PRIVATE_KEY, USDT_ADDRESS, HOT_WALL
 import { FACTORY_ABI, ERC20_ABI, FORWARDER_ABI } from './abis.js';
 import db from '../db.js';
 import { emitSocket } from '../market/engine.js';
+import { notifyAdmin } from '../notifications/adminNotifications.js';
 
 let provider;
 let wallet;
@@ -97,6 +98,14 @@ async function checkMissedDeposits() {
         const newNotification = db.prepare('SELECT * FROM notifications WHERE id = ?').get(notifId);
         emitSocket('notification', { notification: newNotification });
         emitSocket('user_data_update', { user_id: user.id, type: 'deposit_credited' });
+
+        notifyAdmin({
+          type: 'deposit',
+          title: '⚡ Crypto Auto-Deposit Received',
+          message: `$${amount} USDT auto-deposited for ${user.email}.`,
+          user_email: user.email,
+          link: '/admin/deposits'
+        });
         
         await sendDepositEmail(user.email, amount, txHash);
         
@@ -305,6 +314,14 @@ function startBlockchainListener() {
         
         // Broadcast generic event to let client refetch history and balance
         emitSocket('user_data_update', { user_id: user.id, type: 'deposit_credited' });
+
+        notifyAdmin({
+          type: 'deposit',
+          title: '⚡ Crypto Auto-Deposit Received',
+          message: `$${amount} USDT auto-deposited for ${user.email}.`,
+          user_email: user.email,
+          link: '/admin/deposits'
+        });
         
         await sendDepositEmail(user.email, amount, event.log.transactionHash);
 

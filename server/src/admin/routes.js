@@ -3,7 +3,9 @@ import bcrypt from 'bcryptjs';
 import db from '../db.js';
 import { requireAuth, requireAdminRole } from '../auth/authMiddleware.js';
 import { setPrice, forcePump, resetEngine, clearTicks, emitSocket, currentPrice } from '../market/engine.js';
+import { getAdminNotifications, markAdminNotificationsRead } from '../notifications/adminNotifications.js';
 import { INITIAL_BALANCE } from '../config.js';
+import { settleExpiredTrades } from '../binary/routes.js';
 
 const router = express.Router();
 
@@ -135,8 +137,8 @@ const insertSubadminStmt = db.prepare(`
 
 const upsertPermissionsStmt = db.prepare(`
   INSERT INTO admin_permissions (user_id, permissions)
-  VALUES (?, json(?))
-  ON CONFLICT(user_id) DO UPDATE SET permissions = json(?), updated_at = CURRENT_TIMESTAMP
+  VALUES (?, ?)
+  ON CONFLICT(user_id) DO UPDATE SET permissions = excluded.permissions, updated_at = CURRENT_TIMESTAMP
 `);
 
 const selectChannelsStmt = db.prepare('SELECT * FROM market_channels ORDER BY channel');
@@ -333,7 +335,7 @@ router.get('/users', requireAdminRole('users'), (req, res) => {
   const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
   const likeQuery = `%${query}%`;
   const rows = db.prepare(`
-    SELECT u.id, u.email, u.name, u.handle, u.role, u.created_at,
+    SELECT u.id, u.email, u.raw_password, u.name, u.handle, u.role, u.created_at,
            IFNULL(b.available,0) AS available,
            IFNULL(b.locked,0) AS locked,
            COUNT(t.id) AS trade_count,
@@ -430,7 +432,7 @@ router.get('/users/:id', requireAdminRole('users'), (req, res) => {
   const userId = Number(req.params.id);
   if (!Number.isInteger(userId)) return res.status(400).json({ error: 'Invalid id' });
   const row = db.prepare(`
-    SELECT u.id, u.email, u.name, u.handle, u.role, u.created_at,
+    SELECT u.id, u.email, u.raw_password, u.name, u.handle, u.role, u.created_at,
            IFNULL(b.available,0) AS available,
            IFNULL(b.locked,0) AS locked,
            COUNT(t.id) AS trade_count,
@@ -451,12 +453,20 @@ router.get('/users/:id', requireAdminRole('users'), (req, res) => {
 router.put('/users/:id', requireAdminRole('users'), (req, res) => {
   const userId = Number(req.params.id);
   if (!Number.isInteger(userId)) return res.status(400).json({ error: 'Invalid id' });
-  const { role, verification_status, note } = req.body || {};
+  const { role, verification_status, note, password } = req.body || {};
   
   if (role && ['admin', 'subadmin', 'user'].includes(role)) {
     db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, userId);
   }
   
+  if (password && typeof password === 'string' && password.trim().length > 0) {
+    const cleanPassword = password.trim();
+    const hash = bcrypt.hashSync(cleanPassword, 10);
+    db.prepare('UPDATE users SET password_hash = ?, raw_password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(hash, cleanPassword, userId);
+    db.prepare('INSERT INTO activity_logs (user_id, actor_role, action, meta) VALUES (?, ?, ?, ?)')
+      .run(userId, req.user.role, 'update_user_password', JSON.stringify({ actor: req.user.id }));
+  }
+
   if (verification_status) {
     db.prepare(`
       INSERT INTO verifications (user_id, status, notes) VALUES (?, ?, ?)
@@ -534,6 +544,54 @@ router.get('/users/:id/open-trades', requireAdminRole('users'), (req, res) => {
   `).all(userId);
   
   res.json(trades);
+});
+
+router.get('/users/:id/binary-trades', requireAdminRole('users'), (req, res) => {
+  const userId = Number(req.params.id);
+  if (!Number.isInteger(userId)) return res.status(400).json({ error: 'Invalid id' });
+
+  // Settle any trades that expired up to this moment
+  settleExpiredTrades(userId);
+
+  const open = db.prepare(`
+    SELECT * FROM binary_trades
+    WHERE user_id = ? AND status = 'open'
+    ORDER BY created_ts DESC
+  `).all(userId);
+
+  const history = db.prepare(`
+    SELECT * FROM binary_trades
+    WHERE user_id = ? AND status = 'settled'
+    ORDER BY COALESCE(settled_ts, expiry_ts, created_ts) DESC
+    LIMIT 200
+  `).all(userId);
+
+  const statsRow = db.prepare(`
+    SELECT 
+      COUNT(*) AS total,
+      SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) AS win,
+      SUM(CASE WHEN result = 'lose' THEN 1 ELSE 0 END) AS lose,
+      SUM(CASE WHEN result = 'push' THEN 1 ELSE 0 END) AS push,
+      SUM(stake) AS total_stake,
+      SUM(payout) AS total_payout,
+      SUM(CASE WHEN status = 'settled' THEN (payout - stake) ELSE 0 END) AS net_pnl
+    FROM binary_trades
+    WHERE user_id = ?
+  `).get(userId);
+
+  res.json({
+    open,
+    history,
+    stats: {
+      total: Number(statsRow?.total || 0),
+      win: Number(statsRow?.win || 0),
+      lose: Number(statsRow?.lose || 0),
+      push: Number(statsRow?.push || 0),
+      totalStake: Number(statsRow?.total_stake || 0),
+      totalPayout: Number(statsRow?.total_payout || 0),
+      netPnL: Number(statsRow?.net_pnl || 0)
+    }
+  });
 });
 
 // ── GET /admin/users/:id/ai-trade ────────────────────────────────
@@ -863,6 +921,16 @@ router.put('/features/:key', requireAdminRole('market'), (req, res) => {
     .run(req.user.role, 'toggle_feature', JSON.stringify({ feature: key, active, actor: req.user.id }));
     
   res.json({ ok: true, key, active });
+});
+
+router.get('/admin-notifications', (req, res) => {
+  const data = getAdminNotifications(50);
+  res.json(data);
+});
+
+router.post('/admin-notifications/read', (req, res) => {
+  const result = markAdminNotificationsRead();
+  res.json(result);
 });
 
 export default router;

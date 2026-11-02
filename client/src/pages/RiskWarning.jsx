@@ -36,10 +36,10 @@ export default function RiskWarning() {
 
         <h2>Affiliate Disclaimer</h2>
         <p>
-          AvaPartner (avapartner.marketing) is an affiliate marketing network. The materials and information provided on this site are for marketing and promotional purposes only and should not be construed as investment advice, financial advice, trading advice, or any other sort of advice. 
+          Fexova (fexova.com) is a partner marketing network. The materials and information provided on this site are for marketing and promotional purposes only and should not be construed as investment advice, financial advice, trading advice, or any other sort of advice. 
         </p>
         <p>
-          As an affiliate, it is your strict legal obligation to ensure that all marketing materials you distribute contain the appropriate risk warnings mandated by the regulatory bodies in the jurisdictions you are targeting (e.g., ESMA, ASIC, FCA). Failure to display mandatory risk warnings may result in immediate termination of your affiliate account and forfeiture of commissions.
+          As a partner, it is your strict legal obligation to ensure that all marketing materials you distribute contain the appropriate risk warnings mandated by the regulatory bodies in the jurisdictions you are targeting (e.g., ESMA, ASIC, FCA). Failure to display mandatory risk warnings may result in immediate termination of your affiliate account and forfeiture of commissions.
         </p>
 
         <h2>No Guarantees of Profit</h2>

@@ -18,14 +18,14 @@ export default function Contact() {
               <div className="flex items-start gap-4">
                 <svg className="w-6 h-6 text-white/40 mt-1 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
                 <div>
-                  <p className="font-bold text-white">AvaPartner (Dublin)</p>
-                  <p>Five Lamps Place, Amiens Street</p>
-                  <p>Dublin 1, Ireland</p>
+                  <p className="font-bold text-white">Fexova Headquarters</p>
+                  <p>Financial Center Tower 1</p>
+                  <p>London, EC2N 2DB, United Kingdom</p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
                 <svg className="w-6 h-6 text-white/40 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-                <a href="mailto:partners@avapartner.marketing" className="hover:text-brand transition-colors">partners@avapartner.marketing</a>
+                <a href="mailto:partners@fexova.com" className="hover:text-brand transition-colors">partners@fexova.com</a>
               </div>
             </div>
           </div>

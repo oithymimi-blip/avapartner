@@ -16,7 +16,7 @@ export default function HelpCenter() {
       <div className="text-center mb-16">
         <h1 className="text-4xl md:text-5xl font-extrabold mb-4">Help Center</h1>
         <p className="text-white/60 text-lg max-w-2xl mx-auto">
-          Everything you need to know about the AvaPartner network. Explore our guides, tutorials, and best practices.
+          Everything you need to know about the Fexova network. Explore our guides, tutorials, and best practices.
         </p>
       </div>
 

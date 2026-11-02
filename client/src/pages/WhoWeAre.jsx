@@ -16,10 +16,10 @@ export default function WhoWeAre() {
           <h2 className="text-3xl font-bold mb-6 text-brand relative z-10">Our People</h2>
           <div className="prose prose-invert max-w-none text-white/70 relative z-10">
             <p>
-              AvaPartner is built by a diverse, multi-disciplinary team of digital marketing experts, financial analysts, and technology developers. With headquarters in Dublin, Ireland, and regional offices in Sydney, Tokyo, Milan, and beyond, our team truly understands the nuances of the global market.
+              Fexova is built by a diverse, multi-disciplinary team of digital marketing experts, financial analysts, and technology developers. With headquarters in financial centers across London, Sydney, Tokyo, and beyond, our team truly understands the nuances of the global market.
             </p>
             <p>
-              Our affiliate managers are not just account handlers; they are seasoned marketing strategists. When you join AvaPartner, you are paired with a dedicated manager who speaks your language—both literally and professionally. They will work with you to optimize your campaigns, increase your conversion rates, and maximize your profitability.
+              Our affiliate managers are not just account handlers; they are seasoned marketing strategists. When you join Fexova, you are paired with a dedicated manager who speaks your language—both literally and professionally. They will work with you to optimize your campaigns, increase your conversion rates, and maximize your profitability.
             </p>
           </div>
         </section>

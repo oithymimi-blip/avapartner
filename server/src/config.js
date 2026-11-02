@@ -7,15 +7,26 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 export const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
+export const NODE_ENV = process.env.NODE_ENV || 'development';
+export const IS_PRODUCTION = NODE_ENV === 'production';
+
 export const JWT_SECRET = process.env.JWT_SECRET || 'dev_only_change_me';
+if (IS_PRODUCTION && (JWT_SECRET === 'dev_only_change_me' || !process.env.JWT_SECRET)) {
+  console.error('[CRITICAL SECURITY RISK] JWT_SECRET is using default development value in production! Set a unique JWT_SECRET in .env');
+}
+
 export const DB_FILE = process.env.DB_FILE || './data.db';
 export const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173')
   .split(',')
   .map(s => s.trim())
   .filter(Boolean);
 
-export const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@example.com';
-export const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Admin#12345';
+export const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'admin@example.com').trim().toLowerCase();
+export const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || 'Admin#12345').replace(/^["']|["']$/g, '');
+if (IS_PRODUCTION && ADMIN_PASSWORD === 'Admin#12345') {
+  console.error('[CRITICAL SECURITY RISK] ADMIN_PASSWORD is using default value in production! Set ADMIN_PASSWORD in .env');
+}
+
 const parsedInitialBalance = Number(process.env.INITIAL_BALANCE);
 export const INITIAL_BALANCE = Number.isFinite(parsedInitialBalance) && parsedInitialBalance >= 0
   ? parsedInitialBalance

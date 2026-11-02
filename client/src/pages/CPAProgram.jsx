@@ -10,7 +10,7 @@ export default function CPAProgram() {
         </div>
         <h1 className="text-4xl md:text-5xl font-extrabold mb-4">Cost Per Acquisition Program</h1>
         <p className="text-white/60 text-lg max-w-2xl mx-auto">
-          Maximize your immediate cash flow. Earn a high, fixed commission for every qualified trader you introduce to AvaTrade.
+          Maximize your immediate cash flow. Earn a high, fixed commission for every qualified trader you introduce to Fexova.
         </p>
       </div>
 
@@ -50,11 +50,11 @@ export default function CPAProgram() {
           </ul>
         </div>
         <div className="bg-black/30 border border-white/5 p-8 rounded-3xl">
-          <h3 className="text-xl font-bold mb-4 text-white">The AvaPartner Advantage</h3>
+          <h3 className="text-xl font-bold mb-4 text-white">The Fexova Advantage</h3>
           <ul className="space-y-3 text-white/60">
-            <li className="flex items-start gap-2"><div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mt-2 flex-shrink-0"></div> Industry-leading conversion rates.</li>
-            <li className="flex items-start gap-2"><div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mt-2 flex-shrink-0"></div> Flexible CPA tiers based on the trader's country of origin.</li>
-            <li className="flex items-start gap-2"><div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mt-2 flex-shrink-0"></div> Transparent reporting on exactly when a lead qualifies.</li>
+            <li className="flex items-start gap-2"><div className="w-1.5 h-1.5 bg-brand rounded-full mt-2 flex-shrink-0"></div> Industry-leading conversion rates.</li>
+            <li className="flex items-start gap-2"><div className="w-1.5 h-1.5 bg-brand rounded-full mt-2 flex-shrink-0"></div> Flexible CPA tiers based on the trader's country of origin.</li>
+            <li className="flex items-start gap-2"><div className="w-1.5 h-1.5 bg-brand rounded-full mt-2 flex-shrink-0"></div> Transparent reporting on exactly when a lead qualifies.</li>
           </ul>
         </div>
       </div>

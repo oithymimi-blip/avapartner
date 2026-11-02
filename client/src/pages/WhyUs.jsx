@@ -5,9 +5,9 @@ export default function WhyUs() {
   return (
     <div className="max-w-4xl mx-auto py-16 px-4">
       <div className="text-center mb-16">
-        <h1 className="text-4xl md:text-5xl font-extrabold mb-4">Why Choose AvaPartner?</h1>
+        <h1 className="text-4xl md:text-5xl font-extrabold mb-4">Why Choose Fexova?</h1>
         <p className="text-white/60 text-lg max-w-2xl mx-auto">
-          We provide the most lucrative, transparent, and technologically advanced affiliate network in the financial trading industry.
+          We provide the most lucrative, transparent, and technologically advanced partner network in the financial trading industry.
         </p>
       </div>
 
@@ -20,7 +20,7 @@ export default function WhyUs() {
             <div>
               <h2 className="text-2xl font-bold mb-3">Global Regulatory Trust</h2>
               <p className="text-white/60 leading-relaxed">
-                Trust is the highest converting factor in financial marketing. When you promote AvaTrade through AvaPartner, you are promoting a brokerage that is licensed and regulated in 9 major jurisdictions across the globe, including Europe, Australia, Japan, and the UAE.
+                Trust is the highest converting factor in financial marketing. When you promote Fexova, you are promoting a brokerage that is licensed and regulated in major jurisdictions across the globe.
               </p>
             </div>
           </div>
@@ -48,7 +48,7 @@ export default function WhyUs() {
             <div>
               <h2 className="text-2xl font-bold mb-3">Guaranteed On-Time Payments</h2>
               <p className="text-white/60 leading-relaxed">
-                We know that cash flow is the lifeblood of your marketing business. With over $300,000,000 paid to our partners to date, AvaPartner guarantees fast, reliable, and transparent monthly payouts with zero hidden fees.
+                We know that cash flow is the lifeblood of your marketing business. With over $300,000,000 paid to our partners to date, Fexova guarantees fast, reliable, and transparent monthly payouts with zero hidden fees.
               </p>
             </div>
           </div>

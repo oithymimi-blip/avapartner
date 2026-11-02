@@ -41,20 +41,52 @@ app.get('/', (req, res) => res.json({ ok: true, name: 'OTC Market Server' }));
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, service: 'otc-market', timestamp: Date.now() });
 });
+app.get('/health', (req, res) => {
+  res.json({ ok: true, service: 'otc-market', timestamp: Date.now() });
+});
+
+// Dual route mounts for fail-safe Nginx proxy compatibility
 app.use('/api/auth', authRoutes);
-app.use('/api', userRoutes);
-app.use('/api/market', marketRoutes);
-app.use('/api/trades', tradeRoutes);
-app.use('/api/binary-trades', binaryRoutes);
+app.use('/auth', authRoutes);
+
 app.use('/api/admin', adminRoutes);
+app.use('/admin', adminRoutes);
+
 app.use('/api/payments', paymentsRouter);
+app.use('/payments', paymentsRouter);
+
 app.use('/api/admin/payments', adminPaymentsRouter);
+app.use('/admin/payments', adminPaymentsRouter);
+
 app.use('/api/notifications', notificationRoutes);
+app.use('/notifications', notificationRoutes);
+
+app.use('/api/market', marketRoutes);
+app.use('/market', marketRoutes);
+
+app.use('/api/trades', tradeRoutes);
+app.use('/trades', tradeRoutes);
+
+app.use('/api/binary-trades', binaryRoutes);
+app.use('/binary-trades', binaryRoutes);
+
 app.use('/api/spot', spotRoutes);
+app.use('/spot', spotRoutes);
+
 app.use('/api/copytrading', copytradingRoutes);
+app.use('/copytrading', copytradingRoutes);
+
 app.use('/api/security', securityRoutes);
+app.use('/security', securityRoutes);
+
 app.use('/api/ai-trade', aiTradeRoutes);
+app.use('/ai-trade', aiTradeRoutes);
+
 app.use('/api/ib', ibRoutes);
+app.use('/ib', ibRoutes);
+
+app.use('/api', userRoutes);
+app.use('/', userRoutes);
 
 app.get('/api/features', (req, res) => {
   const features = db.prepare('SELECT * FROM system_features ORDER BY key').all();

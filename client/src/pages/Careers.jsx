@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function Careers() {
   const jobs = [
-    { title: "Senior Affiliate Manager", location: "Dublin, Ireland", type: "Full-Time" },
+    { title: "Senior Affiliate Manager", location: "London, UK", type: "Full-Time" },
     { title: "Digital Marketing Specialist", location: "Remote (EU)", type: "Full-Time" },
     { title: "Partnerships Executive (LatAm)", location: "Remote", type: "Full-Time" }
   ];
@@ -10,7 +10,7 @@ export default function Careers() {
   return (
     <div className="max-w-4xl mx-auto py-16 px-4">
       <div className="text-center mb-16">
-        <h1 className="text-4xl md:text-5xl font-extrabold mb-4">Join the AvaPartner Team</h1>
+        <h1 className="text-4xl md:text-5xl font-extrabold mb-4">Join the Fexova Team</h1>
         <p className="text-white/60 text-lg max-w-2xl mx-auto">
           We are always looking for driven, innovative individuals to help us shape the future of online financial marketing.
         </p>
@@ -20,7 +20,7 @@ export default function Careers() {
         <h2 className="text-3xl font-bold mb-6 text-brand">Why Work With Us?</h2>
         <div className="prose prose-invert max-w-none text-white/70 mb-8">
           <p>
-            Working at AvaPartner means being part of a dynamic, fast-paced environment where your ideas are valued and your growth is prioritized. We offer competitive salaries, comprehensive health benefits, and an unbeatable corporate culture.
+            Working at Fexova means being part of a dynamic, fast-paced environment where your ideas are valued and your growth is prioritized. We offer competitive salaries, comprehensive health benefits, and an unbeatable corporate culture.
           </p>
         </div>
 
@@ -59,7 +59,7 @@ export default function Careers() {
       </div>
 
       <div className="mt-12 text-center text-white/50 text-sm">
-        Don't see a perfect fit? Send your resume to <a href="mailto:careers@avapartner.marketing" className="text-brand hover:underline">careers@avapartner.marketing</a> and we'll keep you in mind for future openings.
+        Don't see a perfect fit? Send your resume to <a href="mailto:careers@fexova.com" className="text-brand hover:underline">careers@fexova.com</a> and we'll keep you in mind for future openings.
       </div>
     </div>
   );

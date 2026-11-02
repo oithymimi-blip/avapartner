@@ -3,6 +3,7 @@ import WebSocket from 'ws';
 import db from '../db.js';
 import { nowTs } from '../utils.js';
 import { autoCloseTrades } from '../trades/routes.js';
+import { startLivePriceFetcher } from './livePriceFetcher.js';
 
 const insertCandleStmt = db.prepare(`
   INSERT INTO candles (symbol, open, high, low, close, volume, ts)
@@ -167,20 +168,24 @@ export function tickOnce() {
     }
   }
 
-  // Simulate ticks for non-Binance symbols (Forex & Commodities)
-  const nonBinanceSymbols = ['XAUUSD', 'EURUSD', 'GBPUSD', 'USOIL'];
-  for (const sym of nonBinanceSymbols) {
+  // Track last WS update timestamp to simulate non-WS symbols smoothly
+  const allSettings = getAllSettings();
+  const insertTickStmt = db.prepare('INSERT INTO ticks (symbol, price, ts) VALUES (?, ?, ?)');
+
+  for (const s of allSettings) {
+    const sym = s.symbol;
     if (!activeSymbols.has(sym)) continue;
     const st = stateMap.get(sym);
-    if (!st) continue;
+    if (!st || st.lastPrice == null) continue;
 
-    // Use dynamic volatility from settings (e.g., 0.01 = 1%)
-    const marketInfo = db.prepare('SELECT volatility FROM market_settings WHERE symbol = ?').get(sym);
-    const vol = marketInfo ? marketInfo.volatility : 0.01;
+    // If symbol was updated via Binance WS in the last 2 seconds, skip manual tick
+    if (st.lastWsTick && now - st.lastWsTick < 2) continue;
+
+    const vol = s.volatility || 0.005;
     
     // Smooth random walk based on volatility
-    const change = st.lastPrice * (vol / 50) * (Math.random() - 0.5);
-    const p1 = Math.max(0.01, st.lastPrice + change);
+    const change = st.lastPrice * (vol / 50) * (Math.random() - 0.495);
+    const p1 = Math.max(0.000001, st.lastPrice + change);
     st.lastPrice = p1;
 
     if (!st.lastCandle || now - st.lastCandle.tsStart >= 60) {
@@ -197,7 +202,6 @@ export function tickOnce() {
       st.lastCandle.volume += Math.random() * 0.05;
     }
 
-    const insertTickStmt = db.prepare('INSERT INTO ticks (symbol, price, ts) VALUES (?, ?, ?)');
     insertTickStmt.run(sym, p1, now);
     autoCloseTrades(sym, p1);
     
@@ -241,6 +245,8 @@ function connectBinance() {
           if (!st) continue;
           
           st.lastPrice = price;
+          st.lastWsTick = now;
+          db.prepare('UPDATE market_settings SET base_price = ?, updated_at = CURRENT_TIMESTAMP WHERE symbol = ?').run(price, symbol);
           const volPerSec = parseFloat(t.v) / 86400; // rough 1s volume
           
           // Update candle
@@ -293,9 +299,48 @@ function connectBinance() {
   });
 }
 
+export function handleLiveTick(symbol, price) {
+  if (!symbol || !Number.isFinite(price) || price <= 0) return;
+  const now = nowTs();
+  const st = stateMap.get(symbol);
+  if (!st) return;
+
+  st.lastPrice = price;
+  st.lastWsTick = now;
+
+  try {
+    db.prepare('UPDATE market_settings SET base_price = ?, updated_at = CURRENT_TIMESTAMP WHERE symbol = ?').run(price, symbol);
+    const insertTickStmt = db.prepare('INSERT INTO ticks (symbol, price, ts) VALUES (?, ?, ?)');
+    insertTickStmt.run(symbol, price, now);
+
+    if (!st.lastCandle || now - st.lastCandle.tsStart >= 60) {
+      if (st.lastCandle) {
+        insertCandleStmt.run(
+          symbol, st.lastCandle.open, st.lastCandle.high, st.lastCandle.low, st.lastCandle.close, st.lastCandle.volume, st.lastCandle.tsStart
+        );
+      }
+      st.lastCandle = { open: price, high: price, low: price, close: price, volume: 1, tsStart: now - (now % 60) };
+    } else {
+      st.lastCandle.high = Math.max(st.lastCandle.high, price);
+      st.lastCandle.low = Math.min(st.lastCandle.low, price);
+      st.lastCandle.close = price;
+      st.lastCandle.volume += 0.1;
+    }
+
+    autoCloseTrades(symbol, price);
+
+    if (ioRef) {
+      ioRef.emit('tick', { symbol, price, ts: now });
+    }
+  } catch (err) {
+    console.error(`Error processing live tick for ${symbol}:`, err.message);
+  }
+}
+
 // init on startup
 const all = getAllSettings();
 connectBinance();
+startLivePriceFetcher(handleLiveTick);
 
 (async () => {
   for (const s of all) {

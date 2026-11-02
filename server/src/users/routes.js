@@ -2,6 +2,7 @@ import express from 'express';
 import db from '../db.js';
 import { requireAuth } from '../auth/authMiddleware.js';
 import { performFaceCheck } from '../faceCheck.js';
+import { notifyAdmin } from '../notifications/adminNotifications.js';
 
 const router = express.Router();
 
@@ -152,6 +153,14 @@ router.post('/verifications', requireAuth, (req, res) => {
       selfie.trim(),
       typeof notes === 'string' && notes.trim() ? notes.trim() : null
     );
+
+    notifyAdmin({
+      type: 'verification',
+      title: '📝 New KYC Verification Request',
+      message: `KYC verification submitted by ${req.user.email}.`,
+      user_email: req.user.email,
+      link: '/admin/verifications'
+    });
 
     const saved = selectVerificationStmt.get(req.user.id);
     res.json(formatVerification(saved));

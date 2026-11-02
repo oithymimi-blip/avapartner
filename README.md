@@ -1,4 +1,4 @@
-# OTC Market (Admin-Controlled) — Full-Stack Starter
+# Fexova — Financial Trading Partner Network
 
 A production-ready starter for an OTC-style market where an **Admin fully controls price** and market behavior.
 - **Real-time candlesticks** powered by a server-side price engine
@@ -41,19 +41,17 @@ Configure the API base with `EXPO_PUBLIC_API_BASE` or update `app.json > expo.ex
 See `mobile/README.md` for platform-specific tooling, Expo Go testing, and EAS build instructions.
 
 ## Accounts
-- On first run, an **admin** user is created from `.env` values. Default:
-  - email: `admin@example.com`
-  - password: `Admin#12345`
+- On first run, an **admin** user is bootstrapped from your `.env` values (`ADMIN_EMAIL` and `ADMIN_PASSWORD`).
 - You can sign up normal users via the Signup page.
 
 ## Admin Dashboard
 - Go to **/admin** route in the frontend.
-- Use the admin email/password to log in.
+- Use your configured admin email and password from `.env` to log in.
 - Controls include: set price, set volatility, pump/dump %, pause/resume, symbol selection.
 - All actions broadcast live to users (via WebSocket).
 
 ## Features Included
-- JWT auth, password reset (token printed in server logs for demo).
+- JWT auth, password reset (token delivered via configured SMTP email service).
 - User profile (name/handle), editable.
 - Referrals: every user has a unique code; signups with `?ref=CODE` attribute the referrer.
 - Leaderboard: sorted by realized PnL (sum of closed trades).
@@ -64,16 +62,14 @@ See `mobile/README.md` for platform-specific tooling, Expo Go testing, and EAS b
 ## Project Structure
 ```
 /server         # Node/Express/Socket.IO backend + SQLite
-/client         # React + Vite + Tailwind frontend
+/client         # React + Vite + Tailwind frontend (Vercel ready)
 /mobile         # Expo React Native app (Android/iOS/Web preview)
 ```
 
-## Extend & Maintain
-- The code is modular (routes grouped by domain). Add routes and DB migrations safely.
-- Replace the price engine with external feeds if desired; keep admin overrides.
-- Integrate email service for password reset, 2FA, audit alerts, etc.
-- Add KYC/AML, rate limits, and escrow if you deploy to production.
+## Deployment Architecture
+- **Frontend (`/client`)**: Deploy directly on **Vercel** with zero-config Vite support and global CDN. Set `VITE_API_BASE` in Vercel environment variables.
+- **Backend (`/server`)**: Run on a persistent Node.js runtime (VPS, Railway, Render, or Docker) with PM2 to maintain 24/7 Socket.IO connections and 1-second market tick loops.
 
 ## License
 MIT — Use freely, attribution appreciated.
-# exchanger
+

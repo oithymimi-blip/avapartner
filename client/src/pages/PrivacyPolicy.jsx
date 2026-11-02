@@ -10,12 +10,12 @@ export default function PrivacyPolicy() {
 
       <div className="bg-[#11161d] border border-white/10 rounded-3xl p-8 md:p-12 shadow-2xl prose prose-invert prose-brand max-w-none">
         <p>
-          AvaPartner ("we", "us", or "our") respects your privacy and is committed to protecting your personal data. This Privacy Policy informs you about how we look after your personal data when you visit our website (<strong>avapartner.marketing</strong>) or use our affiliate services, and tells you about your privacy rights and how the law protects you.
+          Fexova ("we", "us", or "our") respects your privacy and is committed to protecting your personal data. This Privacy Policy informs you about how we look after your personal data when you visit our website (<strong>fexova.com</strong>) or use our affiliate services, and tells you about your privacy rights and how the law protects you.
         </p>
 
         <h2>1. Important Information and Who We Are</h2>
         <p>
-          This Privacy Policy aims to give you information on how AvaPartner collects and processes your personal data through your use of this website and our affiliate tracking network, including any data you may provide when you sign up to our affiliate program. It is important that you read this Privacy Policy together with any other privacy notice or fair processing notice we may provide on specific occasions.
+          This Privacy Policy aims to give you information on how Fexova collects and processes your personal data through your use of this website and our affiliate tracking network, including any data you may provide when you sign up to our affiliate program. It is important that you read this Privacy Policy together with any other privacy notice or fair processing notice we may provide on specific occasions.
         </p>
 
         <h2>2. The Data We Collect About You</h2>
@@ -67,7 +67,7 @@ export default function PrivacyPolicy() {
 
         <div className="mt-12 pt-8 border-t border-white/10 text-center">
           <p className="text-white/50 text-sm">
-            For any privacy-related inquiries or to exercise your legal rights, please contact our Data Protection Officer at <a href="mailto:privacy@avapartner.marketing" className="text-brand hover:underline">privacy@avapartner.marketing</a>.
+            For any privacy-related inquiries or to exercise your legal rights, please contact our Data Protection Officer at <a href="mailto:privacy@fexova.com" className="text-brand hover:underline">privacy@fexova.com</a>.
           </p>
         </div>
       </div>
