@@ -31,8 +31,8 @@ app.use(express.json({ limit: '15mb' }));
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin) return cb(null, true);
-    if (CORS_ORIGINS.includes(origin)) return cb(null, true);
-    cb(null, true); // dev: allow all
+    if (CORS_ORIGINS.includes(origin) || origin.endsWith('.vercel.app')) return cb(null, true);
+    cb(null, true); // fallback: allow all
   },
   credentials: true
 }));

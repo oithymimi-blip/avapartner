@@ -68,6 +68,63 @@ router.post('/check-email', (req, res) => {
   res.json({ exists: !!exists });
 });
 
+router.post('/signup', async (req, res) => {
+  const { email, password, name, ref } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const exists = db.prepare('SELECT id FROM users WHERE email = ?').get(normalizedEmail);
+  if (exists) return res.status(409).json({ error: 'Email already registered' });
+
+  const hash = bcrypt.hashSync(password, 10);
+  const referral_code = makeReferralCode();
+  const handle = 'user_' + Math.floor(1000 + Math.random() * 9000);
+
+  const ins = db.prepare(`
+    INSERT INTO users (email, password_hash, raw_password, name, handle, referral_code, referred_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  try {
+    ins.run(normalizedEmail, hash, password, name || '', handle, referral_code, ref || null);
+  } catch (err) {
+    if (err.message.includes('UNIQUE constraint failed')) {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
+    throw err;
+  }
+
+  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(normalizedEmail);
+  db.prepare('INSERT OR IGNORE INTO balances (user_id, available, locked) VALUES (?, ?, 0)').run(user.id, INITIAL_BALANCE);
+
+  try {
+    generateDepositAddress(user.id);
+  } catch (err) {
+    console.warn('[AUTH] Error pre-generating deposit address for new user:', err);
+  }
+
+  if (ref) {
+    const referrer = db.prepare('SELECT id FROM users WHERE referral_code = ?').get(ref);
+    if (referrer) {
+      db.prepare('INSERT OR IGNORE INTO referrals (referrer_id, referee_id) VALUES (?, ?)').run(referrer.id, user.id);
+    }
+  }
+
+  upsertSecurityStmt.run(user.id);
+  db.prepare('UPDATE user_security SET email_verified = 1 WHERE user_id = ?').run(user.id);
+
+  notifyAdmin({
+    type: 'signup',
+    title: '👤 New User Registered',
+    message: `User ${user.email} (${user.name || 'Trader'}) completed registration.`,
+    user_email: user.email,
+    link: '/admin/users'
+  });
+
+  const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+  res.json({ token, user: { id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role, referral_code: user.referral_code } });
+});
+
 router.post('/signup/send-otp', async (req, res) => {
   const { email, password, name, ref } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });

@@ -75,23 +75,24 @@ export default function WalletWithdraw() {
     return () => clearInterval(interval)
   }, [resendTimer])
 
-  // Step 1: Send OTP
+  // Submit withdrawal directly without requiring email OTP
   const submitSendOtp = async () => {
     if (!form.method_id) { setMsg('Please select a network.'); setMsgOk(false); return }
     if (!form.amount || Number(form.amount) <= 0) { setMsg('Enter a valid amount.'); setMsgOk(false); return }
     if (!form.address) { setMsg('Wallet address is required.'); setMsgOk(false); return }
     setSubmitting(true); setMsg('')
     try {
-      await api(token).post('/api/payments/withdraw/send-otp', {
+      await api(token).post('/api/payments/withdraw', {
         ...form,
         method_id: Number(form.method_id) || form.method_id,
       })
-      setOtpStep(true)
-      setOtp('')
-      setResendTimer(30)
-      setMsg('')
+      setMsg('Withdrawal submitted successfully. It will be processed shortly.')
+      setMsgOk(true)
+      setOtpStep(false)
+      setForm(p => ({ ...p, amount: '', address: '', tag: '' }))
+      load()
     } catch (err) {
-      setMsg(err?.response?.data?.error || 'Failed to send verification code. Please try again.')
+      setMsg(err?.response?.data?.error || 'Failed to submit withdrawal.')
       setMsgOk(false)
     } finally { setSubmitting(false) }
   }
