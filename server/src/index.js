@@ -20,7 +20,7 @@ import aiTradeRoutes from './aitrade/routes.js';
 import { initAITradeEngine } from './aitrade/earningsEngine.js';
 import ibRoutes from './ib/routes.js';
 import { initMonthlyIBScheduler } from './ib/monthlyScheduler.js';
-import db from './db.js';
+import db, { backupDatabase } from './db.js';
 import { attachIO, tickOnce } from './market/engine.js';
 
 const app = express();
@@ -115,6 +115,12 @@ setInterval(() => {
 initCryptoService();
 initAITradeEngine();
 initMonthlyIBScheduler();
+
+// Automated periodic database snapshot for permanent 24/7 data safety
+backupDatabase();
+setInterval(() => {
+  backupDatabase();
+}, 6 * 60 * 60 * 1000);
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server listening on http://0.0.0.0:${PORT}`);

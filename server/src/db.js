@@ -642,4 +642,24 @@ try {
   console.error("Failed to delete default notifications:", e);
 }
 
+export async function backupDatabase(destDir = path.resolve(path.dirname(DB_FILE), 'backups')) {
+  try {
+    if (!fs.existsSync(destDir)) {
+      fs.mkdirSync(destDir, { recursive: true });
+    }
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const destPath = path.join(destDir, `data-backup-${timestamp}.db`);
+    await db.backup(destPath);
+    console.log(`[DB BACKUP] Automated snapshot preserved: ${destPath}`);
+    const files = fs.readdirSync(destDir).filter(f => f.startsWith('data-backup-')).sort();
+    if (files.length > 30) {
+      for (const oldFile of files.slice(0, files.length - 30)) {
+        try { fs.unlinkSync(path.join(destDir, oldFile)); } catch (_) {}
+      }
+    }
+  } catch (err) {
+    console.error('[DB BACKUP ERROR]', err);
+  }
+}
+
 export default db;

@@ -26,6 +26,8 @@ node_modules/
 *.sqlite
 *.sqlite3
 **/*.sqlite*
+backups/
+**/backups/
 server/market_settings_dump.sql
 
 # VPS Deployment & Server Config Scripts (Contains VPS IP/passwords)
