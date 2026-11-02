@@ -213,11 +213,19 @@ export function tickOnce() {
 
 // --- Binance WebSocket Integration ---
 
+const BINANCE_WS_URLS = [
+  'wss://data-stream.binance.vision:9443/ws/!miniTicker@arr',
+  'wss://stream.binance.us:9443/ws/!miniTicker@arr',
+  'wss://stream.binance.com:9443/ws/!miniTicker@arr'
+];
+let currentWsIndex = 0;
+
 function connectBinance() {
-  ws = new WebSocket('wss://stream.binance.com:9443/ws/!miniTicker@arr');
+  const wsUrl = BINANCE_WS_URLS[currentWsIndex % BINANCE_WS_URLS.length];
+  ws = new WebSocket(wsUrl);
   
   ws.on('open', () => {
-    console.log('Connected to Binance WebSocket');
+    console.log(`[Market Engine] Connected to live Binance WebSocket (${wsUrl})`);
   });
 
   ws.on('message', (data) => {
@@ -289,13 +297,13 @@ function connectBinance() {
   });
 
   ws.on('close', () => {
-    console.log('Binance WS closed. Reconnecting...');
+    currentWsIndex++;
     setTimeout(connectBinance, 5000);
   });
 
   ws.on('error', (err) => {
-    console.error('Binance WS Error:', err);
-    ws.close();
+    console.warn(`[Market Engine] WebSocket notice: ${err.message || err}. Switching endpoint...`);
+    try { ws.close(); } catch (_) {}
   });
 }
 
