@@ -251,7 +251,7 @@ export default function AITradePanel({ onAccountRefresh }) {
   const [selectedSlot, setSelectedSlot] = useState(1);
   const [amount, setAmount] = useState('');
   const [smartOn, setSmartOn] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
@@ -336,13 +336,6 @@ export default function AITradePanel({ onAccountRefresh }) {
   const allocated = Number(session?.allocated_amount ?? 0);
   const nextPayoutIso = session?.next_payout_at ?? null;
 
-  if (loading) {
-    return (
-      <div className="rounded-3xl border border-white/10 bg-black/20 p-8 text-center text-white/50 text-sm">
-        Loading AI Trade…
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-5">

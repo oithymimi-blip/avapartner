@@ -124,4 +124,12 @@ setInterval(() => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server listening on http://0.0.0.0:${PORT}`);
+  
+  // Keep free instance awake & prevent spin-downs (pings every 8 minutes)
+  const renderUrl = process.env.RENDER_EXTERNAL_URL || 'https://avapartner-api.onrender.com';
+  if (renderUrl) {
+    setInterval(() => {
+      fetch(`${renderUrl}/health`).catch(() => {});
+    }, 8 * 60 * 1000);
+  }
 });
