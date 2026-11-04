@@ -223,8 +223,8 @@ export default function AdminLayout() {
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-900/95 backdrop-blur border-r border-white/10 flex flex-col transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-2 font-semibold text-lg text-white">
-            <span className="w-9 h-9 rounded-2xl bg-white text-slate-900 flex items-center justify-center font-black">FX</span>
-            Admin Console
+            <span className="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand via-emerald-400 to-sky-500 text-black flex items-center justify-center font-black">AP</span>
+            AvaPartner Admin
           </div>
           <button className="md:hidden text-slate-300 hover:text-white" onClick={() => setIsSidebarOpen(false)}>
             ✕

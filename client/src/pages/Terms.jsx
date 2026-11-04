@@ -8,73 +8,68 @@ export default function Terms() {
         <p className="text-white/60 text-lg">Last updated: {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</p>
       </div>
 
-      <div className="bg-[#11161d] border border-white/10 rounded-3xl p-8 md:p-12 shadow-2xl prose prose-invert prose-brand max-w-none">
+      <div className="bg-[#0d1421] border border-white/10 rounded-3xl p-8 md:p-12 shadow-2xl prose prose-invert prose-brand max-w-none">
         
         <h2>1. Introduction and Acceptance</h2>
         <p>
-          Welcome to the Fexova Partner Program. These Terms and Conditions ("Agreement") govern your participation in the partner marketing program operated by Fexova ("Company", "we", "us", or "our"). By registering for an account at <strong>fexova.com</strong>, you ("Partner", "Affiliate", or "you") expressly agree to be bound by the terms outlined herein. If you do not agree with any part of these terms, you must not participate in the program.
+          Welcome to the <strong>AvaPartner Affiliate &amp; Introducing Broker Program</strong>. These Terms and Conditions ("Agreement") govern your participation in the partner marketing program operated by <strong>AvaPartner / AVA Trade EU Ltd</strong> ("Company", "we", "us", or "our"), headquartered at Five Lamps Place, Amiens Street, Dublin 1, Ireland. By registering for a partner account at <strong>avapartner.com</strong>, you ("Partner", "Affiliate", "IB", or "you") expressly agree to be bound by the terms outlined herein.
         </p>
 
         <h2>2. Enrollment in the Affiliate Program</h2>
         <p>
-          To enroll, you must submit a complete affiliate application via our website. We evaluate all applications in good faith and reserve the right to reject any application at our sole discretion. Your website or promotional methods must not contain materials that are illegal, sexually explicit, promote violence, or infringe on intellectual property rights.
+          To enroll, you must submit a complete partner application via our website. We evaluate all applications in good faith and reserve the right to reject any application at our sole discretion. Your website or promotional methods must comply with financial promotions regulations in the jurisdictions you target.
         </p>
 
-        <h2>3. Affiliate Obligations and Marketing Guidelines</h2>
+        <h2>3. Partner Obligations and Regulatory Marketing Guidelines</h2>
         <p>
-          As a Partner, you agree to promote Fexova and its associated platforms ethically and legally. You must:
+          As an official Partner, you agree to promote AvaPartner, AvaTrade, and associated platforms ethically and in strict compliance with regulatory standards (including CBI, ESMA, ASIC, FSA, ADGM, and FSCA rules). You must:
         </p>
         <ul>
-          <li>Use only the approved marketing materials provided within your affiliate dashboard.</li>
-          <li>Ensure that all claims regarding potential profits or risks are accurate, balanced, and accompanied by the necessary regulatory risk warnings.</li>
-          <li>Not engage in any form of unsolicited commercial email (SPAM) or deceptive advertising practices.</li>
-          <li>Not bid on restricted brand keywords (e.g., "Fexova") in Pay-Per-Click (PPC) campaigns without prior written consent.</li>
-          <li>Clearly disclose your affiliate relationship with us where required by applicable laws and regulations.</li>
+          <li>Use only approved marketing materials or compliant educational content.</li>
+          <li>Ensure that all claims regarding potential profits or risks are accurate, balanced, and accompanied by mandatory regulatory risk disclosures.</li>
+          <li>Not engage in unsolicited commercial email (SPAM) or misleading promises of guaranteed returns.</li>
+          <li>Not bid on restricted brand keywords (e.g., "AvaPartner", "AvaTrade") in Pay-Per-Click (PPC) search campaigns without prior written authorization.</li>
+          <li>Clearly disclose your affiliate/IB relationship where required by applicable laws.</li>
         </ul>
 
-        <h2>4. Commission Plans and Payments</h2>
+        <h2>4. Commission Plans and Settlements</h2>
         <p>
-          Commissions are awarded based on the specific plan agreed upon during your registration (e.g., CPA, Revenue Share, or Hybrid).
+          Commissions are awarded based on the structure applicable to your account (CPA, Lifetime Revenue Share, Multi-Stream IB, or Hybrid).
         </p>
         <ul>
-          <li><strong>CPA (Cost Per Acquisition):</strong> A CPA commission is triggered only when a referred client successfully opens an account, deposits the minimum required funds, and meets the minimum trading volume requirements specified in your specific CPA agreement.</li>
-          <li><strong>Revenue Share:</strong> Revenue share commissions are calculated as a percentage of the net spread revenue generated by the referred clients' trading activities.</li>
-          <li><strong>Payments:</strong> Commissions are processed monthly, typically within 15 days following the end of the calendar month. A minimum payout threshold applies. We offer payments via Bank Wire, selected e-wallets, or direct transfer to an active trading account.</li>
+          <li><strong>CPA (Cost Per Acquisition):</strong> A CPA commission is triggered when a referred client opens a verified account, deposits the minimum required funds, and meets the minimum trading activity criteria for their country tier.</li>
+          <li><strong>Revenue Share &amp; Multi-Stream IB:</strong> Commissions are calculated automatically on net spread, Forex/Gold lot volume, AI Trade performance, and Binary Options turnover, including eligible Level-2 Sub-IB overrides.</li>
+          <li><strong>Payments:</strong> Real-time IB rebates credit directly to your partner wallet, and monthly CPA/bonus settlements are processed automatically via Bank Wire, USDT/USDC crypto rails, or trading account transfer.</li>
         </ul>
 
         <h2>5. Intellectual Property</h2>
         <p>
-          We grant you a non-exclusive, non-transferable, revocable license to use our trademarks, logos, and provided marketing materials solely for the purpose of promoting our services under this Agreement. You may not alter these materials without prior written approval. All intellectual property rights remain the exclusive property of Fexova.
+          We grant you a non-exclusive, non-transferable, revocable license to use our trademarks, logos, and provided marketing materials solely for the purpose of promoting our services under this Agreement. All intellectual property rights remain the exclusive property of AvaPartner and the AvaTrade Group.
         </p>
 
-        <h2>6. Tracking and Reporting</h2>
+        <h2>6. Tracking and Attribution</h2>
         <p>
-          We will provide you with unique tracking links and access to an affiliate dashboard. It is your responsibility to ensure these links are correctly integrated into your promotional channels. We use cookie tracking to attribute referrals. We are not liable for lost commissions due to incorrectly formatted tracking links or users who clear their cookies prior to registration.
+          We provide you with unique referral codes, tracking links, and a real-time partner dashboard. It is your responsibility to ensure your referral links are properly formatted when distributed across your channels.
         </p>
 
         <h2>7. Termination of Agreement</h2>
         <p>
-          This Agreement may be terminated by either party at any time, with or without cause, by giving written notice. Upon termination, you must immediately cease using our tracking links and remove all our marketing materials from your properties. We reserve the right to withhold pending commissions if termination is due to a breach of these terms, fraud, or unethical promotional tactics.
+          This Agreement may be terminated by either party at any time by giving written notice. Upon termination, you must cease using our tracking links and remove brand materials from your properties. We reserve the right to withhold commissions generated through fraudulent traffic, self-referral abuse, or regulatory violations.
         </p>
 
         <h2>8. Limitation of Liability</h2>
         <p>
-          Fexova, its directors, employees, and affiliates will not be liable for any indirect, special, or consequential damages (including loss of revenue, profits, or data) arising in connection with this Agreement or the affiliate program, even if we have been advised of the possibility of such damages.
+          AvaPartner, its parent entities, directors, employees, and affiliates will not be liable for any indirect, special, or consequential damages arising in connection with this Agreement or the affiliate program.
         </p>
 
-        <h2>9. Modifications</h2>
+        <h2>9. Governing Law &amp; Regulatory Jurisdiction</h2>
         <p>
-          We reserve the right to modify any of the terms and conditions contained in this Agreement at any time and at our sole discretion. Modifications may include changes in commission structures, payment procedures, and program rules. You will be notified of significant changes via email or an announcement in the dashboard. Continued participation in the program following such notice constitutes your acceptance of the changes.
-        </p>
-
-        <h2>10. Governing Law</h2>
-        <p>
-          This Agreement shall be governed by and construed in accordance with the laws of the jurisdiction in which the applicable Fexova regulatory entity operates, without giving effect to any principles of conflicts of law.
+          This Agreement shall be governed by and construed in accordance with the laws of <strong>Ireland</strong> and the applicable regulatory jurisdiction in which the relevant AvaTrade Group entity operates (CBI Ireland #C53877, ASIC Australia #406684, FSA Japan #1662, ADGM UAE #190018, FSCA South Africa #45984, CySEC Cyprus #347/17, BVI FSC #SIBA/L/13/1049).
         </p>
 
         <div className="mt-12 pt-8 border-t border-white/10 text-center">
           <p className="text-white/50 text-sm">
-            If you have any questions regarding these Terms and Conditions, please contact your dedicated affiliate manager or reach out to our support team.
+            Questions regarding these Terms? Contact our Legal &amp; Partner Compliance Desk at <a href="mailto:compliance@avapartner.com" className="text-brand hover:underline">compliance@avapartner.com</a>.
           </p>
         </div>
       </div>

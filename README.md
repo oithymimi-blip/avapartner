@@ -1,4 +1,4 @@
-# Fexova — Financial Trading Partner Network
+# AvaPartner — Official Financial & Forex Affiliate Partner Network
 
 A production-ready starter for an OTC-style market where an **Admin fully controls price** and market behavior.
 - **Real-time candlesticks** powered by a server-side price engine

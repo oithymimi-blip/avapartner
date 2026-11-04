@@ -3,24 +3,24 @@ import React from 'react';
 export default function Blog() {
   const posts = [
     {
-      title: "How to Optimize Your Trading Affiliate Campaigns for 2026",
+      title: "How to Scale Your Forex & AI Trade Affiliate Campaigns in 2026",
       category: "Marketing Strategies",
-      date: "October 12, 2026",
-      excerpt: "Discover the latest trends in financial affiliate marketing, including how to leverage AI-driven content and short-form video to increase your CPA conversions.",
+      date: "October 18, 2026",
+      excerpt: "Discover how top-performing AvaPartner affiliates combine localized landing pages, AI-driven market signals, and short-form video to boost Tier-1 CPA conversions.",
       image: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=800"
     },
     {
-      title: "Understanding the Master IB Multi-Tier Structure",
+      title: "Maximizing Multi-Tier Overrides with the AvaPartner Master IB Program",
       category: "Program Updates",
-      date: "September 28, 2026",
-      excerpt: "A deep dive into how you can exponentially scale your revenue by referring sub-affiliates and earning overriding commissions across your entire downline.",
+      date: "October 04, 2026",
+      excerpt: "A complete breakdown of how Introducing Brokers across Dublin, Abu Dhabi, and Sydney scale recurring revenue by recruiting Sub-IB networks.",
       image: "https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&q=80&w=800"
     },
     {
-      title: "Fexova Wins Best Affiliate Program at Financial Summit",
+      title: "AvaPartner Named Best Global Financial Affiliate Program at Forex Expo Dubai",
       category: "Company News",
       date: "September 15, 2026",
-      excerpt: "We are thrilled to announce that Fexova has been recognized globally as the Best Financial Affiliate Program at the annual Fintech Expo in Dubai.",
+      excerpt: "We are proud to announce that AvaPartner has been recognized globally as the Best Financial Affiliate Network, celebrating $300M+ in partner payouts.",
       image: "https://images.unsplash.com/photo-1561489413-985b06da5bee?auto=format&fit=crop&q=80&w=800"
     }
   ];
@@ -28,15 +28,18 @@ export default function Blog() {
   return (
     <div className="max-w-6xl mx-auto py-16 px-4">
       <div className="text-center mb-16">
-        <h1 className="text-4xl md:text-5xl font-extrabold mb-4">Fexova Blog</h1>
+        <div className="inline-block px-3.5 py-1 rounded-full bg-brand/10 border border-brand/20 text-brand text-xs font-bold uppercase tracking-widest mb-4">
+          Partner Intelligence &amp; News
+        </div>
+        <h1 className="text-4xl md:text-5xl font-extrabold mb-4"><span className="text-brand">AvaPartner</span> Blog</h1>
         <p className="text-white/60 text-lg max-w-2xl mx-auto">
-          Insights, strategies, and news from the world's leading financial affiliate network.
+          Insights, conversion strategies, and official announcements from the world's leading regulated financial affiliate network.
         </p>
       </div>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
         {posts.map((post, idx) => (
-          <div key={idx} className="bg-[#11161d] border border-white/10 rounded-3xl overflow-hidden hover:border-brand/40 hover:-translate-y-2 transition-all duration-300 group cursor-pointer flex flex-col">
+          <div key={idx} className="bg-[#0d1421] border border-white/10 rounded-3xl overflow-hidden hover:border-brand/40 hover:-translate-y-2 transition-all duration-300 group cursor-pointer flex flex-col">
             <div className="h-48 overflow-hidden relative">
               <div className="absolute inset-0 bg-brand/20 group-hover:bg-transparent transition-colors z-10"></div>
               <img src={post.image} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />

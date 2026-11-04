@@ -48,9 +48,9 @@ export async function deliverPasswordResetEmail(to, resetLink) {
         <table width="100%" style="max-width:540px; background-color:#161a1e; border-radius:16px; border:1px solid #2a2e39; overflow:hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
           <!-- Header -->
           <tr>
-            <td style="padding: 30px; text-align: center; border-bottom: 1px solid #2a2e39; background: linear-gradient(135deg, #161a1e 0%, #1e2329 100%);">
-              <div style="font-size: 24px; font-weight: 800; color: #6366f1; letter-spacing: 1px;">
-                <span style="color: #6366f1;">Fexova</span>
+            <td style="padding: 30px; text-align: center; border-bottom: 1px solid #2a2e39; background: linear-gradient(135deg, #0d1421 0%, #162032 100%);">
+              <div style="font-size: 24px; font-weight: 800; color: #00df9a; letter-spacing: 1px;">
+                <span style="color: #00df9a;">AvaPartner</span>
               </div>
             </td>
           </tr>
@@ -62,15 +62,15 @@ export async function deliverPasswordResetEmail(to, resetLink) {
                 We received a request to reset the password associated with your account. Click the button below to choose a new password:
               </p>
               <div style="text-align: center; margin: 32px 0;">
-                <a href="${resetLink}" target="_blank" style="display: inline-block; padding: 14px 32px; background: linear-gradient(90deg, #6366f1 0%, #a855f7 100%); color: #ffffff; text-decoration: none; font-weight: 700; font-size: 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
+                <a href="${resetLink}" target="_blank" style="display: inline-block; padding: 14px 32px; background: linear-gradient(90deg, #00df9a 0%, #0ea5e9 100%); color: #000000; text-decoration: none; font-weight: 700; font-size: 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0, 223, 154, 0.35);">
                   Reset Password
                 </a>
               </div>
               <p style="margin:0 0 12px 0; font-size:13px; line-height:1.6; color:#6c757d;">
                 If the button above does not work, copy and paste the following link into your web browser:
               </p>
-              <div style="word-break: break-all; font-size:12px; color:#818cf8; background:#0b0e11; padding:12px; border-radius:6px; border:1px solid #2a2e39; margin-bottom:24px;">
-                <a href="${resetLink}" style="color:#818cf8; text-decoration:none;">${resetLink}</a>
+              <div style="word-break: break-all; font-size:12px; color:#00df9a; background:#0b0e11; padding:12px; border-radius:6px; border:1px solid #2a2e39; margin-bottom:24px;">
+                <a href="${resetLink}" style="color:#00df9a; text-decoration:none;">${resetLink}</a>
               </div>
               <hr style="border:none; border-top:1px solid #2a2e39; margin:24px 0;" />
               <p style="margin:0; font-size:12px; line-height:1.5; color:#8c9199;">
@@ -81,7 +81,7 @@ export async function deliverPasswordResetEmail(to, resetLink) {
           <!-- Footer -->
           <tr>
             <td style="padding: 20px 30px; background-color:#0e1114; text-align: center; border-top: 1px solid #2a2e39; font-size: 12px; color: #6c757d;">
-              © ${new Date().getFullYear()} Fexova. All rights reserved.
+              © ${new Date().getFullYear()} AvaPartner. All rights reserved.
             </td>
           </tr>
         </table>
@@ -105,7 +105,7 @@ This link will expire in 30 minutes. If you did not request this, please ignore 
     const info = await mailTransport.sendMail({
       from: SMTP_USER,
       to,
-      subject: 'Reset Your Password - Fexova',
+      subject: 'Reset Your Password - AvaPartner',
       text: textContent,
       html: htmlContent
     })

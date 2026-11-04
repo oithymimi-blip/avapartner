@@ -235,14 +235,17 @@ function Shell({ children }) {
 
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden w-full max-w-full">
-      <header className="fixed top-0 left-0 right-0 z-50 bg-slate-950 border-b border-white/10 w-full">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-[#070b12]/95 backdrop-blur-md border-b border-white/10 w-full">
         <div className="max-w-6xl mx-auto flex flex-nowrap items-center justify-between gap-2 px-2 sm:px-4 py-2 sm:py-3">
           <div className="flex items-center gap-2 sm:gap-6 flex-shrink-0">
-            <Link to={user ? '/dashboard?tab=ai_trade' : '/'} className="flex items-center gap-2 flex-shrink-0">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-cyan-400 flex items-center justify-center font-black text-white text-sm shadow-soft shadow-indigo-500/25">
-                FX
+            <Link to={user ? '/dashboard?tab=ai_trade' : '/'} className="flex items-center gap-2.5 flex-shrink-0 group">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand via-emerald-400 to-sky-500 flex items-center justify-center font-black text-black text-sm shadow-soft shadow-brand/25 group-hover:scale-105 transition-transform">
+                AP
               </div>
-              <span className="font-bold text-white tracking-tight hidden sm:block text-lg">Fexova</span>
+              <div className="hidden sm:flex flex-col leading-none">
+                <span className="font-extrabold text-white tracking-tight text-lg">Ava<span className="text-brand">Partner</span></span>
+                <span className="text-[9px] uppercase tracking-[0.2em] text-white/45 font-semibold">Official Network</span>
+              </div>
             </Link>
             
             {/* Desktop Nav */}
@@ -250,11 +253,15 @@ function Shell({ children }) {
               <nav className="hidden md:flex items-center gap-3 text-[11px] font-bold tracking-wider text-white/60 uppercase">
                 <Link to="/why-us" className="hover:text-white transition-colors">Why Us?</Link>
                 <div className="w-px h-3 bg-white/20"></div>
+                <Link to="/about" className="hover:text-white transition-colors">About</Link>
+                <div className="w-px h-3 bg-white/20"></div>
+                <Link to="/who-we-are" className="hover:text-white transition-colors">Team</Link>
+                <div className="w-px h-3 bg-white/20"></div>
                 <Link to="/master-ib" className="hover:text-white transition-colors">IB</Link>
                 <div className="w-px h-3 bg-white/20"></div>
                 <Link to="/commissions" className="hover:text-white transition-colors">Commissions</Link>
                 <div className="w-px h-3 bg-white/20"></div>
-                <Link to="/partners" className="text-brand hover:text-brand-dark transition-colors">Partners</Link>
+                <Link to="/partners" className="text-brand hover:text-brand-light transition-colors">Partners</Link>
                 <div className="w-px h-3 bg-white/20"></div>
                 <Link to="/blog" className="hover:text-white transition-colors">Blog</Link>
               </nav>
@@ -410,44 +417,82 @@ function Shell({ children }) {
       </main>
       <VerificationOverlay />
       {!user && (
-        <footer className="border-t border-white/10 bg-black/20">
-          <div className="max-w-6xl mx-auto px-4 py-12">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
-              <div>
-                <h4 className="text-white font-bold mb-4">About</h4>
-                <ul className="space-y-2 text-sm text-white/60">
-                  <li><Link to="/about" className="hover:text-brand transition-colors">About Company</Link></li>
-                  <li><Link to="/who-we-are" className="hover:text-brand transition-colors">Who We Are</Link></li>
-                  <li><Link to="/careers" className="hover:text-brand transition-colors">Careers</Link></li>
-                </ul>
+        <footer className="border-t border-white/10 bg-[#05080e]">
+          <div className="max-w-6xl mx-auto px-4 py-14">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-10 mb-10">
+              <div className="md:col-span-4 space-y-4">
+                <Link to="/" className="inline-flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand via-emerald-400 to-sky-500 flex items-center justify-center font-black text-black text-sm shadow-soft">
+                    AP
+                  </div>
+                  <div className="flex flex-col leading-none">
+                    <span className="font-extrabold text-white tracking-tight text-lg">Ava<span className="text-brand">Partner</span></span>
+                    <span className="text-[9px] uppercase tracking-[0.2em] text-white/45 font-semibold">Official Partner Network</span>
+                  </div>
+                </Link>
+                <p className="text-xs text-white/55 leading-relaxed">
+                  AvaPartner is the official global partner, affiliate, and Introducing Broker (IB) network of the AvaTrade Group (est. 2006). Regulated across 9 international jurisdictions with over $300,000,000 paid out to 150,000+ partners worldwide.
+                </p>
+                <div className="text-xs text-white/50 space-y-1 pt-1">
+                  <div className="font-semibold text-white/75">🇮🇪 Official Global Headquarters</div>
+                  <div>Five Lamps Place, Amiens Street, Dublin 1, D01 E4X0, Ireland</div>
+                  <div>Regulated by the Central Bank of Ireland (No. C53877)</div>
+                </div>
               </div>
-              <div>
-                <h4 className="text-white font-bold mb-4">Partnership</h4>
-                <ul className="space-y-2 text-sm text-white/60">
-                  <li><Link to="/cpa" className="hover:text-brand transition-colors">CPA Program</Link></li>
-                  <li><Link to="/revshare" className="hover:text-brand transition-colors">RevShare</Link></li>
-                  <li><Link to="/master-ib" className="hover:text-brand transition-colors">Master IB</Link></li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="text-white font-bold mb-4">Support</h4>
-                <ul className="space-y-2 text-sm text-white/60">
-                  <li><Link to="/contact" className="hover:text-brand transition-colors">Contact Us</Link></li>
-                  <li><Link to="/faq" className="hover:text-brand transition-colors">FAQ</Link></li>
-                  <li><Link to="/help-center" className="hover:text-brand transition-colors">Help Center</Link></li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="text-white font-bold mb-4">Legal</h4>
-                <ul className="space-y-2 text-sm text-white/60">
-                  <li><Link to="/terms" className="hover:text-brand transition-colors">Terms of Service</Link></li>
-                  <li><Link to="/privacy" className="hover:text-brand transition-colors">Privacy Policy</Link></li>
-                  <li><Link to="/risk" className="hover:text-brand transition-colors">Risk Warning</Link></li>
-                </ul>
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:col-span-8 gap-8">
+                <div>
+                  <h4 className="text-white font-bold mb-4 text-sm uppercase tracking-wider">Company</h4>
+                  <ul className="space-y-2.5 text-sm text-white/60">
+                    <li><Link to="/about" className="hover:text-brand transition-colors">About AvaPartner</Link></li>
+                    <li><Link to="/who-we-are" className="hover:text-brand transition-colors">Leadership & Team</Link></li>
+                    <li><Link to="/why-us" className="hover:text-brand transition-colors">Why Choose Us</Link></li>
+                    <li><Link to="/careers" className="hover:text-brand transition-colors">Global Careers</Link></li>
+                    <li><Link to="/blog" className="hover:text-brand transition-colors">Partner Insights</Link></li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="text-white font-bold mb-4 text-sm uppercase tracking-wider">Partnership</h4>
+                  <ul className="space-y-2.5 text-sm text-white/60">
+                    <li><Link to="/cpa" className="hover:text-brand transition-colors">CPA Program</Link></li>
+                    <li><Link to="/revshare" className="hover:text-brand transition-colors">RevShare Model</Link></li>
+                    <li><Link to="/master-ib" className="hover:text-brand transition-colors">Master IB Network</Link></li>
+                    <li><Link to="/commissions" className="hover:text-brand transition-colors">Commission Plans</Link></li>
+                    <li><Link to="/partners" className="hover:text-brand transition-colors">Partner Tiers</Link></li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="text-white font-bold mb-4 text-sm uppercase tracking-wider">Support</h4>
+                  <ul className="space-y-2.5 text-sm text-white/60">
+                    <li><Link to="/contact" className="hover:text-brand transition-colors">Global Offices</Link></li>
+                    <li><Link to="/faq" className="hover:text-brand transition-colors">Partner FAQ</Link></li>
+                    <li><Link to="/help-center" className="hover:text-brand transition-colors">Help Center</Link></li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="text-white font-bold mb-4 text-sm uppercase tracking-wider">Legal & Compliance</h4>
+                  <ul className="space-y-2.5 text-sm text-white/60">
+                    <li><Link to="/terms" className="hover:text-brand transition-colors">Terms & Conditions</Link></li>
+                    <li><Link to="/privacy" className="hover:text-brand transition-colors">Privacy Policy</Link></li>
+                    <li><Link to="/risk" className="hover:text-brand transition-colors">Risk Disclosure</Link></li>
+                  </ul>
+                </div>
               </div>
             </div>
-            <div className="text-center text-xs text-white/40 pt-8 border-t border-white/10">
-              © {new Date().getFullYear()} Fexova. All rights reserved.
+
+            <div className="border-t border-white/10 pt-6 pb-4 flex flex-wrap items-center justify-center gap-2 text-[11px] text-white/45">
+              <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10">🇮🇪 Ireland (CBI)</span>
+              <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10">🇦🇺 Australia (ASIC)</span>
+              <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10">🇯🇵 Japan (FSA & FFAJ)</span>
+              <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10">🇦🇪 UAE (ADGM FSRA)</span>
+              <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10">🇿🇦 South Africa (FSCA)</span>
+              <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10">🇨🇾 Cyprus (CySEC)</span>
+              <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10">🇻🇬 BVI (FSC)</span>
+              <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10">🇮🇱 Israel (ISA)</span>
+              <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10">🇵🇱 Poland (KNF)</span>
+            </div>
+
+            <div className="text-center text-xs text-white/40 pt-4 border-t border-white/5">
+              © {new Date().getFullYear()} AvaPartner — Official Partner Network of AvaTrade Group. All rights reserved.
             </div>
           </div>
         </footer>
