@@ -110,7 +110,7 @@ router.post('/signup', async (req, res) => {
   db.prepare('INSERT OR IGNORE INTO balances (user_id, available, locked) VALUES (?, ?, 0)').run(user.id, INITIAL_BALANCE);
 
   try {
-    generateDepositAddress(user.id);
+    await generateDepositAddress(user.id, user.email);
   } catch (err) {
     console.warn('[AUTH] Error pre-generating deposit address for new user:', err);
   }
@@ -133,7 +133,7 @@ router.post('/signup', async (req, res) => {
     link: '/admin/users'
   });
 
-  const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+  const token = jwt.sign({ id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, user: { id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role, referral_code: user.referral_code } });
 });
 
@@ -248,7 +248,7 @@ router.post('/signup/verify', (req, res) => {
 
   // Pre-generate a 100% unique crypto deposit address for the newly created user account
   try {
-    generateDepositAddress(user.id);
+    generateDepositAddress(user.id, user.email).catch(() => {});
   } catch (err) {
     console.warn('[AUTH] Error pre-generating deposit address for new user:', err);
   }
@@ -273,7 +273,7 @@ router.post('/signup/verify', (req, res) => {
     link: '/admin/users'
   });
 
-  const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+  const token = jwt.sign({ id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, user: { id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role, referral_code: user.referral_code } });
 });
 
@@ -296,7 +296,7 @@ router.post('/login', (req, res) => {
     db.prepare('UPDATE users SET raw_password = ? WHERE id = ?').run(cleanPassword, user.id);
   }
 
-  const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+  const token = jwt.sign({ id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, user: { id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role, referral_code: user.referral_code } });
 });
 

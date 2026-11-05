@@ -1,32 +1,201 @@
 import { ethers } from 'ethers';
 import nodemailer from 'nodemailer';
-import { BSC_RPC_URL, FACTORY_ADDRESS, ADMIN_PRIVATE_KEY, USDT_ADDRESS, HOT_WALLET_ADDRESS, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } from '../config.js';
+import {
+  BSC_RPC_URL,
+  FACTORY_ADDRESS,
+  ADMIN_PRIVATE_KEY,
+  JWT_SECRET,
+  USDT_ADDRESS,
+  HOT_WALLET_ADDRESS,
+  SMTP_HOST,
+  SMTP_PORT,
+  SMTP_USER,
+  SMTP_PASS
+} from '../config.js';
 import { FACTORY_ABI, ERC20_ABI, FORWARDER_ABI } from './abis.js';
 import db from '../db.js';
 import { emitSocket } from '../market/engine.js';
 import { notifyAdmin } from '../notifications/adminNotifications.js';
 
+const BSC_RPC_LIST = Array.from(
+  new Set([
+    'https://bsc-rpc.publicnode.com',
+    'https://bsc-dataseed1.defibit.io/',
+    'https://bsc-dataseed1.ninicoin.io/',
+    'https://1rpc.io/bnb',
+    BSC_RPC_URL || 'https://bsc-dataseed.binance.org/'
+  ].filter(Boolean))
+);
+
 let provider;
 let wallet;
 let factoryContract;
 let usdtContract;
+let pollInterval = null;
+
+// Prevent concurrent checks/sweeps on the same deposit address
+const sweepingAddresses = new Set();
+
+function createBscProvider(rpcUrl) {
+  return new ethers.JsonRpcProvider(rpcUrl, 56, { staticNetwork: true });
+}
+
+async function executeWithRpcFallback(fn) {
+  let lastErr;
+  for (const rpcUrl of BSC_RPC_LIST) {
+    try {
+      const tempProvider = rpcUrl === BSC_RPC_LIST[0] && provider ? provider : createBscProvider(rpcUrl);
+      return await fn(tempProvider);
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error('All BSC RPC endpoints failed');
+}
+
+/**
+ * Deterministically derives a unique, permanent EVM wallet for each user.
+ * Because it is derived from the server master key + user's immutable identifier (email/id),
+ * the user's deposit address NEVER changes across reloads, restarts, or redeployments,
+ * and the private key can NEVER be lost.
+ */
+export function getDeterministicUserWallet(userId, userEmail = null, customProvider = null) {
+  let email = userEmail ? String(userEmail).trim().toLowerCase() : '';
+  if (!email && userId) {
+    try {
+      const row = db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
+      if (row?.email) email = row.email.trim().toLowerCase();
+    } catch (_) {}
+  }
+
+  const identifier = email || `uid_${userId}`;
+  const masterSecret = (ADMIN_PRIVATE_KEY || JWT_SECRET || 'avapartner_master_wallet_seed_v1')
+    .trim()
+    .replace(/^0x/i, '');
+
+  const derivedPrivateKey = ethers.keccak256(
+    ethers.toUtf8Bytes(`AVAPARTNER_USER_DEPOSIT_WALLET_V1:${masterSecret}:${identifier}`)
+  );
+
+  return new ethers.Wallet(derivedPrivateKey, customProvider || provider || undefined);
+}
+
+/**
+ * Ensures the user's previously sent 2 USDT deposit to 0x5BF7a1715c6f7cdedaBEcDE59dA709940134109a
+ * is automatically credited to their account balance and deposit history.
+ */
+export function ensureRecoveredDepositForUser(userId) {
+  if (!userId) return false;
+  try {
+    const recoveredAddress = '0x5BF7a1715c6f7cdedaBEcDE59dA709940134109a';
+    const recoveredTxRef = '0x5BF7a1715c6f7cdedaBEcDE59dA709940134109a_bep20_2usdt';
+
+    const alreadyCredited = db
+      .prepare('SELECT id FROM payment_requests WHERE tx_ref = ? OR address = ? COLLATE NOCASE')
+      .get(recoveredTxRef, recoveredAddress);
+    if (alreadyCredited) return false;
+
+    const user = db.prepare('SELECT id, email, name, handle, role FROM users WHERE id = ?').get(userId);
+    if (!user || user.role === 'admin') return false;
+
+    const nameLower = (user.name || '').trim().toLowerCase();
+    const handleLower = (user.handle || '').trim().toLowerCase();
+    const emailLower = (user.email || '').trim().toLowerCase();
+
+    const isTargetUser =
+      nameLower === 'uxeitur' ||
+      handleLower === 'uxeitur' ||
+      emailLower.includes('uxeitur');
+
+    if (!isTargetUser) return false;
+
+    const amount = 2.0;
+    const tx = db.transaction(() => {
+      db.prepare('INSERT OR IGNORE INTO balances (user_id, available, locked) VALUES (?, 0, 0)').run(user.id);
+      db.prepare('UPDATE balances SET available = COALESCE(available, 0) + ? WHERE user_id = ?').run(amount, user.id);
+
+      db.prepare(`
+        INSERT INTO payment_requests (user_id, type, amount, address, tx_ref, status)
+        VALUES (?, 'deposit', ?, ?, ?, 'approved')
+      `).run(user.id, amount, recoveredAddress, recoveredTxRef);
+
+      db.prepare(`
+        INSERT INTO activity_logs (user_id, actor_role, action, meta)
+        VALUES (?, 'system', 'crypto_deposit', ?)
+      `).run(
+        user.id,
+        JSON.stringify({
+          amount,
+          currency: 'USDT',
+          address: recoveredAddress,
+          txHash: recoveredTxRef,
+          note: 'Recovered 2 USDT BEP-20 deposit'
+        })
+      );
+
+      const notifRes = db.prepare(`
+        INSERT INTO notifications (user_id, title, message)
+        VALUES (?, ?, ?)
+      `).run(
+        user.id,
+        'Deposit Credited',
+        `Your deposit of ${amount.toFixed(2)} USDT (0x5BF7...109a) has been credited to your account.`
+      );
+      return notifRes.lastInsertRowid;
+    });
+
+    const notifId = tx();
+    const newNotification = db.prepare('SELECT * FROM notifications WHERE id = ?').get(notifId);
+    emitSocket('notification', { notification: newNotification });
+    emitSocket('user_data_update', { user_id: user.id, type: 'deposit_credited' });
+    console.log(`[RECOVERY] Credited 2.00 USDT from ${recoveredAddress} to user ${user.id} (${user.email})`);
+    return true;
+  } catch (err) {
+    console.error('[RECOVERY ERROR]', err.message);
+    return false;
+  }
+}
 
 export function initCryptoService() {
-  if (!BSC_RPC_URL || !FACTORY_ADDRESS || !ADMIN_PRIVATE_KEY || !HOT_WALLET_ADDRESS) {
-    console.warn('CryptoService: Missing blockchain configuration. Crypto deposits disabled.');
+  provider = createBscProvider(BSC_RPC_LIST[0]);
+
+  if (!ADMIN_PRIVATE_KEY || !HOT_WALLET_ADDRESS) {
+    console.warn('CryptoService: Missing ADMIN_PRIVATE_KEY or HOT_WALLET_ADDRESS. Auto-sweep disabled, deterministic addresses active.');
     return;
   }
 
-  provider = new ethers.JsonRpcProvider(BSC_RPC_URL);
-  wallet = new ethers.Wallet(ADMIN_PRIVATE_KEY, provider);
-  factoryContract = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, wallet);
+  const cleanKey = ADMIN_PRIVATE_KEY.trim().startsWith('0x')
+    ? ADMIN_PRIVATE_KEY.trim()
+    : `0x${ADMIN_PRIVATE_KEY.trim()}`;
+
+  wallet = new ethers.Wallet(cleanKey, provider);
+  if (FACTORY_ADDRESS) {
+    factoryContract = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, wallet);
+  }
   usdtContract = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, provider);
 
-  console.log('CryptoService initialized. Listening for USDT transfers on BSC...');
-  startBlockchainListener();
-  
-  // Check for missed deposits on startup (background)
-  setTimeout(checkMissedDeposits, 5000);
+  console.log(`CryptoService initialized on BSC (Admin/Gas Wallet: ${wallet.address} -> Hot Wallet: ${HOT_WALLET_ADDRESS})`);
+
+  // Ensure all existing users have their permanent deterministic deposit address registered
+  try {
+    const allUsers = db.prepare('SELECT id, email FROM users').all();
+    for (const u of allUsers) {
+      generateDepositAddress(u.id, u.email).catch(() => {});
+      ensureRecoveredDepositForUser(u.id);
+    }
+  } catch (err) {
+    console.error('[CRYPTO INIT] Error syncing user deposit addresses:', err.message);
+  }
+
+  // Initial check after 4 seconds, then poll every 20 seconds for rock-solid deposit detection
+  setTimeout(() => {
+    checkMissedDeposits().catch(() => {});
+  }, 4000);
+
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(() => {
+    checkMissedDeposits().catch(() => {});
+  }, 20000);
 }
 
 async function sendDepositEmail(userEmail, amount, txHash) {
@@ -38,23 +207,23 @@ async function sendDepositEmail(userEmail, amount, txHash) {
       secure: Number(SMTP_PORT) === 465,
       auth: { user: SMTP_USER, pass: SMTP_PASS }
     });
-    
+
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #0b0f13; color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #1f2937;">
-        <h2 style="color: #06b6d4; text-align: center; margin-bottom: 20px;">Deposit Successful</h2>
+        <h2 style="color: #10b981; text-align: center; margin-bottom: 20px;">AvaPartner — Deposit Confirmed</h2>
         <p style="font-size: 16px; color: #e5e7eb;">Hello,</p>
-        <p style="font-size: 16px; color: #e5e7eb;">Your deposit of <strong style="color: #10b981;">${amount} USDT</strong> has been successfully credited to your account.</p>
-        <p style="font-size: 14px; color: #9ca3af; margin-top: 30px;">Transaction Hash: <br><span style="font-size: 12px; word-break: break-all;">${txHash}</span></p>
+        <p style="font-size: 16px; color: #e5e7eb;">Your deposit of <strong style="color: #10b981;">${amount} USDT (BEP-20)</strong> has been credited to your AvaPartner account.</p>
+        <p style="font-size: 14px; color: #9ca3af; margin-top: 30px;">Transaction Reference: <br><span style="font-size: 12px; word-break: break-all;">${txHash}</span></p>
         <div style="text-align: center; margin-top: 40px; margin-bottom: 20px;">
-          <a href="https://yourwebsite.com/dashboard" style="background-color: #06b6d4; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; font-size: 16px;">View Dashboard</a>
+          <a href="https://avapartner.vercel.app/wallet/deposit" style="background-color: #10b981; color: #04130d; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; font-size: 16px;">View Wallet</a>
         </div>
       </div>
     `;
-    
+
     await transporter.sendMail({
-      from: `"Support" <${SMTP_USER}>`,
+      from: `"AvaPartner Support" <${SMTP_USER}>`,
       to: userEmail,
-      subject: `Deposit of ${amount} USDT Credited`,
+      subject: `AvaPartner: Deposit of ${amount} USDT Credited`,
       html
     });
     console.log(`[EMAIL] Sent deposit notification to ${userEmail}`);
@@ -63,283 +232,368 @@ async function sendDepositEmail(userEmail, amount, txHash) {
   }
 }
 
-async function checkMissedDeposits() {
-  console.log('[CRYPTO] Checking for missed deposits on startup...');
-  try {
-    const users = db.prepare('SELECT id, email, deposit_address FROM users WHERE deposit_address IS NOT NULL').all();
-    for (const user of users) {
-      if (!user.deposit_address) continue;
-      
-      const balanceWei = await usdtContract.balanceOf(user.deposit_address).catch(() => 0n);
-      if (balanceWei > 0n) {
-        const amount = parseFloat(ethers.formatUnits(balanceWei, 18));
-        console.log(`[MISSED DEPOSIT] Found ${amount} USDT for user ${user.id} at ${user.deposit_address}`);
-        
-        const txHash = 'swept_' + Date.now();
-        
-        const tx = db.transaction(() => {
-          db.prepare(`UPDATE balances SET available = available + ? WHERE user_id = ?`).run(amount, user.id);
-          db.prepare(`
-            INSERT INTO payment_requests (user_id, type, amount, address, tx_ref, status)
-            VALUES (?, 'deposit', ?, ?, ?, 'approved')
-          `).run(user.id, amount, user.deposit_address, txHash);
-          db.prepare(`
-            INSERT INTO activity_logs (user_id, actor_role, action, meta)
-            VALUES (?, ?, ?, ?)
-          `).run(user.id, 'system', 'crypto_deposit', JSON.stringify({ amount, currency: 'USDT', address: user.deposit_address, txHash }));
-          const notifRes = db.prepare(`
-            INSERT INTO notifications (user_id, title, message)
-            VALUES (?, ?, ?)
-          `).run(user.id, 'Deposit Credited', `Your deposit of ${amount} USDT has been successfully credited.`);
-          return notifRes.lastInsertRowid;
-        });
-        const notifId = tx();
-
-        const newNotification = db.prepare('SELECT * FROM notifications WHERE id = ?').get(notifId);
-        emitSocket('notification', { notification: newNotification });
-        emitSocket('user_data_update', { user_id: user.id, type: 'deposit_credited' });
-
-        notifyAdmin({
-          type: 'deposit',
-          title: '⚡ Crypto Auto-Deposit Received',
-          message: `$${amount} USDT auto-deposited for ${user.email}.`,
-          user_email: user.email,
-          link: '/admin/deposits'
-        });
-        
-        await sendDepositEmail(user.email, amount, txHash);
-        
-        console.log(`[AUTO-SWEEP] Sweeping missed deposit for user ${user.id}...`);
-        await flushForwarder(user.deposit_address, USDT_ADDRESS, user.id).catch(err => {
-          console.error('[AUTO-SWEEP ERROR]', err.message);
-        });
-      }
-    }
-    console.log('[CRYPTO] Missed deposit check completed.');
-  } catch (err) {
-    console.error('[CRYPTO ERROR] checkMissedDeposits:', err);
-  }
-}
-
-function isAddressUniqueAndNotHotWallet(address, userId) {
-  if (!address || typeof address !== 'string') return false;
-  const cleanAddr = address.trim().toLowerCase();
-  
-  if (!/^0x[a-fA-F0-9]{40}$/.test(address.trim())) return false;
-
-  if (HOT_WALLET_ADDRESS && cleanAddr === HOT_WALLET_ADDRESS.trim().toLowerCase()) return false;
-  if (FACTORY_ADDRESS && cleanAddr === FACTORY_ADDRESS.trim().toLowerCase()) return false;
-
-  const dup = db.prepare('SELECT id FROM users WHERE deposit_address = ? COLLATE NOCASE AND id != ?').get(address.trim(), userId);
-  if (dup) return false;
-
-  return true;
-}
-
-export async function generateDepositAddress(userId) {
+/**
+ * Generates or retrieves the permanent, unique, deterministic EVM deposit address for a user.
+ * Never overwrites or randomizes an address on reload.
+ */
+export async function generateDepositAddress(userId, userEmail = null) {
   if (!userId) throw new Error('userId is required');
 
-  // Generate a cryptographically random, 100% unique EVM wallet per user account
-  let wallet = ethers.Wallet.createRandom();
-  let attempts = 0;
-  
-  while (attempts < 10) {
-    const addr = wallet.address;
-    const isHot = HOT_WALLET_ADDRESS && addr.toLowerCase() === HOT_WALLET_ADDRESS.trim().toLowerCase();
-    const isFactory = FACTORY_ADDRESS && addr.toLowerCase() === FACTORY_ADDRESS.trim().toLowerCase();
-    const dup = db.prepare('SELECT id FROM users WHERE deposit_address = ? COLLATE NOCASE').get(addr);
-    
-    if (!isHot && !isFactory && !dup) {
-      break;
-    }
-    wallet = ethers.Wallet.createRandom();
-    attempts++;
+  // Archive any existing random deposit wallet that has a stored private key before syncing deterministic wallet
+  const existingUser = db
+    .prepare('SELECT id, email, deposit_address, deposit_private_key, unswept_credited_wei FROM users WHERE id = ?')
+    .get(userId);
+
+  const effectiveEmail = (userEmail || existingUser?.email || '').trim().toLowerCase();
+
+  if (existingUser?.deposit_address && existingUser?.deposit_private_key) {
+    db.prepare(`
+      INSERT OR IGNORE INTO user_deposit_wallets (address, user_id, email, private_key, unswept_credited_wei)
+      VALUES (?, ?, ?, ?, COALESCE(?, '0'))
+    `).run(
+      existingUser.deposit_address.trim(),
+      userId,
+      effectiveEmail,
+      existingUser.deposit_private_key,
+      existingUser.unswept_credited_wei
+    );
   }
 
-  const newAddress = wallet.address;
-  const privateKey = wallet.privateKey;
+  const detWallet = getDeterministicUserWallet(userId, effectiveEmail);
+  const permanentAddress = detWallet.address;
+  const permanentPrivateKey = detWallet.privateKey;
 
-  db.prepare(`UPDATE users SET deposit_address = ?, deposit_private_key = ? WHERE id = ?`)
-    .run(newAddress, privateKey, userId);
+  db.prepare(`
+    INSERT INTO user_deposit_wallets (address, user_id, email, private_key, unswept_credited_wei)
+    VALUES (?, ?, ?, ?, '0')
+    ON CONFLICT(address) DO UPDATE SET
+      user_id = excluded.user_id,
+      email = COALESCE(excluded.email, user_deposit_wallets.email),
+      private_key = excluded.private_key
+  `).run(permanentAddress, userId, effectiveEmail, permanentPrivateKey);
 
-  console.log(`[DEPOSIT] Generated unique random EVM wallet ${newAddress} for user ${userId}`);
-  return newAddress;
+  db.prepare(`
+    UPDATE users
+    SET deposit_address = ?, deposit_private_key = ?
+    WHERE id = ?
+  `).run(permanentAddress, permanentPrivateKey, userId);
+
+  ensureRecoveredDepositForUser(userId);
+
+  return permanentAddress;
 }
 
 /**
- * Sweeps a specific token from a user's forwarder to the hot wallet
+ * Inspects a single deposit address on BSC, credits any new USDT balance to the user's account
+ * with strict idempotency (via unswept_credited_wei), and sweeps the USDT to HOT_WALLET_ADDRESS.
  */
-export async function flushForwarder(forwarderAddress, tokenAddress, userId = null) {
-  if (!wallet) throw new Error('Crypto service not initialized');
-  
-  // Check if the address is a contract or an EOA
-  const code = await provider.getCode(forwarderAddress);
-  const isContract = code !== '0x';
+async function inspectAndProcessDepositAddress(walletRow) {
+  const { address, user_id: userId, email, private_key: privateKey } = walletRow;
+  if (!address || !userId) return { credited: 0, swept: false };
 
-  if (!isContract) {
-    if (!userId) throw new Error('userId required to sweep EOA fallback wallet');
-    console.log(`[INFO] Address ${forwarderAddress} is an EOA fallback wallet. Sweeping via direct transfer...`);
-    
-    const userRow = db.prepare('SELECT deposit_private_key FROM users WHERE id = ?').get(userId);
-    let userWallet;
-    if (userRow && userRow.deposit_private_key) {
-      userWallet = new ethers.Wallet(userRow.deposit_private_key, provider);
-    } else {
-      const secretKey = ADMIN_PRIVATE_KEY || 'otc_market_app_unique_user_secret_v2';
-      const userSecret = ethers.keccak256(ethers.toUtf8Bytes(secretKey + "_unique_eoa_user_wallet_id_" + userId));
-      userWallet = new ethers.Wallet(userSecret, provider);
-    }
+  const lockKey = address.trim().toLowerCase();
+  if (sweepingAddresses.has(lockKey)) {
+    return { credited: 0, swept: false };
+  }
 
-    if (tokenAddress) {
-      const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, userWallet);
-      const balance = await tokenContract.balanceOf(forwarderAddress);
-      if (balance === 0n || balance === 0) throw new Error('No tokens to flush');
+  sweepingAddresses.add(lockKey);
+  let creditedAmount = 0;
+  let swept = false;
 
-      // Estimate gas needed for the token transfer
-      const gasLimit = await tokenContract.transfer.estimateGas(HOT_WALLET_ADDRESS, balance).catch(() => 60000n);
-      const feeData = await provider.getFeeData();
-      const gasPrice = feeData.gasPrice || ethers.parseUnits('3', 'gwei');
-      const bnbRequired = gasLimit * gasPrice;
+  try {
+    const balanceWei = await executeWithRpcFallback(async (rpcProvider) => {
+      const contract = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, rpcProvider);
+      return await contract.balanceOf(address);
+    });
 
-      // Check user wallet BNB balance
-      const userBnbBalance = await provider.getBalance(forwarderAddress);
-      
-      // If user wallet lacks BNB, admin must send it
-      if (userBnbBalance < bnbRequired) {
-        const bnbNeeded = bnbRequired - userBnbBalance;
-        console.log(`[INFO] Sending ${ethers.formatEther(bnbNeeded)} BNB to EOA wallet for gas...`);
-        const fundTx = await wallet.sendTransaction({
-          to: forwarderAddress,
-          value: bnbNeeded
-        });
-        await fundTx.wait();
-        console.log(`[INFO] Gas funded to EOA wallet.`);
+    const currentRecord = db
+      .prepare('SELECT unswept_credited_wei FROM user_deposit_wallets WHERE address = ? COLLATE NOCASE')
+      .get(address);
+    const unsweptCreditedWei = BigInt(currentRecord?.unswept_credited_wei || '0');
+
+    if (balanceWei === 0n) {
+      if (unsweptCreditedWei > 0n) {
+        db.prepare(`UPDATE user_deposit_wallets SET unswept_credited_wei = '0' WHERE address = ? COLLATE NOCASE`).run(address);
+        db.prepare(`UPDATE users SET unswept_credited_wei = '0' WHERE id = ? AND deposit_address = ? COLLATE NOCASE`).run(userId, address);
       }
-
-      console.log(`Flushing token ${tokenAddress} from EOA ${forwarderAddress}...`);
-      const tx = await tokenContract.transfer(HOT_WALLET_ADDRESS, balance);
-      return await tx.wait();
-    } else {
-      // Sweeping BNB directly from EOA
-      const balance = await provider.getBalance(forwarderAddress);
-      const feeData = await provider.getFeeData();
-      const gasPrice = feeData.gasPrice || ethers.parseUnits('3', 'gwei');
-      const gasLimit = 21000n;
-      const bnbRequired = gasLimit * gasPrice;
-      
-      if (balance <= bnbRequired) throw new Error('No sufficient BNB to flush');
-      const amountToSend = balance - bnbRequired;
-
-      console.log(`Flushing BNB from EOA ${forwarderAddress}...`);
-      const tx = await userWallet.sendTransaction({
-        to: HOT_WALLET_ADDRESS,
-        value: amountToSend
-      });
-      return await tx.wait();
-    }
-  }
-
-  // Original Forwarder logic
-  const forwarder = new ethers.Contract(forwarderAddress, FORWARDER_ABI, wallet);
-  
-  if (tokenAddress) {
-    const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
-    const balance = await tokenContract.balanceOf(forwarderAddress);
-    if (balance === 0n || balance === 0) {
-      throw new Error('No tokens to flush');
+      return { credited: 0, swept: false };
     }
 
-    console.log(`Flushing token ${tokenAddress} from forwarder ${forwarderAddress}...`);
-    const tx = await forwarder.flushToken(tokenAddress);
-    return await tx.wait();
-  } else {
-    // Check BNB balance
-    const balance = await provider.getBalance(forwarderAddress);
-    if (balance === 0n || balance === 0) {
-      throw new Error('No BNB to flush');
-    }
+    if (balanceWei > unsweptCreditedWei) {
+      const newDepositWei = balanceWei - unsweptCreditedWei;
+      const amount = parseFloat(ethers.formatUnits(newDepositWei, 18));
 
-    console.log(`Flushing BNB from forwarder ${forwarderAddress}...`);
-    const tx = await forwarder.flushBNB();
-    return await tx.wait();
-  }
-}
+      if (amount > 0) {
+        const txHash = `bsc_usdt_${address.slice(0, 10).toLowerCase()}_${balanceWei.toString()}_${Date.now()}`;
+        const user = db.prepare('SELECT id, email FROM users WHERE id = ?').get(userId) || { id: userId, email };
 
-/**
- * Starts listening to blockchain events for deposits
- */
-function startBlockchainListener() {
-  // Listen for USDT Transfers
-  usdtContract.on('Transfer', async (from, to, value, event) => {
-    try {
-      // Check if 'to' address is one of our user deposit addresses
-      const user = db.prepare(`SELECT id, email FROM users WHERE deposit_address = ? COLLATE NOCASE`).get(to);
-      if (user) {
-        // value is in wei (usually 18 decimals for BSC USDT)
-        const amountStr = ethers.formatUnits(value, 18);
-        const amount = parseFloat(amountStr);
+        console.log(`[DEPOSIT DETECTED] +${amount} USDT for user ${userId} (${user.email || ''}) at ${address}`);
 
-        console.log(`[DEPOSIT] Detected ${amount} USDT deposit for user ${user.id} at ${to}`);
-
-        // Credit user balance in DB and record in payment_requests
         const tx = db.transaction(() => {
-          db.prepare(`UPDATE balances SET available = available + ? WHERE user_id = ?`).run(amount, user.id);
-          
+          db.prepare('INSERT OR IGNORE INTO balances (user_id, available, locked) VALUES (?, 0, 0)').run(userId);
+          db.prepare('UPDATE balances SET available = COALESCE(available, 0) + ? WHERE user_id = ?').run(amount, userId);
+
           db.prepare(`
             INSERT INTO payment_requests (user_id, type, amount, address, tx_ref, status)
             VALUES (?, 'deposit', ?, ?, ?, 'approved')
-          `).run(user.id, amount, to, event.log.transactionHash);
+          `).run(userId, amount, address, txHash);
+
+          db.prepare(`
+            UPDATE user_deposit_wallets
+            SET unswept_credited_wei = ?
+            WHERE address = ? COLLATE NOCASE
+          `).run(balanceWei.toString(), address);
+
+          db.prepare(`
+            UPDATE users
+            SET unswept_credited_wei = ?
+            WHERE id = ? AND deposit_address = ? COLLATE NOCASE
+          `).run(balanceWei.toString(), userId, address);
 
           db.prepare(`
             INSERT INTO activity_logs (user_id, actor_role, action, meta)
-            VALUES (?, ?, ?, ?)
-          `).run(user.id, 'system', 'crypto_deposit', JSON.stringify({
-            amount,
-            currency: 'USDT',
-            address: to,
-            txHash: event.log.transactionHash
-          }));
+            VALUES (?, 'system', 'crypto_deposit', ?)
+          `).run(
+            userId,
+            JSON.stringify({ amount, currency: 'USDT', address, txHash })
+          );
 
           const notifRes = db.prepare(`
             INSERT INTO notifications (user_id, title, message)
             VALUES (?, ?, ?)
-          `).run(user.id, 'Deposit Credited', `Your deposit of ${amount} USDT has been successfully credited.`);
+          `).run(userId, 'Deposit Credited', `Your deposit of ${amount} USDT has been successfully credited.`);
 
           return notifRes.lastInsertRowid;
         });
+
         const notifId = tx();
+        creditedAmount = amount;
 
         const newNotification = db.prepare('SELECT * FROM notifications WHERE id = ?').get(notifId);
         emitSocket('notification', { notification: newNotification });
-        
-        // Broadcast generic event to let client refetch history and balance
-        emitSocket('user_data_update', { user_id: user.id, type: 'deposit_credited' });
+        emitSocket('user_data_update', { user_id: userId, type: 'deposit_credited' });
 
         notifyAdmin({
           type: 'deposit',
           title: '⚡ Crypto Auto-Deposit Received',
-          message: `$${amount} USDT auto-deposited for ${user.email}.`,
-          user_email: user.email,
+          message: `$${amount} USDT auto-deposited for ${user.email || `User #${userId}`}.`,
+          user_email: user.email || '',
           link: '/admin/deposits'
         });
-        
-        await sendDepositEmail(user.email, amount, event.log.transactionHash);
 
-        console.log(`[DEPOSIT] Successfully credited ${amount} USDT to user ${user.id}`);
-        
-        // Trigger auto-flush
-        console.log(`[AUTO-SWEEP] Automatically sweeping funds from ${to} to hot wallet...`);
-        await flushForwarder(to, USDT_ADDRESS, user.id).catch(err => {
-          console.error('[AUTO-SWEEP ERROR] Failed to auto-sweep:', err.message);
-        });
+        await sendDepositEmail(user.email, amount, txHash);
       }
-    } catch (error) {
-      console.error('Error processing USDT transfer:', error);
+    } else if (balanceWei < unsweptCreditedWei) {
+      db.prepare(`UPDATE user_deposit_wallets SET unswept_credited_wei = ? WHERE address = ? COLLATE NOCASE`).run(
+        balanceWei.toString(),
+        address
+      );
+    }
+
+    // Attempt auto-sweep to HOT_WALLET_ADDRESS whenever balanceWei > 0n
+    if (balanceWei > 0n && wallet && HOT_WALLET_ADDRESS) {
+      try {
+        console.log(`[AUTO-SWEEP] Sweeping ${ethers.formatUnits(balanceWei, 18)} USDT from ${address} to hot wallet ${HOT_WALLET_ADDRESS}...`);
+        const receipt = await flushForwarder(address, USDT_ADDRESS, userId, privateKey);
+        swept = true;
+
+        db.prepare(`UPDATE user_deposit_wallets SET unswept_credited_wei = '0' WHERE address = ? COLLATE NOCASE`).run(address);
+        db.prepare(`UPDATE users SET unswept_credited_wei = '0' WHERE id = ? AND deposit_address = ? COLLATE NOCASE`).run(userId, address);
+
+        if (receipt?.hash) {
+          console.log(`[AUTO-SWEEP SUCCESS] Swept ${address} -> ${HOT_WALLET_ADDRESS} (tx: ${receipt.hash})`);
+        }
+      } catch (sweepErr) {
+        console.error(`[AUTO-SWEEP ERROR] Could not sweep ${address}:`, sweepErr.message);
+      }
+    }
+  } catch (err) {
+    console.error(`[CRYPTO CHECK ERROR] ${address}:`, err.message);
+  } finally {
+    sweepingAddresses.delete(lockKey);
+  }
+
+  return { credited: creditedAmount, swept };
+}
+
+/**
+ * Actively checks all registered deposit wallets for a specific user.
+ */
+export async function checkUserDeposit(userId) {
+  if (!userId) return { credited: 0, swept: false };
+  ensureRecoveredDepositForUser(userId);
+
+  const user = db.prepare('SELECT id, email, deposit_address, deposit_private_key FROM users WHERE id = ?').get(userId);
+  if (user && !user.deposit_address) {
+    await generateDepositAddress(user.id, user.email);
+  }
+
+  const wallets = db
+    .prepare('SELECT address, user_id, email, private_key, unswept_credited_wei FROM user_deposit_wallets WHERE user_id = ?')
+    .all(userId);
+
+  let totalCredited = 0;
+  let anySwept = false;
+  for (const w of wallets) {
+    const res = await inspectAndProcessDepositAddress(w);
+    totalCredited += res.credited;
+    if (res.swept) anySwept = true;
+  }
+  return { credited: totalCredited, swept: anySwept };
+}
+
+/**
+ * Periodically scans all user deposit wallets for incoming USDT deposits & sweeps them.
+ */
+export async function checkMissedDeposits() {
+  try {
+    // Sync any users table entries into user_deposit_wallets first
+    db.prepare(`
+      INSERT OR IGNORE INTO user_deposit_wallets (address, user_id, email, private_key, unswept_credited_wei)
+      SELECT deposit_address, id, email, deposit_private_key, COALESCE(unswept_credited_wei, '0')
+      FROM users
+      WHERE deposit_address IS NOT NULL AND deposit_private_key IS NOT NULL
+    `).run();
+
+    const wallets = db
+      .prepare('SELECT address, user_id, email, private_key, unswept_credited_wei FROM user_deposit_wallets')
+      .all();
+
+    for (const w of wallets) {
+      await inspectAndProcessDepositAddress(w);
+    }
+  } catch (err) {
+    console.error('[CRYPTO ERROR] checkMissedDeposits:', err.message);
+  }
+}
+
+/**
+ * Sweeps a specific token (or BNB) from a user's deposit wallet or Forwarder contract to HOT_WALLET_ADDRESS.
+ */
+export async function flushForwarder(forwarderAddress, tokenAddress = USDT_ADDRESS, userId = null, explicitPrivateKey = null) {
+  if (!ADMIN_PRIVATE_KEY || !HOT_WALLET_ADDRESS) {
+    throw new Error('Crypto service not initialized (missing ADMIN_PRIVATE_KEY or HOT_WALLET_ADDRESS)');
+  }
+
+  if (forwarderAddress.trim().toLowerCase() === HOT_WALLET_ADDRESS.trim().toLowerCase()) {
+    return { hash: 'already_in_hot_wallet' };
+  }
+
+  return await executeWithRpcFallback(async (rpcProvider) => {
+    const cleanAdminKey = ADMIN_PRIVATE_KEY.trim().startsWith('0x')
+      ? ADMIN_PRIVATE_KEY.trim()
+      : `0x${ADMIN_PRIVATE_KEY.trim()}`;
+    const adminWallet = new ethers.Wallet(cleanAdminKey, rpcProvider);
+
+    const code = await rpcProvider.getCode(forwarderAddress);
+    const isContract = code && code !== '0x';
+
+    if (!isContract) {
+      // Resolve the matching EOA private key
+      const candidates = [];
+      if (explicitPrivateKey) candidates.push(explicitPrivateKey);
+
+      const walletRow = db
+        .prepare('SELECT private_key, user_id, email FROM user_deposit_wallets WHERE address = ? COLLATE NOCASE')
+        .get(forwarderAddress);
+      if (walletRow?.private_key) candidates.push(walletRow.private_key);
+
+      const effectiveUserId = userId || walletRow?.user_id;
+      if (effectiveUserId) {
+        const userRow = db.prepare('SELECT email, deposit_private_key FROM users WHERE id = ?').get(effectiveUserId);
+        if (userRow?.deposit_private_key) candidates.push(userRow.deposit_private_key);
+
+        const detWallet = getDeterministicUserWallet(effectiveUserId, userRow?.email || walletRow?.email, rpcProvider);
+        candidates.push(detWallet.privateKey);
+
+        // Legacy deterministic key fallback
+        const legacySecret = ADMIN_PRIVATE_KEY || 'otc_market_app_unique_user_secret_v2';
+        const legacyKey = ethers.keccak256(ethers.toUtf8Bytes(legacySecret + '_unique_eoa_user_wallet_id_' + effectiveUserId));
+        candidates.push(legacyKey);
+      }
+
+      let matchedWallet = null;
+      for (const pk of candidates) {
+        try {
+          const cleanPk = pk.trim().startsWith('0x') ? pk.trim() : `0x${pk.trim()}`;
+          const w = new ethers.Wallet(cleanPk, rpcProvider);
+          if (w.address.toLowerCase() === forwarderAddress.trim().toLowerCase()) {
+            matchedWallet = w;
+            break;
+          }
+        } catch (_) {}
+      }
+
+      if (!matchedWallet) {
+        throw new Error(`Private key not found for EOA deposit address ${forwarderAddress}`);
+      }
+
+      if (tokenAddress) {
+        const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, matchedWallet);
+        const balance = await tokenContract.balanceOf(forwarderAddress);
+        if (balance === 0n) throw new Error('No tokens to flush');
+
+        const feeData = await rpcProvider.getFeeData();
+        const rawGasPrice = feeData.gasPrice || ethers.parseUnits('1', 'gwei');
+        const minGasPrice = ethers.parseUnits('0.1', 'gwei');
+        const gasPrice = rawGasPrice < minGasPrice ? minGasPrice : rawGasPrice;
+        const gasLimit = 65000n;
+        const bnbRequired = gasLimit * gasPrice;
+
+        const userBnbBalance = await rpcProvider.getBalance(forwarderAddress);
+        if (userBnbBalance < bnbRequired) {
+          // Fund with a 25% buffer so the subsequent ERC-20 transfer never fails with insufficient gas
+          const bnbNeeded = ((bnbRequired - userBnbBalance) * 125n) / 100n;
+          console.log(`[GAS] Funding ${ethers.formatEther(bnbNeeded)} BNB from ${adminWallet.address} to ${forwarderAddress}...`);
+          const fundTx = await adminWallet.sendTransaction({
+            to: forwarderAddress,
+            value: bnbNeeded,
+            gasLimit: 21000n,
+            gasPrice
+          });
+          await fundTx.wait();
+        }
+
+        const tx = await tokenContract.transfer(HOT_WALLET_ADDRESS, balance, {
+          gasLimit,
+          gasPrice
+        });
+        return await tx.wait();
+      } else {
+        const balance = await rpcProvider.getBalance(forwarderAddress);
+        const feeData = await rpcProvider.getFeeData();
+        const gasPrice = feeData.gasPrice || ethers.parseUnits('1', 'gwei');
+        const gasLimit = 21000n;
+        const bnbRequired = gasLimit * gasPrice;
+        if (balance <= bnbRequired) throw new Error('No sufficient BNB to flush');
+
+        const tx = await matchedWallet.sendTransaction({
+          to: HOT_WALLET_ADDRESS,
+          value: balance - bnbRequired,
+          gasLimit,
+          gasPrice
+        });
+        return await tx.wait();
+      }
+    }
+
+    // Forwarder smart contract logic
+    const forwarder = new ethers.Contract(forwarderAddress, FORWARDER_ABI, adminWallet);
+    if (tokenAddress) {
+      const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, rpcProvider);
+      const balance = await tokenContract.balanceOf(forwarderAddress);
+      if (balance === 0n) throw new Error('No tokens to flush');
+
+      const tx = await forwarder.flushToken(tokenAddress);
+      return await tx.wait();
+    } else {
+      const balance = await rpcProvider.getBalance(forwarderAddress);
+      if (balance === 0n) throw new Error('No BNB to flush');
+
+      const tx = await forwarder.flushBNB();
+      return await tx.wait();
     }
   });
-
-  // Listen for BNB Deposits directly to factory or forwarders if needed, 
-  // but mostly relying on USDT for now.
 }
 
 /**
@@ -347,9 +601,23 @@ function startBlockchainListener() {
  */
 export async function getHotWalletStatus() {
   try {
-    if (!provider || !wallet) return { address: HOT_WALLET_ADDRESS || '', balance: 0, error: 'Not initialized' };
-    const bal = await provider.getBalance(wallet.address);
-    return { address: wallet.address, balance: Number(ethers.formatEther(bal)) };
+    if (!ADMIN_PRIVATE_KEY) {
+      return { address: HOT_WALLET_ADDRESS || '', balance: 0, error: 'Not initialized' };
+    }
+    const cleanAdminKey = ADMIN_PRIVATE_KEY.trim().startsWith('0x')
+      ? ADMIN_PRIVATE_KEY.trim()
+      : `0x${ADMIN_PRIVATE_KEY.trim()}`;
+    const adminWallet = new ethers.Wallet(cleanAdminKey);
+
+    const bal = await executeWithRpcFallback(async (rpcProvider) => {
+      return await rpcProvider.getBalance(adminWallet.address);
+    });
+
+    return {
+      address: adminWallet.address,
+      hotWalletAddress: HOT_WALLET_ADDRESS || adminWallet.address,
+      balance: Number(ethers.formatEther(bal))
+    };
   } catch (error) {
     return { address: HOT_WALLET_ADDRESS || '', balance: 0, error: error.message };
   }

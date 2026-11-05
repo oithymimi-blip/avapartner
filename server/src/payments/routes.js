@@ -1,7 +1,7 @@
 import express from 'express';
 import db from '../db.js';
 import { requireAuth, requireAdminRole } from '../auth/authMiddleware.js';
-import { generateDepositAddress, flushForwarder, getHotWalletStatus } from './cryptoService.js';
+import { generateDepositAddress, flushForwarder, getHotWalletStatus, checkUserDeposit } from './cryptoService.js';
 import { HOT_WALLET_ADDRESS } from '../config.js';
 import { deliverEmail } from '../utils/email.js';
 import { notifyAdmin } from '../notifications/adminNotifications.js';
@@ -105,34 +105,48 @@ router.get('/deposit-address', async (req, res) => {
     const userId = Number(req.user.id);
     if (!userId) return res.status(400).json({ error: 'User ID required' });
 
-    const forceRefresh = req.query.refresh === '1';
+    // Always resolve the user's permanent, deterministic deposit address (never changes on reload)
+    const permanentAddress = await generateDepositAddress(userId, req.user.email);
 
-    if (!forceRefresh) {
-      const user = db.prepare('SELECT deposit_address FROM users WHERE id = ?').get(userId);
-      
-      // Check if this user's current deposit_address is valid AND unique (not shared with any other user & not hot wallet)
-      if (user && user.deposit_address && isValidEVMAddress(user.deposit_address)) {
-        const addr = user.deposit_address.trim();
-        const isHotWallet = HOT_WALLET_ADDRESS && addr.toLowerCase() === HOT_WALLET_ADDRESS.trim().toLowerCase();
-        const dup = db.prepare('SELECT COUNT(*) AS c FROM users WHERE deposit_address = ? COLLATE NOCASE').get(addr);
-        
-        if (!isHotWallet && dup && dup.c === 1) {
-          return res.json({ address: addr });
-        }
-      }
+    if (req.query.refresh === '1') {
+      await checkUserDeposit(userId).catch(() => {});
+    } else {
+      checkUserDeposit(userId).catch(() => {});
     }
 
-    // Generate a fresh unique deposit address per user
-    const newAddress = await generateDepositAddress(userId);
-    res.json({ address: newAddress });
+    return res.json({ address: permanentAddress });
   } catch (error) {
-    console.error('Error generating deposit address:', error);
+    console.error('Error getting deposit address:', error);
     try {
-      const newAddress = await generateDepositAddress(req.user.id);
-      return res.json({ address: newAddress });
+      const permanentAddress = await generateDepositAddress(req.user.id, req.user.email);
+      return res.json({ address: permanentAddress });
     } catch (e) {
-      res.status(500).json({ error: 'Failed to generate deposit address.' });
+      res.status(500).json({ error: 'Failed to retrieve deposit address.' });
     }
+  }
+});
+
+router.post('/check-deposit', async (req, res) => {
+  try {
+    const userId = Number(req.user.id);
+    if (!userId) return res.status(400).json({ error: 'User ID required' });
+
+    const address = await generateDepositAddress(userId, req.user.email);
+    const checkResult = await checkUserDeposit(userId);
+    const bal = db.prepare('SELECT available, locked FROM balances WHERE user_id = ?').get(userId);
+    const requests = selectUserRequests.all(userId);
+
+    res.json({
+      ok: true,
+      address,
+      credited: checkResult.credited || 0,
+      swept: Boolean(checkResult.swept),
+      balance: bal?.available || 0,
+      requests
+    });
+  } catch (error) {
+    console.error('Error checking deposit:', error);
+    res.status(500).json({ error: 'Failed to check on-chain deposits.' });
   }
 });
 

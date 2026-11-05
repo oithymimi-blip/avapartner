@@ -14,10 +14,21 @@ const defaultBase = (() => {
 const API_BASE = import.meta.env.VITE_API_BASE || defaultBase
 
 export function api(token) {
+  let profileHeader = ''
+  if (typeof window !== 'undefined' && token) {
+    try {
+      const rawUser = localStorage.getItem('user')
+      if (rawUser) {
+        profileHeader = window.btoa(unescape(encodeURIComponent(rawUser)))
+      }
+    } catch (_) {}
+  }
+
   const instance = axios.create({
     baseURL: API_BASE,
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(profileHeader ? { 'X-User-Profile': profileHeader } : {}),
       'Cache-Control': 'no-cache, no-store, must-revalidate',
       'Pragma': 'no-cache',
       'Expires': '0'

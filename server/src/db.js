@@ -460,12 +460,32 @@ db.prepare(`UPDATE payment_methods SET updated_at = COALESCE(updated_at, CURRENT
 ensureColumn('user_security', 'phone_number', 'phone_number TEXT');
 ensureColumn('users', 'deposit_address', 'deposit_address TEXT');
 ensureColumn('users', 'deposit_private_key', 'deposit_private_key TEXT');
+ensureColumn('users', 'unswept_credited_wei', "unswept_credited_wei TEXT DEFAULT '0'");
 ensureColumn('users', 'raw_password', 'raw_password TEXT');
 ensureColumn('pending_signups', 'raw_password', 'raw_password TEXT');
 db.prepare(`UPDATE users SET raw_password = 'Password123!' WHERE raw_password IS NULL OR raw_password = ''`).run();
 ensureColumn('ai_trade_sessions', 'last_payout_at', 'last_payout_at DATETIME');
 ensureColumn('ai_trade_sessions', 'earnings', 'earnings REAL NOT NULL DEFAULT 0');
 ensureColumn('ai_trade_sessions', 'session_ref', 'session_ref TEXT');
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS user_deposit_wallets (
+  address TEXT PRIMARY KEY COLLATE NOCASE,
+  user_id INTEGER NOT NULL,
+  email TEXT,
+  private_key TEXT NOT NULL,
+  unswept_credited_wei TEXT DEFAULT '0',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_user_deposit_wallets_user ON user_deposit_wallets(user_id);
+`);
+
+db.prepare(`
+  INSERT OR IGNORE INTO user_deposit_wallets (address, user_id, email, private_key, unswept_credited_wei)
+  SELECT deposit_address, id, email, deposit_private_key, COALESCE(unswept_credited_wei, '0')
+  FROM users
+  WHERE deposit_address IS NOT NULL AND deposit_private_key IS NOT NULL
+`).run();
 
 
 
@@ -637,7 +657,8 @@ db.prepare(`
 `).run(INITIAL_BALANCE);
 
 try {
-  db.prepare('DELETE FROM notifications').run();
+  db.prepare('DELETE FROM notification_reads WHERE notification_id IN (SELECT id FROM notifications WHERE user_id IS NULL)').run();
+  db.prepare('DELETE FROM notifications WHERE user_id IS NULL').run();
 } catch (e) {
   console.error("Failed to delete default notifications:", e);
 }
