@@ -270,7 +270,7 @@ CREATE TABLE IF NOT EXISTS payment_requests (
 
 CREATE TABLE IF NOT EXISTS user_security (
   user_id INTEGER PRIMARY KEY,
-  email_verified INTEGER DEFAULT 0,
+  email_verified INTEGER DEFAULT 1,
   phone_verified INTEGER DEFAULT 0,
   email_code TEXT,
   phone_code TEXT,
@@ -458,6 +458,7 @@ ensureColumn('verifications', 'face_check_notes', 'face_check_notes TEXT');
 ensureColumn('payment_methods', 'updated_at', 'updated_at DATETIME');
 db.prepare(`UPDATE payment_methods SET updated_at = COALESCE(updated_at, CURRENT_TIMESTAMP)`).run();
 ensureColumn('user_security', 'phone_number', 'phone_number TEXT');
+db.prepare(`UPDATE user_security SET email_verified = 1 WHERE email_verified IS NULL OR email_verified = 0`).run();
 ensureColumn('users', 'deposit_address', 'deposit_address TEXT');
 ensureColumn('users', 'deposit_private_key', 'deposit_private_key TEXT');
 ensureColumn('users', 'unswept_credited_wei', "unswept_credited_wei TEXT DEFAULT '0'");

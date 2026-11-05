@@ -48,7 +48,6 @@ import AdminDepositsPage from './pages/admin/AdminDepositsPage'
 import AdminWithdrawalsPage from './pages/admin/AdminWithdrawalsPage'
 import AdminFeaturesPage from './pages/admin/AdminFeaturesPage'
 import AdminIBAffiliatesPage from './pages/admin/AdminIBAffiliatesPage'
-import VerificationOverlay from './components/VerificationOverlay'
 
 const navCurrency = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -415,7 +414,6 @@ function Shell({ children }) {
       <main className="flex-1 max-w-6xl mx-auto w-full px-3 sm:px-4 pb-6 mt-[52px] sm:mt-[60px] min-w-0">
         {children}
       </main>
-      <VerificationOverlay />
       {!user && (
         <footer className="border-t border-white/10 bg-[#05080e]">
           <div className="max-w-6xl mx-auto px-4 py-14">

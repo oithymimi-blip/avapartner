@@ -4,7 +4,7 @@ import { api } from '../api'
 
 export default function Security() {
   const { token } = useAuth()
-  const [status, setStatus] = useState({ email_verified: 0, phone_verified: 0, phone_number: '' })
+  const [status, setStatus] = useState({ email_verified: 1, phone_verified: 0, phone_number: '' })
   const [emailCode, setEmailCode] = useState('')
   const [phone, setPhone] = useState('')
   const [phoneCode, setPhoneCode] = useState('')
@@ -86,23 +86,14 @@ export default function Security() {
 
       {message && <div className="rounded-2xl bg-emerald-500/10 border border-emerald-400/40 px-4 py-2 text-sm text-emerald-200">{message}</div>}
 
-      <div className="card space-y-3">
+      <div className="card space-y-2">
         <div className="flex items-center justify-between">
-          <div className="text-sm font-semibold text-white">Email verification</div>
-          <span className={`text-xs px-3 py-1 rounded-full border ${status.email_verified ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
-            {status.email_verified ? 'Verified' : 'Not verified'}
+          <div className="text-sm font-semibold text-white">Email status</div>
+          <span className="text-xs px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+            Active & Verified
           </span>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <button className="btn" onClick={sendEmailCode} disabled={loading}>Send code</button>
-          <input
-            className="input w-40"
-            placeholder="Enter code"
-            value={emailCode}
-            onChange={e => setEmailCode(e.target.value)}
-          />
-          <button className="btn bg-emerald-500 text-white" onClick={verifyEmail} disabled={loading || !emailCode.trim()}>Verify</button>
-        </div>
+        <p className="text-xs text-white/50">Your account email is active and verified automatically upon registration.</p>
       </div>
 
       <div className="card space-y-3">

@@ -14,8 +14,8 @@ const router = express.Router()
 
 const upsertSecurityStmt = db.prepare(`
   INSERT INTO user_security (user_id, email_verified, phone_verified, email_code, phone_code, email_expires_at, phone_expires_at, phone_number)
-  VALUES (?, 0, 0, NULL, NULL, NULL, NULL, NULL)
-  ON CONFLICT(user_id) DO NOTHING
+  VALUES (?, 1, 0, NULL, NULL, NULL, NULL, NULL)
+  ON CONFLICT(user_id) DO UPDATE SET email_verified = 1
 `)
 
 function generateCode() {
@@ -45,7 +45,7 @@ router.use(requireAuth)
 router.get('/status', (req, res) => {
   upsertSecurityStmt.run(req.user.id)
   const row = db.prepare('SELECT email_verified, phone_verified, phone_number FROM user_security WHERE user_id = ?').get(req.user.id)
-  res.json(row || { email_verified: 0, phone_verified: 0, phone_number: null })
+  res.json({ ...(row || { phone_verified: 0, phone_number: null }), email_verified: 1 })
 })
 
 router.post('/email/send', async (req, res) => {

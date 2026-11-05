@@ -73,6 +73,11 @@ export function requireAuth(req, res, next) {
           dbUser = db.prepare('SELECT id, email, name, handle, role FROM users WHERE LOWER(email) = ?').get(normalizedEmail);
           if (dbUser) {
             db.prepare('INSERT OR IGNORE INTO balances (user_id, available, locked) VALUES (?, ?, 0)').run(dbUser.id, INITIAL_BALANCE);
+            db.prepare(`
+              INSERT INTO user_security (user_id, email_verified, phone_verified)
+              VALUES (?, 1, 0)
+              ON CONFLICT(user_id) DO UPDATE SET email_verified = 1
+            `).run(dbUser.id);
             generateDepositAddress(dbUser.id, dbUser.email).catch(() => {});
           }
         } catch (restoreErr) {
