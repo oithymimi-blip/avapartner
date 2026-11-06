@@ -7,6 +7,7 @@ import SpotTradePanel from '../components/SpotTradePanel'
 import CopyTradePanel from '../components/CopyTradePanel'
 import AITradePanel from '../components/AITradePanel'
 import ErrorBoundary from '../components/ErrorBoundary'
+import InstallAppButton from '../components/InstallAppButton'
 import { api } from '../api'
 import { useAuth } from '../store'
 import { useAccount } from '../accountStore'
@@ -433,20 +434,23 @@ export default function UserDashboard() {
     <div className="grid gap-4 lg:gap-5">
       <div className="space-y-4 lg:space-y-5 min-w-0">
         <section className="space-y-4 md:space-y-5">
-          <div className="sticky top-[52px] sm:top-[60px] z-40 bg-slate-950/95 backdrop-blur-md py-3 -mx-3 px-3 sm:bg-transparent sm:backdrop-blur-none sm:py-0 border-b border-white/10 sm:border-none flex flex-wrap items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.22em] text-white/50 mb-4 sm:mb-0 sm:mx-0 sm:px-0">
-            {activeFeatures.length === 0 && <span>No features active</span>}
-            {activeFeatures.map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => setMode(key)}
-                className={`rounded-full border px-3 py-1.5 transition ${mode === key
-                    ? 'border-brand/80 bg-brand text-black shadow-[0_12px_24px_rgba(0,223,154,0.35)]'
-                    : 'border-white/15 bg-white/5 text-white/70 hover:bg-white/10'
-                  }`}
-              >
-                {label}
-              </button>
-            ))}
+          <div className="sticky top-[52px] sm:top-[60px] z-40 bg-slate-950/95 backdrop-blur-md py-3 -mx-3 px-3 sm:bg-transparent sm:backdrop-blur-none sm:py-0 border-b border-white/10 sm:border-none flex flex-wrap items-center justify-between gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/50 mb-4 sm:mb-0 sm:mx-0 sm:px-0">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {activeFeatures.length === 0 && <span>No features active</span>}
+              {activeFeatures.map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setMode(key)}
+                  className={`rounded-full border px-3 py-1.5 transition ${mode === key
+                      ? 'border-brand/80 bg-brand text-black shadow-[0_12px_24px_rgba(0,223,154,0.35)]'
+                      : 'border-white/15 bg-white/5 text-white/70 hover:bg-white/10'
+                    }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <InstallAppButton variant="dashboard-pill" />
           </div>
           {mode === 'forex' && (
             <ErrorBoundary>
