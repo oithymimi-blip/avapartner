@@ -269,11 +269,10 @@ function Shell({ children }) {
           </div>
           
           {user && (
-            <div className="flex-1 flex items-center justify-center gap-2 px-1 overflow-hidden">
-              <Link to="/wallet/deposit" className="bg-brand text-black font-bold px-3.5 sm:px-4 py-1.5 rounded-full text-[11px] sm:text-xs shadow-md shadow-brand/20 hover:bg-emerald-400 transition-colors whitespace-nowrap">
+            <div className="flex-1 flex justify-center px-1 overflow-hidden">
+              <Link to="/wallet/deposit" className="bg-brand text-black font-bold px-4 py-1.5 rounded-full text-[11px] sm:text-xs shadow-md shadow-brand/20 hover:bg-emerald-400 transition-colors whitespace-nowrap">
                 Add Funds
               </Link>
-              <InstallAppButton variant="nav" />
             </div>
           )}
 
@@ -288,7 +287,6 @@ function Shell({ children }) {
             )}
             {!user && (
               <div className="flex items-center gap-2 text-xs sm:text-sm">
-                <InstallAppButton variant="nav" />
                 <Link to="/login" className="btn px-3 py-1.5 sm:px-4 sm:py-2">Login</Link>
                 <Link to="/signup" className="btn bg-white text-black px-3 py-1.5 sm:px-4 sm:py-2">Sign up</Link>
               </div>

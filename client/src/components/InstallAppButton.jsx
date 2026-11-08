@@ -90,25 +90,11 @@ export default function InstallAppButton({ variant = 'default', className = '' }
   return (
     <>
       {variant === 'auth-top' ? (
-        <div className={`w-full mb-5 rounded-2xl bg-gradient-to-r from-[#0b192c] via-[#0f243c] to-[#0b192c] border border-sky-500/30 p-3.5 sm:p-4 shadow-[0_0_25px_rgba(14,165,233,0.15)] flex flex-col sm:flex-row items-center justify-between gap-3 ${className}`}>
-          <div className="flex items-center gap-3 text-center sm:text-left">
-            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-brand via-emerald-400 to-sky-500 items-center justify-center font-black text-black text-xs shadow-md flex-shrink-0">
-              AP
-            </div>
-            <div>
-              <div className="text-xs sm:text-sm font-bold text-white flex items-center justify-center sm:justify-start gap-1.5">
-                <span>AvaPartner Official Mobile App</span>
-                <span className="inline-block w-2 h-2 rounded-full bg-brand animate-pulse"></span>
-              </div>
-              <div className="text-[11px] text-white/60">
-                Install the native mobile app for 1-tap access &amp; instant notifications
-              </div>
-            </div>
-          </div>
+        <div className={`w-full mb-5 flex justify-center ${className}`}>
           <button
             type="button"
             onClick={handleInstallClick}
-            className="btn bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 hover:from-sky-300 hover:to-blue-500 text-slate-950 font-extrabold px-5 py-2.5 rounded-full text-xs sm:text-sm shadow-[0_0_20px_rgba(14,165,233,0.4)] hover:shadow-[0_0_30px_rgba(14,165,233,0.6)] transition-all duration-300 w-full sm:w-auto flex items-center justify-center gap-2 whitespace-nowrap flex-shrink-0"
+            className="bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 hover:from-sky-300 hover:to-blue-500 text-slate-950 font-extrabold px-8 py-3 rounded-full text-sm sm:text-base shadow-[0_0_25px_rgba(14,165,233,0.4)] hover:shadow-[0_0_35px_rgba(14,165,233,0.6)] hover:-translate-y-0.5 transition-all duration-300 w-full sm:w-auto flex items-center justify-center gap-2.5 whitespace-nowrap"
           >
             {phoneIcon}
             <span>{isInstalled ? 'App Installed' : 'Install Mobile App'}</span>
