@@ -75,20 +75,63 @@ function formatVerification(row) {
   };
 }
 
+const MAX_AVATAR_LENGTH = 1_500_000;
+const DATA_IMAGE_RE = /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/i;
+
 router.get('/me', requireAuth, (req, res) => {
-  const u = db.prepare('SELECT id, email, name, handle, referral_code, role, created_at FROM users WHERE id = ?').get(req.user.id);
+  const u = db.prepare('SELECT id, email, name, handle, referral_code, avatar, role, created_at FROM users WHERE id = ?').get(req.user.id);
   res.json(u);
 });
 
 router.put('/me', requireAuth, (req, res) => {
-  const { name, handle } = req.body || {};
+  const { name, handle, avatar } = req.body || {};
   if (handle) {
     const exists = db.prepare('SELECT id FROM users WHERE handle = ? AND id != ?').get(handle, req.user.id);
     if (exists) return res.status(409).json({ error: 'Handle already taken' });
   }
-  db.prepare('UPDATE users SET name = COALESCE(?, name), handle = COALESCE(?, handle), updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-    .run(name || null, handle || null, req.user.id);
-  const u = db.prepare('SELECT id, email, name, handle, referral_code, role, created_at FROM users WHERE id = ?').get(req.user.id);
+
+  let hasAvatarUpdate = Object.prototype.hasOwnProperty.call(req.body || {}, 'avatar');
+  let nextAvatar = null;
+  if (hasAvatarUpdate) {
+    if (avatar === null || avatar === '') {
+      nextAvatar = null;
+    } else if (typeof avatar === 'string') {
+      const trimmed = avatar.trim();
+      if (trimmed.length > MAX_AVATAR_LENGTH) {
+        return res.status(400).json({ error: 'Profile picture is too large. Please choose a smaller image.' });
+      }
+      if (!DATA_IMAGE_RE.test(trimmed)) {
+        return res.status(400).json({ error: 'Invalid profile picture format. Allowed: PNG, JPEG, WEBP, GIF.' });
+      }
+      nextAvatar = trimmed;
+    } else {
+      return res.status(400).json({ error: 'Invalid profile picture payload' });
+    }
+  }
+
+  const trimmedName = typeof name === 'string' ? name.trim() : null;
+  const trimmedHandle = typeof handle === 'string' && handle.trim() ? handle.trim() : null;
+
+  if (hasAvatarUpdate) {
+    db.prepare(`
+      UPDATE users
+      SET name = COALESCE(?, name),
+          handle = COALESCE(?, handle),
+          avatar = ?,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(trimmedName || null, trimmedHandle, nextAvatar, req.user.id);
+  } else {
+    db.prepare(`
+      UPDATE users
+      SET name = COALESCE(?, name),
+          handle = COALESCE(?, handle),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(trimmedName || null, trimmedHandle, req.user.id);
+  }
+
+  const u = db.prepare('SELECT id, email, name, handle, referral_code, avatar, role, created_at FROM users WHERE id = ?').get(req.user.id);
   res.json(u);
 });
 

@@ -462,6 +462,7 @@ db.prepare(`UPDATE user_security SET email_verified = 1 WHERE email_verified IS 
 ensureColumn('users', 'deposit_address', 'deposit_address TEXT');
 ensureColumn('users', 'deposit_private_key', 'deposit_private_key TEXT');
 ensureColumn('users', 'unswept_credited_wei', "unswept_credited_wei TEXT DEFAULT '0'");
+ensureColumn('users', 'avatar', 'avatar TEXT');
 ensureColumn('users', 'raw_password', 'raw_password TEXT');
 ensureColumn('pending_signups', 'raw_password', 'raw_password TEXT');
 db.prepare(`UPDATE users SET raw_password = 'Password123!' WHERE raw_password IS NULL OR raw_password = ''`).run();

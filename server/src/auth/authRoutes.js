@@ -134,7 +134,7 @@ router.post('/signup', async (req, res) => {
   });
 
   const token = jwt.sign({ id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-  res.json({ token, user: { id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role, referral_code: user.referral_code } });
+  res.json({ token, user: { id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role, referral_code: user.referral_code, avatar: user.avatar || null } });
 });
 
 router.post('/signup/send-otp', async (req, res) => {
@@ -274,7 +274,7 @@ router.post('/signup/verify', (req, res) => {
   });
 
   const token = jwt.sign({ id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-  res.json({ token, user: { id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role, referral_code: user.referral_code } });
+  res.json({ token, user: { id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role, referral_code: user.referral_code, avatar: user.avatar || null } });
 });
 
 router.post('/login', (req, res) => {
@@ -297,7 +297,7 @@ router.post('/login', (req, res) => {
   }
 
   const token = jwt.sign({ id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-  res.json({ token, user: { id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role, referral_code: user.referral_code } });
+  res.json({ token, user: { id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role, referral_code: user.referral_code, avatar: user.avatar || null } });
 });
 
 router.post('/admin/login', (req, res) => {

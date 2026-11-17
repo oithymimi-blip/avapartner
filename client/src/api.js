@@ -19,7 +19,16 @@ export function api(token) {
     try {
       const rawUser = localStorage.getItem('user')
       if (rawUser) {
-        profileHeader = window.btoa(unescape(encodeURIComponent(rawUser)))
+        const parsed = JSON.parse(rawUser)
+        const compactProfile = {
+          id: parsed.id,
+          email: parsed.email,
+          name: parsed.name,
+          handle: parsed.handle,
+          role: parsed.role,
+          referral_code: parsed.referral_code
+        }
+        profileHeader = window.btoa(unescape(encodeURIComponent(JSON.stringify(compactProfile))))
       }
     } catch (_) {}
   }

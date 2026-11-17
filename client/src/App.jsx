@@ -49,6 +49,7 @@ import AdminWithdrawalsPage from './pages/admin/AdminWithdrawalsPage'
 import AdminFeaturesPage from './pages/admin/AdminFeaturesPage'
 import AdminIBAffiliatesPage from './pages/admin/AdminIBAffiliatesPage'
 import InstallAppButton from './components/InstallAppButton'
+import UserAvatar from './components/UserAvatar'
 
 const navCurrency = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -85,7 +86,7 @@ function MoonIcon({ className }) {
 
 function Shell({ children }) {
   const location = useLocation()
-  const { user, token, logout } = useAuth()
+  const { user, token, logout, syncProfile } = useAuth()
   const accountSummary = useAccount(state => state.summary)
   const setAccountSummary = useAccount(state => state.setSummary)
   const notifications = useNotificationsStore(state => state.notifications)
@@ -124,6 +125,11 @@ function Shell({ children }) {
       .then(res => setAccountSummary(res.data))
       .catch(err => console.error('Failed to load account summary', err))
   }, [token, accountSummary, setAccountSummary])
+
+  useEffect(() => {
+    if (!token) return
+    syncProfile()
+  }, [token, syncProfile])
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -375,16 +381,25 @@ function Shell({ children }) {
             {user && (
               <div className="relative" ref={menuRef}>
                 <button
-                  className="nav-icon flex items-center gap-2 bg-black/30 border border-white/10 rounded-full px-3 py-1 text-sm"
+                  className="nav-icon flex items-center gap-2 bg-black/30 border border-white/10 rounded-full p-1 sm:pl-1.5 sm:pr-3 sm:py-1 text-sm"
                   onClick={() => setMenuOpen(o => !o)}
                 >
-                  <div className="w-8 h-8 rounded-full bg-brand/20 flex items-center justify-center text-brand font-semibold">
-                    {user.name?.[0]?.toUpperCase?.() || user.email?.[0]?.toUpperCase?.() || 'U'}
-                  </div>
-                  <span className="hidden sm:block">{user.name || user.email}</span>
+                  <UserAvatar user={user} size="sm" />
+                  <span className="hidden sm:block max-w-[120px] truncate">{user.name || user.email}</span>
                 </button>
                 {menuOpen && (
-                  <div className="absolute right-0 mt-2 w-56 rounded-xl border border-white/10 bg-[#0b0f13] shadow-soft p-2 space-y-1 text-sm">
+                  <div className="absolute right-0 mt-2 w-64 rounded-xl border border-white/10 bg-[#0b0f13] shadow-soft p-2 space-y-1 text-sm">
+                    <button
+                      type="button"
+                      onClick={() => handleNavigate('/profile')}
+                      className="w-full flex items-center gap-2.5 p-2 rounded-lg hover:bg-white/10 transition text-left border-b border-white/10 pb-2.5 mb-1"
+                    >
+                      <UserAvatar user={user} size="md" />
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold truncate text-xs">{user.name || 'Trader'}</div>
+                        <div className="text-[11px] opacity-60 truncate">{user.email}</div>
+                      </div>
+                    </button>
                     <div className="pb-1 mb-1 border-b border-white/10">
                       <InstallAppButton variant="menu" />
                     </div>
