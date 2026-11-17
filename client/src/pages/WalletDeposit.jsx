@@ -107,7 +107,10 @@ export default function WalletDeposit() {
   useEffect(() => {
     if (!user?.id) return;
     const handleUpdate = (payload) => {
-      if (payload?.user_id === user.id && payload?.type === 'deposit_credited') {
+      if (
+        payload?.user_id === user.id &&
+        ['deposit_credited', 'withdrawal_submitted', 'withdrawal_updated', 'balance_updated'].includes(payload?.type)
+      ) {
         syncBalanceAndHistory();
       }
     };

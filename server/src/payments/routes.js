@@ -5,6 +5,8 @@ import { generateDepositAddress, flushForwarder, getHotWalletStatus, checkUserDe
 import { HOT_WALLET_ADDRESS } from '../config.js';
 import { deliverEmail } from '../utils/email.js';
 import { notifyAdmin } from '../notifications/adminNotifications.js';
+import { emitSocket } from '../market/engine.js';
+import { validateCryptoAddress } from '../utils/addressValidator.js';
 
 const router = express.Router();
 
@@ -159,17 +161,142 @@ function otpExpiresAt(minutes = 10) {
   return new Date(Date.now() + minutes * 60 * 1000).toISOString();
 }
 
+function round2(n) {
+  return Math.round(Number(n || 0) * 100) / 100;
+}
+
+function roundCurrency(n) {
+  return Math.round(Number(n || 0) * 1e6) / 1e6;
+}
+
+function resolveWithdrawMethod(methodId) {
+  const numId = Number(methodId);
+  if (Number.isInteger(numId) && numId > 0) {
+    const method = db.prepare('SELECT * FROM payment_methods WHERE id = ?').get(numId);
+    if (method && method.type === 'withdraw') return method;
+  }
+  const fallback = db.prepare("SELECT * FROM payment_methods WHERE type = 'withdraw' AND active != 0 ORDER BY id ASC LIMIT 1").get();
+  if (fallback) return fallback;
+  return { id: null, type: 'withdraw', name: 'USDT', network: 'Binance Smart Chain (BEP-20)', active: 1 };
+}
+
+function executeWithdrawal({ userId, userEmail, method, amount, address, tag }) {
+  const amt = roundCurrency(amount);
+  if (!Number.isFinite(amt) || amt < 0.01) {
+    const err = new Error('Enter a valid withdrawal amount (minimum $0.01)');
+    err.status = 400;
+    throw err;
+  }
+
+  const addrCheck = validateCryptoAddress(address, method?.network || '', method?.name || '');
+  if (!addrCheck.valid) {
+    const err = new Error(addrCheck.message || 'Invalid wallet address');
+    err.status = 400;
+    throw err;
+  }
+
+  const cleanAddress = addrCheck.normalized || String(address).trim();
+  const cleanTag = tag ? String(tag).trim() : null;
+  const networkLabel = method?.network || 'Binance Smart Chain (BEP-20)';
+  const shortAddr = cleanAddress.length > 14 ? `${cleanAddress.slice(0, 8)}...${cleanAddress.slice(-6)}` : cleanAddress;
+
+  const result = db.transaction(() => {
+    db.prepare('INSERT OR IGNORE INTO balances (user_id, available, locked) VALUES (?, 0, 0)').run(userId);
+    const bal = db.prepare('SELECT available, locked FROM balances WHERE user_id = ?').get(userId);
+    const currentAvail = Number(bal?.available ?? 0);
+    const locked = Number(bal?.locked ?? 0);
+
+    if (currentAvail + 1e-6 < amt) {
+      const err = new Error('Insufficient available balance');
+      err.status = 400;
+      throw err;
+    }
+
+    let nextAvail = roundCurrency(currentAvail - amt);
+    if (nextAvail < 1e-6) nextAvail = 0;
+
+    db.prepare('UPDATE balances SET available = ? WHERE user_id = ?').run(nextAvail, userId);
+
+    const reqInfo = insertRequest.run(userId, 'withdraw', method?.id || null, amt, cleanAddress, cleanTag, null);
+    const requestId = Number(reqInfo.lastInsertRowid);
+
+    db.prepare('INSERT INTO activity_logs (user_id, actor_role, action, meta) VALUES (?, ?, ?, ?)')
+      .run(userId, 'user', 'withdrawal_request', JSON.stringify({
+        requestId,
+        amount: amt,
+        address: cleanAddress,
+        network: networkLabel,
+        processingTime: '3 - 24 hours'
+      }));
+
+    const notifInfo = db.prepare('INSERT INTO notifications (user_id, title, message) VALUES (?, ?, ?)')
+      .run(
+        userId,
+        'Withdrawal Submitted',
+        `Your withdrawal of $${amt.toFixed(2)} USDT to ${shortAddr} has been submitted and deducted from your available balance. Estimated processing time: 3 to 24 hours.`
+      );
+
+    const requestRow = db.prepare(`
+      SELECT pr.*, COALESCE(pm.name, ?) AS method_name, COALESCE(pm.network, ?) AS network, u.email AS user_email
+      FROM payment_requests pr
+      LEFT JOIN payment_methods pm ON pm.id = pr.method_id
+      LEFT JOIN users u ON u.id = pr.user_id
+      WHERE pr.id = ?
+    `).get(method?.name || 'USDT', networkLabel, requestId);
+
+    return {
+      requestRow,
+      notifId: Number(notifInfo.lastInsertRowid),
+      balance: {
+        available: round2(nextAvail),
+        locked: round2(locked),
+        total: round2(nextAvail + locked)
+      }
+    };
+  })();
+
+  const newNotification = db.prepare('SELECT * FROM notifications WHERE id = ?').get(result.notifId);
+  if (newNotification) {
+    emitSocket('notification', { notification: newNotification });
+  }
+  emitSocket('user_data_update', {
+    user_id: userId,
+    type: 'withdrawal_submitted',
+    balance: result.balance
+  });
+  emitSocket('admin_trade_update', { userId, type: 'withdrawal_submitted' });
+
+  notifyAdmin({
+    type: 'withdrawal',
+    title: '💸 New Withdrawal Request',
+    message: `$${amt.toFixed(2)} withdrawal request to ${shortAddr} submitted by ${userEmail}.`,
+    user_email: userEmail,
+    link: '/admin/withdrawals'
+  });
+
+  return {
+    ok: true,
+    message: 'Withdrawal submitted successfully. Estimated processing time: 3 to 24 hours.',
+    processingTime: '3 - 24 hours',
+    request: result.requestRow,
+    balance: result.balance
+  };
+}
+
 // Step 1: Validate withdrawal details and send OTP to user's email
 router.post('/withdraw/send-otp', async (req, res) => {
   const { method_id, amount, address, tag } = req.body || {};
-  const amt = Number(amount);
-  if (!Number.isFinite(amt) || amt <= 0) return res.status(400).json({ error: 'Valid amount is required' });
-  if (!address) return res.status(400).json({ error: 'Wallet address is required' });
-  const method = db.prepare('SELECT * FROM payment_methods WHERE id = ?').get(method_id);
-  if (!method || method.type !== 'withdraw') return res.status(400).json({ error: 'Invalid withdraw method' });
+  const amt = roundCurrency(amount);
+  if (!Number.isFinite(amt) || amt < 0.01) return res.status(400).json({ error: 'Valid amount is required' });
+  const method = resolveWithdrawMethod(method_id);
+  if (!method) return res.status(400).json({ error: 'Invalid withdraw method' });
+
+  const addrCheck = validateCryptoAddress(address, method.network, method.name);
+  if (!addrCheck.valid) return res.status(400).json({ error: addrCheck.message });
+  const cleanAddress = addrCheck.normalized || String(address).trim();
 
   const bal = db.prepare('SELECT available FROM balances WHERE user_id = ?').get(req.user.id);
-  if (!bal || bal.available < amt) {
+  if (!bal || Number(bal.available) + 1e-6 < amt) {
     return res.status(400).json({ error: 'Insufficient balance' });
   }
 
@@ -183,7 +310,7 @@ router.post('/withdraw/send-otp', async (req, res) => {
   db.prepare(`
     INSERT INTO pending_withdraw_otps (user_id, method_id, amount, address, tag, otp_code, expires_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(req.user.id, method.id, amt, address, tag || null, otpCode, expires);
+  `).run(req.user.id, method.id, amt, cleanAddress, tag ? String(tag).trim() : null, otpCode, expires);
 
   // Send the OTP via email
   const userEmail = req.user.email;
@@ -249,47 +376,44 @@ router.post('/withdraw/verify', (req, res) => {
     return res.status(400).json({ error: 'Verification code expired. Please start again.' });
   }
 
-  // Re-check balance at verification time
-  const bal = db.prepare('SELECT available FROM balances WHERE user_id = ?').get(req.user.id);
-  if (!bal || bal.available < pending.amount) {
+  // Re-check and deduct atomically
+  try {
+    const method = resolveWithdrawMethod(pending.method_id);
+    const out = executeWithdrawal({
+      userId: req.user.id,
+      userEmail: req.user.email,
+      method,
+      amount: pending.amount,
+      address: pending.address,
+      tag: pending.tag
+    });
     db.prepare('DELETE FROM pending_withdraw_otps WHERE user_id = ?').run(req.user.id);
-    return res.status(400).json({ error: 'Insufficient balance' });
+    return res.json(out);
+  } catch (err) {
+    if (err.status === 400 && err.message?.includes('balance')) {
+      db.prepare('DELETE FROM pending_withdraw_otps WHERE user_id = ?').run(req.user.id);
+    }
+    return res.status(err.status || 500).json({ error: err.message || 'Withdrawal failed' });
   }
-
-  // Process the withdrawal
-  db.prepare('UPDATE balances SET available = available - ? WHERE user_id = ?').run(pending.amount, req.user.id);
-  insertRequest.run(req.user.id, 'withdraw', pending.method_id, pending.amount, pending.address, pending.tag || null, null);
-
-  notifyAdmin({
-    type: 'withdrawal',
-    title: '💸 New Withdrawal Request',
-    message: `$${pending.amount} withdrawal request submitted by ${req.user.email}.`,
-    user_email: req.user.email,
-    link: '/admin/withdrawals'
-  });
-
-  // Clean up the pending OTP
-  db.prepare('DELETE FROM pending_withdraw_otps WHERE user_id = ?').run(req.user.id);
-
-  res.json({ ok: true, message: 'Withdrawal submitted successfully' });
 });
 
-// Legacy direct withdraw (kept for backwards compatibility)
+// Direct withdraw endpoint (validates wallet address, atomically deducts available balance, notifies everywhere)
 router.post('/withdraw', (req, res) => {
-  const { method_id, amount, address, tag } = req.body || {};
-  const amt = Number(amount);
-  if (!Number.isFinite(amt) || amt <= 0) return res.status(400).json({ error: 'amount required' });
-  if (!address) return res.status(400).json({ error: 'address required' });
-  const method = db.prepare('SELECT * FROM payment_methods WHERE id = ?').get(method_id);
-  if (!method || method.type !== 'withdraw') return res.status(400).json({ error: 'Invalid withdraw method' });
-
-  const bal = db.prepare('SELECT available FROM balances WHERE user_id = ?').get(req.user.id);
-  if (!bal || bal.available < amt) {
-    return res.status(400).json({ error: 'Insufficient balance' });
+  try {
+    const { method_id, amount, address, tag } = req.body || {};
+    const method = resolveWithdrawMethod(method_id);
+    const out = executeWithdrawal({
+      userId: req.user.id,
+      userEmail: req.user.email,
+      method,
+      amount,
+      address,
+      tag
+    });
+    res.json(out);
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message || 'Failed to submit withdrawal' });
   }
-  db.prepare('UPDATE balances SET available = available - ? WHERE user_id = ?').run(amt, req.user.id);
-  insertRequest.run(req.user.id, 'withdraw', method.id, amt, address, tag || null, null);
-  res.json({ ok: true });
 });
 
 // --- Admin routes ---
@@ -337,14 +461,50 @@ function settleRequestStatus(id, status) {
   const row = selectRequestById.get(id);
   if (!row) return { error: 'Request not found' };
   if (row.status !== 'pending') return { error: 'Already processed' };
-  if (status === 'approved' && row.type === 'deposit') {
-    db.prepare('UPDATE balances SET available = COALESCE(available,0) + ? WHERE user_id = ?').run(row.amount, row.user_id);
+
+  let notifId = null;
+  db.transaction(() => {
+    if (status === 'approved' && row.type === 'deposit') {
+      db.prepare('UPDATE balances SET available = COALESCE(available,0) + ? WHERE user_id = ?').run(row.amount, row.user_id);
+      const n = db.prepare('INSERT INTO notifications (user_id, title, message) VALUES (?, ?, ?)').run(
+        row.user_id,
+        'Deposit Approved',
+        `Your deposit of $${Number(row.amount).toFixed(2)} has been credited to your account.`
+      );
+      notifId = Number(n.lastInsertRowid);
+    } else if (status === 'declined' && row.type === 'withdraw') {
+      // Refund withheld balance immediately
+      db.prepare('UPDATE balances SET available = COALESCE(available,0) + ? WHERE user_id = ?').run(row.amount, row.user_id);
+      db.prepare('INSERT INTO activity_logs (user_id, actor_role, action, meta) VALUES (?, ?, ?, ?)')
+        .run(row.user_id, 'admin', 'withdrawal_declined', JSON.stringify({ requestId: row.id, amount: row.amount }));
+      const n = db.prepare('INSERT INTO notifications (user_id, title, message) VALUES (?, ?, ?)').run(
+        row.user_id,
+        'Withdrawal Declined & Refunded',
+        `Your withdrawal request of $${Number(row.amount).toFixed(2)} USDT was declined and returned to your available balance.`
+      );
+      notifId = Number(n.lastInsertRowid);
+    } else if (status === 'approved' && row.type === 'withdraw') {
+      db.prepare('INSERT INTO activity_logs (user_id, actor_role, action, meta) VALUES (?, ?, ?, ?)')
+        .run(row.user_id, 'admin', 'withdrawal_approved', JSON.stringify({ requestId: row.id, amount: row.amount, address: row.address }));
+      const n = db.prepare('INSERT INTO notifications (user_id, title, message) VALUES (?, ?, ?)').run(
+        row.user_id,
+        'Withdrawal Approved',
+        `Your withdrawal of $${Number(row.amount).toFixed(2)} USDT to ${row.address || 'your wallet'} has been approved and processed.`
+      );
+      notifId = Number(n.lastInsertRowid);
+    }
+    updateRequestStatus.run(status, id);
+  })();
+
+  if (notifId) {
+    const newNotification = db.prepare('SELECT * FROM notifications WHERE id = ?').get(notifId);
+    if (newNotification) emitSocket('notification', { notification: newNotification });
   }
-  if (status === 'declined' && row.type === 'withdraw') {
-    // refund the withheld balance
-    db.prepare('UPDATE balances SET available = COALESCE(available,0) + ? WHERE user_id = ?').run(row.amount, row.user_id);
-  }
-  updateRequestStatus.run(status, id);
+  emitSocket('user_data_update', {
+    user_id: row.user_id,
+    type: row.type === 'deposit' ? 'deposit_credited' : 'withdrawal_updated',
+    status
+  });
   return { ok: true };
 }
 
@@ -379,6 +539,7 @@ adminRouter.put('/requests/:id/amount', (req, res) => {
       db.prepare('UPDATE balances SET available = available - ? WHERE user_id = ?').run(diff, reqRow.user_id);
     }
   })();
+  emitSocket('user_data_update', { user_id: reqRow.user_id, type: 'balance_updated' });
   res.json({ ok: true, newAmount: amount });
 });
 
@@ -450,6 +611,7 @@ adminRouter.post('/users/:id/manual', (req, res) => {
     db.prepare('INSERT INTO activity_logs (user_id, actor_role, action, meta) VALUES (?, ?, ?, ?)')
       .run(userId, 'admin', `manual_${type}`, JSON.stringify({ amount, actor: req.user.id }));
   })();
+  emitSocket('user_data_update', { user_id: userId, type: 'balance_updated' });
   res.json({ ok: true });
 });
 

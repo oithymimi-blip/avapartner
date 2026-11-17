@@ -73,6 +73,12 @@ function describeActivity(act) {
       return `Account credited (${fmtUsd(meta?.amount || 0)})`
     case 'manual_withdraw':
       return `Account debit (${fmtUsd(meta?.amount || 0)})`
+    case 'withdrawal_request':
+      return `Withdrawal requested (${fmtUsd(meta?.amount || 0)} · ${meta?.processingTime || '3 - 24 hours'})`
+    case 'withdrawal_approved':
+      return `Withdrawal approved (${fmtUsd(meta?.amount || 0)})`
+    case 'withdrawal_declined':
+      return `Withdrawal declined & refunded (${fmtUsd(meta?.amount || 0)})`
     case 'set_user_balance':
       return `Balance updated to ${fmtUsd(meta?.amount || 0)}`
     case 'open_trade':

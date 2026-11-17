@@ -288,6 +288,11 @@ export default function UserDashboard() {
         refreshTrades()
       }
     }
+    const handleUserDataUpdate = (payload) => {
+      if (payload?.user_id === user?.id) {
+        refreshTrades()
+      }
+    }
     const handleGlobalTick = (msg) => {
       setMarketPrices(prev => ({
         ...prev,
@@ -295,9 +300,11 @@ export default function UserDashboard() {
       }))
     }
     socket.on('trade_closed', handleTradeClosed)
+    socket.on('user_data_update', handleUserDataUpdate)
     socket.on('tick', handleGlobalTick)
     return () => {
       socket.off('trade_closed', handleTradeClosed)
+      socket.off('user_data_update', handleUserDataUpdate)
       socket.off('tick', handleGlobalTick)
     }
   }, [user?.id, refreshTrades])

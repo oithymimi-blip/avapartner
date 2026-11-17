@@ -192,8 +192,21 @@ function Shell({ children }) {
     }
 
     const handleDataUpdate = (payload) => {
-      if (payload?.user_id === user?.id && payload?.type === 'deposit_credited') {
-        // Globally refresh balance when a deposit credits
+      if (
+        payload?.user_id === user?.id &&
+        ['deposit_credited', 'withdrawal_submitted', 'withdrawal_updated', 'balance_updated'].includes(payload?.type)
+      ) {
+        if (payload?.balance) {
+          const prev = useAccount.getState().summary || {}
+          const nextOpenPnl = Number(prev.openPnl || 0)
+          setAccountSummary({
+            ...prev,
+            balance: payload.balance,
+            equity: Math.round((Number(payload.balance.total ?? 0) + nextOpenPnl) * 100) / 100,
+            freeMargin: Math.round((Number(payload.balance.available ?? 0) + nextOpenPnl) * 100) / 100
+          })
+        }
+        // Globally refresh full account summary from server
         api(token).get('/api/trades/overview', { params: { limit: 1 } })
           .then(res => setAccountSummary(res.data))
           .catch(err => console.error('Failed to refresh balance globally', err))
