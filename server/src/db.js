@@ -8,6 +8,32 @@ import { DEFAULT_MARKETS } from './market/defaultMarkets.js';
 const db = new Database(DB_FILE);
 db.pragma('journal_mode = WAL');
 
+let mutationListener = null;
+export function registerMutationListener(fn) {
+  mutationListener = fn;
+}
+
+const MUTATION_SQL_RE = /^\s*(INSERT|UPDATE|DELETE|REPLACE)\b/i;
+const TRANSIENT_TABLE_SQL_RE = /^\s*(INSERT|UPDATE|DELETE|REPLACE)\s+(?:OR\s+\w+\s+)?(?:INTO\s+|FROM\s+)?["'`]?(ticks|candles)\b/i;
+const originalPrepare = db.prepare.bind(db);
+
+db.prepare = function wrappedPrepare(sql) {
+  const stmt = originalPrepare(sql);
+  if (typeof sql === 'string' && MUTATION_SQL_RE.test(sql) && !TRANSIENT_TABLE_SQL_RE.test(sql)) {
+    const origRun = stmt.run.bind(stmt);
+    stmt.run = function wrappedRun(...args) {
+      const result = origRun(...args);
+      if (mutationListener && result && result.changes > 0) {
+        try {
+          mutationListener();
+        } catch (_) {}
+      }
+      return result;
+    };
+  }
+  return stmt;
+};
+
 // Initialize schema if not present
 const schema = `
 CREATE TABLE IF NOT EXISTS users (

@@ -6,6 +6,12 @@ import { setPrice, forcePump, resetEngine, clearTicks, emitSocket, currentPrice 
 import { getAdminNotifications, markAdminNotificationsRead } from '../notifications/adminNotifications.js';
 import { INITIAL_BALANCE } from '../config.js';
 import { settleExpiredTrades } from '../binary/routes.js';
+import {
+  exportDatabaseSnapshot,
+  getPersistenceStatus,
+  importDatabaseSnapshot,
+  pushSnapshotToCloud
+} from '../cloudPersistence.js';
 
 const router = express.Router();
 
@@ -931,6 +937,49 @@ router.get('/admin-notifications', (req, res) => {
 router.post('/admin-notifications/read', (req, res) => {
   const result = markAdminNotificationsRead();
   res.json(result);
+});
+
+router.get('/backup/status', ensureSuperAdmin, (req, res) => {
+  res.json(getPersistenceStatus(db));
+});
+
+router.post('/backup/sync', ensureSuperAdmin, async (req, res) => {
+  try {
+    const result = await pushSnapshotToCloud({ force: true });
+    res.json({ ...result, status: getPersistenceStatus(db) });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Cloud sync failed' });
+  }
+});
+
+router.get('/backup/export', ensureSuperAdmin, (req, res) => {
+  try {
+    const snapshot = exportDatabaseSnapshot(db);
+    const filename = `avapartner-backup-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.json(snapshot);
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to export backup' });
+  }
+});
+
+router.post('/backup/import', ensureSuperAdmin, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const snapshot = body.snapshot && body.snapshot.data ? body.snapshot : body;
+    const mode = body.mode === 'replace' ? 'replace' : 'merge';
+    const result = importDatabaseSnapshot(db, snapshot, { mode });
+    const syncResult = await pushSnapshotToCloud({ force: true }).catch(() => ({ synced: false }));
+    res.json({
+      ok: true,
+      ...result,
+      cloudSynced: Boolean(syncResult?.synced),
+      status: getPersistenceStatus(db)
+    });
+  } catch (err) {
+    console.error('[ADMIN BACKUP IMPORT ERROR]', err);
+    res.status(400).json({ error: err.message || 'Invalid backup file or restore error' });
+  }
 });
 
 export default router;

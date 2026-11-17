@@ -32,7 +32,7 @@ const upsertAdminPermissionsStmt = db.prepare(`
 `);
 
 // Bootstrap admin if not exists
-function ensureAdmin() {
+export function ensureAdmin() {
   try {
     const cleanEmail = (ADMIN_EMAIL || 'admin@avapartner.com').trim().toLowerCase().replace(/^["']|["']$/g, '');
     let cleanPass = (ADMIN_PASSWORD || 'Admin#Secure2026!').trim().replace(/^["']|["']$/g, '');
@@ -70,7 +70,6 @@ function ensureAdmin() {
     console.error('[BOOT] ensureAdmin error:', err);
   }
 }
-ensureAdmin();
 
 router.post('/check-email', (req, res) => {
   const { email } = req.body || {};

@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -15,7 +16,15 @@ if (IS_PRODUCTION && (JWT_SECRET === 'dev_only_change_me' || !process.env.JWT_SE
   console.error('[CRITICAL SECURITY RISK] JWT_SECRET is using default development value in production! Set a unique JWT_SECRET in .env');
 }
 
-export const DB_FILE = process.env.DB_FILE || './data.db';
+export const DB_FILE = (() => {
+  if (process.env.DB_FILE) return process.env.DB_FILE;
+  if (fs.existsSync('/var/data')) return '/var/data/data.db';
+  if (fs.existsSync('/data')) return '/data/data.db';
+  return './data.db';
+})();
+export const DATABASE_URL = (process.env.DATABASE_URL || process.env.POSTGRES_URL || '').trim();
+export const TURSO_DATABASE_URL = (process.env.TURSO_DATABASE_URL || '').trim();
+export const TURSO_AUTH_TOKEN = (process.env.TURSO_AUTH_TOKEN || '').trim();
 export const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173')
   .split(',')
   .map(s => s.trim())

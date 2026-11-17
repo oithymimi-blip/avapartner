@@ -48,6 +48,7 @@ import AdminDepositsPage from './pages/admin/AdminDepositsPage'
 import AdminWithdrawalsPage from './pages/admin/AdminWithdrawalsPage'
 import AdminFeaturesPage from './pages/admin/AdminFeaturesPage'
 import AdminIBAffiliatesPage from './pages/admin/AdminIBAffiliatesPage'
+import AdminBackupPage from './pages/admin/AdminBackupPage'
 import InstallAppButton from './components/InstallAppButton'
 import UserAvatar from './components/UserAvatar'
 
@@ -564,6 +565,7 @@ export default function App() {
         <Route path="roles" element={<AdminRolesPage />} />
         <Route path="features" element={<AdminFeaturesPage />} />
         <Route path="ib-affiliates" element={<AdminIBAffiliatesPage />} />
+        <Route path="backups" element={<AdminBackupPage />} />
       </Route>
     </Routes>
   )

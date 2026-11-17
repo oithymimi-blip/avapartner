@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { PORT, CORS_ORIGINS } from './config.js';
-import authRoutes from './auth/authRoutes.js';
+import authRoutes, { ensureAdmin } from './auth/authRoutes.js';
 import userRoutes from './users/routes.js';
 import marketRoutes from './market/routes.js';
 import tradeRoutes from './trades/routes.js';
@@ -21,12 +21,17 @@ import { initAITradeEngine } from './aitrade/earningsEngine.js';
 import ibRoutes from './ib/routes.js';
 import { initMonthlyIBScheduler } from './ib/monthlyScheduler.js';
 import db, { backupDatabase } from './db.js';
+import {
+  getPersistenceStatus,
+  initCloudPersistence,
+  shutdownCloudPersistence
+} from './cloudPersistence.js';
 import { attachIO, tickOnce } from './market/engine.js';
 
 const app = express();
 app.use(helmet());
-// Allow larger JSON bodies so base64 document/selfie uploads are accepted.
-app.use(express.json({ limit: '15mb' }));
+// Allow larger JSON bodies so base64 document/selfie/backup uploads are accepted.
+app.use(express.json({ limit: '50mb' }));
 
 app.use(cors({
   origin: (origin, cb) => {
@@ -39,10 +44,24 @@ app.use(cors({
 
 app.get('/', (req, res) => res.json({ ok: true, name: 'OTC Market Server' }));
 app.get('/api/health', (req, res) => {
-  res.json({ ok: true, service: 'otc-market', timestamp: Date.now() });
+  const status = getPersistenceStatus(db);
+  res.json({
+    ok: true,
+    service: 'otc-market',
+    durableStorage: status.durable,
+    storageDriver: status.driver,
+    timestamp: Date.now()
+  });
 });
 app.get('/health', (req, res) => {
-  res.json({ ok: true, service: 'otc-market', timestamp: Date.now() });
+  const status = getPersistenceStatus(db);
+  res.json({
+    ok: true,
+    service: 'otc-market',
+    durableStorage: status.durable,
+    storageDriver: status.driver,
+    timestamp: Date.now()
+  });
 });
 
 // Dual route mounts for fail-safe Nginx proxy compatibility
@@ -103,33 +122,60 @@ io.on('connection', (socket) => {
   // nothing special; market engine emits to "io" directly for broadcast
 });
 
-// Tick loop
-setInterval(() => {
-  try {
-    tickOnce();
-  } catch (e) {
-    console.error('tick error:', e);
-  }
-}, 1000);
+async function startServer() {
+  await initCloudPersistence(db);
+  ensureAdmin();
+  initCryptoService();
+  initAITradeEngine();
+  initMonthlyIBScheduler();
 
-initCryptoService();
-initAITradeEngine();
-initMonthlyIBScheduler();
+  // Tick loop
+  setInterval(() => {
+    try {
+      tickOnce();
+    } catch (e) {
+      console.error('tick error:', e);
+    }
+  }, 1000);
 
-// Automated periodic database snapshot for permanent 24/7 data safety
-backupDatabase();
-setInterval(() => {
+  // Automated periodic database snapshot for local/disk safety
   backupDatabase();
-}, 6 * 60 * 60 * 1000);
+  setInterval(() => {
+    backupDatabase();
+  }, 6 * 60 * 60 * 1000);
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server listening on http://0.0.0.0:${PORT}`);
-  
-  // Keep free instance awake & prevent spin-downs (pings every 8 minutes)
-  const renderUrl = process.env.RENDER_EXTERNAL_URL || 'https://avapartner-api.onrender.com';
-  if (renderUrl) {
-    setInterval(() => {
-      fetch(`${renderUrl}/health`).catch(() => {});
-    }, 8 * 60 * 1000);
+  server.listen(PORT, '0.0.0.0', () => {
+    const status = getPersistenceStatus(db);
+    console.log(`Server listening on http://0.0.0.0:${PORT} [Storage: ${status.driver}, Durable: ${status.durable}]`);
+
+    // Keep free instance awake & prevent spin-downs (pings every 8 minutes)
+    const renderUrl = process.env.RENDER_EXTERNAL_URL || 'https://avapartner-api.onrender.com';
+    if (renderUrl) {
+      setInterval(() => {
+        fetch(`${renderUrl}/health`).catch(() => {});
+      }, 8 * 60 * 1000);
+    }
+  });
+}
+
+let shuttingDown = false;
+async function handleShutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[SHUTDOWN] ${signal} received, flushing database to cloud storage...`);
+  try {
+    await shutdownCloudPersistence();
+  } catch (err) {
+    console.error('[SHUTDOWN] Flush error:', err.message);
   }
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 5000).unref();
+}
+
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));
+
+startServer().catch((err) => {
+  console.error('[BOOT FATAL]', err);
+  process.exit(1);
 });

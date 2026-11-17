@@ -17,7 +17,8 @@ const navItems = [
   { label: 'Verifications', icon: '📝', path: '/admin/verifications', permission: 'users' },
   { label: 'Notifications', icon: '🔔', path: '/admin/notifications', permission: 'notifications' },
   { label: 'Roles', icon: '🛡️', path: '/admin/roles', permission: 'admin_manage' },
-  { label: 'Features', icon: '✨', path: '/admin/features', permission: 'market' }
+  { label: 'Features', icon: '✨', path: '/admin/features', permission: 'market' },
+  { label: 'Database & Backups', icon: '🗄️', path: '/admin/backups', permission: 'admin_manage' }
 ]
 
 // Web Audio API Chime Generator for crisp mobile & desktop notification sound
