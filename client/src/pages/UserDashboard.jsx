@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import CandlestickChart from '../components/CandlestickChart'
 import OrderTicket from '../components/OrderTicket'
 import BinaryTradePanel from '../components/BinaryTradePanel'
 import SpotTradePanel from '../components/SpotTradePanel'
 import CopyTradePanel from '../components/CopyTradePanel'
 import AITradePanel from '../components/AITradePanel'
+import UnifiedHistoryView from '../components/UnifiedHistoryView'
 import ErrorBoundary from '../components/ErrorBoundary'
 import InstallAppButton from '../components/InstallAppButton'
 import { api } from '../api'
@@ -116,7 +117,8 @@ export default function UserDashboard() {
           setMode(prev => {
             // Respect a tab deep-link param; only fall back if requested tab isn't active
             const tabParam = new URLSearchParams(window.location.search).get('tab')
-            if (tabParam && active.find(f => f.key === tabParam)) return tabParam
+            if (tabParam && (tabParam === 'all_history' || active.find(f => f.key === tabParam))) return tabParam
+            if (prev === 'all_history') return 'all_history'
             if (!active.find(f => f.key === prev)) return active[0].key
             return prev
           })
@@ -449,6 +451,15 @@ export default function UserDashboard() {
                   {label}
                 </button>
               ))}
+              <button
+                onClick={() => setMode('all_history')}
+                className={`rounded-full border px-3 py-1.5 transition ${mode === 'all_history'
+                    ? 'border-brand/80 bg-brand text-black shadow-[0_12px_24px_rgba(0,223,154,0.35)]'
+                    : 'border-white/15 bg-white/5 text-white/70 hover:bg-white/10'
+                  }`}
+              >
+                All History
+              </button>
             </div>
             <InstallAppButton variant="dashboard-pill" />
           </div>
@@ -522,9 +533,14 @@ export default function UserDashboard() {
               <AITradePanel onAccountRefresh={refreshTrades} />
             </ErrorBoundary>
           )}
+          {mode === 'all_history' && (
+            <ErrorBoundary>
+              <UnifiedHistoryView defaultTab="all" />
+            </ErrorBoundary>
+          )}
         </section>
 
-        {mode !== 'ai_trade' && <section className="card space-y-4">
+        {mode === 'forex' && <section className="card space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <div className="text-[10px] uppercase tracking-[0.18em] text-white/45">Current Orders</div>
@@ -532,6 +548,12 @@ export default function UserDashboard() {
             </div>
             <div className="flex items-center gap-2 text-[11px]">
               {loadingTrades && <span className="text-white/50">Updating…</span>}
+              <Link
+                to="/history"
+                className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] font-medium text-white/80 hover:border-brand/50 hover:text-brand transition"
+              >
+                Full History →
+              </Link>
               {hasOpenPositions && (
                 <button
                   className="inline-flex items-center rounded-full bg-rose-500/90 hover:bg-rose-500 text-white shadow-[0_4px_14px_rgba(244,63,94,0.3)] px-5 py-2 text-sm font-bold transition-all hover:scale-105 active:scale-95 disabled:opacity-60 disabled:hover:scale-100"
@@ -699,6 +721,16 @@ export default function UserDashboard() {
             </div>
           )}
         </section>}
+        {mode === 'binary' && (
+          <ErrorBoundary>
+            <UnifiedHistoryView defaultTab="binary" compact />
+          </ErrorBoundary>
+        )}
+        {(mode === 'spot' || mode === 'copytrading') && (
+          <ErrorBoundary>
+            <UnifiedHistoryView defaultTab="spot" compact />
+          </ErrorBoundary>
+        )}
       </div>
     </div>
   )

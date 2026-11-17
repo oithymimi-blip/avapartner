@@ -54,6 +54,9 @@ router.post('/start', (req, res) => {
       INSERT INTO copy_relationships (user_id, master_trader_id, allocated_margin, current_value) 
       VALUES (?, ?, ?, ?)
     `).run(req.user.id, master_trader_id, amount, amount);
+
+    db.prepare('INSERT INTO activity_logs (user_id, actor_role, action, meta) VALUES (?, ?, ?, ?)')
+      .run(req.user.id, 'user', 'copy_trade_start', JSON.stringify({ master_trader_id, master_name: master.name, amount }));
   });
 
   try {
@@ -83,6 +86,9 @@ router.post('/stop', (req, res) => {
           locked = MAX(0, locked - ?) 
       WHERE user_id = ?
     `).run(relationship.current_value, relationship.allocated_margin, req.user.id);
+
+    db.prepare('INSERT INTO activity_logs (user_id, actor_role, action, meta) VALUES (?, ?, ?, ?)')
+      .run(req.user.id, 'user', 'copy_trade_stop', JSON.stringify({ relationship_id: id, allocated: relationship.allocated_margin, returned: relationship.current_value }));
   });
 
   try {

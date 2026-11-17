@@ -3,6 +3,7 @@ import db from '../db.js';
 import { requireAuth } from '../auth/authMiddleware.js';
 import { performFaceCheck } from '../faceCheck.js';
 import { notifyAdmin } from '../notifications/adminNotifications.js';
+import { settleExpiredTrades } from '../binary/routes.js';
 
 const router = express.Router();
 
@@ -139,6 +140,182 @@ router.get('/referrals', requireAuth, (req, res) => {
   const codeRow = db.prepare('SELECT referral_code FROM users WHERE id = ?').get(req.user.id);
   const countRow = db.prepare('SELECT COUNT(*) as c FROM referrals WHERE referrer_id = ?').get(req.user.id);
   res.json({ referral_code: codeRow?.referral_code, referred_count: countRow?.c || 0 });
+});
+
+function buildUserUnifiedHistory(userId) {
+  try {
+    settleExpiredTrades(userId);
+  } catch (_) {}
+
+  const forexTrades = db.prepare(`
+    SELECT * FROM trades
+    WHERE user_id = ?
+    ORDER BY created_at DESC, id DESC
+    LIMIT 500
+  `).all(userId);
+
+  const binaryTrades = db.prepare(`
+    SELECT * FROM binary_trades
+    WHERE user_id = ?
+    ORDER BY COALESCE(settled_ts, expiry_ts, created_ts) DESC, id DESC
+    LIMIT 500
+  `).all(userId);
+
+  const activeSession = db.prepare('SELECT * FROM ai_trade_sessions WHERE user_id = ?').get(userId) || null;
+  const aiEvents = db.prepare(`
+    SELECT * FROM ai_trade_history
+    WHERE user_id = ?
+    ORDER BY created_at DESC, id DESC
+    LIMIT 500
+  `).all(userId);
+
+  // Group AI trade events into sessions cleanly
+  const aiSessionMap = new Map();
+  let aiTotalEarned = 0;
+  for (const row of aiEvents) {
+    if (row.action === 'payout' || (row.action === 'stopped' && Number(row.payout_amount) > 0)) {
+      aiTotalEarned += Number(row.payout_amount || 0);
+    }
+    const key = row.session_ref || `legacy_${row.slot}_${row.created_at}`;
+    if (!aiSessionMap.has(key)) {
+      aiSessionMap.set(key, {
+        session_ref: key,
+        slot: row.slot,
+        slot_name: row.slot_name,
+        allocated_amount: row.allocated_amount,
+        started_at: null,
+        stopped_at: null,
+        status: 'active',
+        total_earned: 0,
+        total_days: 0,
+        events: []
+      });
+    }
+    const sess = aiSessionMap.get(key);
+    sess.events.push(row);
+    if (row.action === 'started') sess.started_at = row.created_at;
+    if (row.action === 'stopped') {
+      sess.stopped_at = row.created_at;
+      sess.status = 'completed';
+    }
+    if (row.action === 'payout') {
+      sess.total_earned += Number(row.payout_amount || 0);
+      sess.total_days = Math.max(sess.total_days, row.day_number || 0);
+    }
+    if (row.action === 'stopped' && Number(row.payout_amount) > 0) {
+      sess.total_earned += Number(row.payout_amount || 0);
+    }
+  }
+  const aiSessions = [...aiSessionMap.values()].sort(
+    (a, b) => new Date(b.started_at || b.events?.[0]?.created_at || 0) - new Date(a.started_at || a.events?.[0]?.created_at || 0)
+  );
+
+  const spotOrders = db.prepare(`
+    SELECT * FROM spot_orders
+    WHERE user_id = ?
+    ORDER BY created_at DESC, id DESC
+    LIMIT 300
+  `).all(userId);
+
+  const copyTrades = db.prepare(`
+    SELECT cr.*, mt.name AS master_name, mt.avatar AS master_avatar, mt.roi_percentage, mt.win_rate
+    FROM copy_relationships cr
+    LEFT JOIN master_traders mt ON mt.id = cr.master_trader_id
+    WHERE cr.user_id = ?
+    ORDER BY cr.created_at DESC, cr.id DESC
+    LIMIT 300
+  `).all(userId);
+
+  const payments = db.prepare(`
+    SELECT pr.*, pm.name AS method_name, pm.network
+    FROM payment_requests pr
+    LEFT JOIN payment_methods pm ON pm.id = pr.method_id
+    WHERE pr.user_id = ?
+    ORDER BY pr.created_at DESC, pr.id DESC
+    LIMIT 300
+  `).all(userId);
+
+  const activities = db.prepare(`
+    SELECT * FROM activity_logs
+    WHERE user_id = ?
+    ORDER BY ts DESC, id DESC
+    LIMIT 300
+  `).all(userId);
+
+  const forexPnl = forexTrades.reduce((acc, t) => acc + (t.status === 'closed' ? Number(t.pnl || 0) : 0), 0);
+  const forexOpenCount = forexTrades.filter(t => t.status === 'open' && Number(t.remaining_qty ?? t.qty ?? 0) > 1e-8).length;
+
+  let binaryWins = 0;
+  let binaryLosses = 0;
+  let binaryPnl = 0;
+  for (const b of binaryTrades) {
+    if (b.status === 'settled') {
+      if (b.result === 'win') {
+        binaryWins += 1;
+        binaryPnl += Number(b.payout || 0);
+      } else if (b.result === 'lose') {
+        binaryLosses += 1;
+        binaryPnl -= Number(b.stake || 0);
+      }
+    }
+  }
+
+  const depositTotal = payments
+    .filter(p => p.type === 'deposit' && p.status === 'approved')
+    .reduce((acc, p) => acc + Number(p.amount || 0), 0);
+  const withdrawTotal = payments
+    .filter(p => p.type === 'withdraw' && p.status === 'approved')
+    .reduce((acc, p) => acc + Number(p.amount || 0), 0);
+
+  return {
+    forexTrades,
+    binaryTrades,
+    aiTrade: {
+      activeSession,
+      sessions: aiSessions,
+      events: aiEvents,
+      totalEarned: aiTotalEarned
+    },
+    spotOrders,
+    copyTrades,
+    payments,
+    activities,
+    summary: {
+      totalTrades: forexTrades.length + binaryTrades.length + aiSessions.length + spotOrders.length + copyTrades.length + (activeSession?.ai_trade_status === 'ON' && !aiSessions.some(s => s.status === 'active') ? 1 : 0),
+      forexCount: forexTrades.length,
+      forexOpenCount,
+      forexPnl,
+      binaryCount: binaryTrades.length,
+      binaryWins,
+      binaryLosses,
+      binaryPnl,
+      aiSessionCount: aiSessions.length + (activeSession?.ai_trade_status === 'ON' && !aiSessions.some(s => s.status === 'active') ? 1 : 0),
+      aiTotalEarned,
+      spotCount: spotOrders.length,
+      copyCount: copyTrades.length,
+      depositTotal,
+      withdrawTotal,
+      activityCount: activities.length
+    }
+  };
+}
+
+router.get('/me/history', requireAuth, (req, res) => {
+  try {
+    res.json(buildUserUnifiedHistory(req.user.id));
+  } catch (err) {
+    console.error('[USER HISTORY ERROR]', err);
+    res.status(500).json({ error: 'Failed to load trading history' });
+  }
+});
+
+router.get('/history/all', requireAuth, (req, res) => {
+  try {
+    res.json(buildUserUnifiedHistory(req.user.id));
+  } catch (err) {
+    console.error('[USER HISTORY ALL ERROR]', err);
+    res.status(500).json({ error: 'Failed to load trading history' });
+  }
 });
 
 router.get('/verifications/me', requireAuth, (req, res) => {

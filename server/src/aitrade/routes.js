@@ -182,6 +182,8 @@ router.post('/toggle', (req, res) => {
         // Log session start
         insertHistory.run(req.user.id, sessionRef, Number(slot), slotDef.name, amt, 'started', 0, 0,
           `AI Trade started — ${slotDef.name} slot, $${amt} invested`);
+        db.prepare('INSERT INTO activity_logs (user_id, actor_role, action, meta) VALUES (?, ?, ?, ?)')
+          .run(req.user.id, 'user', 'ai_trade_start', JSON.stringify({ slot: Number(slot), slot_name: slotDef.name, amount: amt, session_ref: sessionRef }));
       })();
 
       const session = getSession.get(req.user.id);
@@ -234,6 +236,9 @@ router.post('/toggle', (req, res) => {
           dayCount,
           `AI Trade stopped after ${dayCount} payout cycle(s)${remainingEarnings > 0 ? `. $${remainingEarnings.toFixed(4)} partial earnings returned.` : '.'}`
         );
+
+        db.prepare('INSERT INTO activity_logs (user_id, actor_role, action, meta) VALUES (?, ?, ?, ?)')
+          .run(req.user.id, 'user', 'ai_trade_stop', JSON.stringify({ slot: slotNum, slot_name: slotDef?.name, amount: allocatedAmt, earnings: remainingEarnings, day_count: dayCount }));
 
         updateSessionOff.run(req.user.id);
       })();

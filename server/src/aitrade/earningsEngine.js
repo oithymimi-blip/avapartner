@@ -104,6 +104,8 @@ function checkPayouts() {
             dayNumber,
             `Day ${dayNumber} payout — $${earnings.toFixed(4)} credited to main wallet`
           );
+          db.prepare('INSERT INTO activity_logs (user_id, actor_role, action, meta) VALUES (?, ?, ?, ?)')
+            .run(session.user_id, 'system', 'ai_trade_payout', JSON.stringify({ slot: session.slot, slot_name: slotName, day_number: dayNumber, earnings }));
         }
       })();
 

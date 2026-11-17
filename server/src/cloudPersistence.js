@@ -591,6 +591,38 @@ export function scheduleCloudSync(delayMs = 300) {
   }, delayMs);
 }
 
+const CORE_RECORD_TABLES = [
+  'users',
+  'trades',
+  'binary_trades',
+  'ai_trade_sessions',
+  'ai_trade_history',
+  'spot_orders',
+  'copy_relationships',
+  'payment_requests',
+  'activity_logs'
+];
+
+function getSnapshotRichnessScore(data = {}) {
+  let score = 0;
+  for (const t of CORE_RECORD_TABLES) {
+    const len = Array.isArray(data[t]) ? data[t].length : 0;
+    score += t === 'users' ? len * 100 : len;
+  }
+  return score;
+}
+
+function getLocalRichnessScore(db) {
+  let score = 0;
+  for (const t of CORE_RECORD_TABLES) {
+    try {
+      const len = db.prepare(`SELECT COUNT(*) AS c FROM "${t}"`).get()?.c || 0;
+      score += t === 'users' ? len * 100 : len;
+    } catch (_) {}
+  }
+  return score;
+}
+
 export async function initCloudPersistence(db) {
   dbRef = db;
   await initRemoteDriver();
@@ -600,8 +632,10 @@ export async function initCloudPersistence(db) {
       const cloudSnapshot = await readCloudStateRow();
       const localNonAdminCount = db.prepare("SELECT COUNT(*) AS c FROM users WHERE role != 'admin'").get()?.c || 0;
       const localTotalUsers = db.prepare('SELECT COUNT(*) AS c FROM users').get()?.c || 0;
+      const cloudScore = cloudSnapshot?.data ? getSnapshotRichnessScore(cloudSnapshot.data) : 0;
+      const localScore = getLocalRichnessScore(db);
 
-      if (cloudSnapshot?.data?.users?.length > 0 && (localNonAdminCount === 0 || cloudSnapshot.data.users.length > localTotalUsers)) {
+      if (cloudSnapshot?.data?.users?.length > 0 && (localNonAdminCount === 0 || cloudSnapshot.data.users.length > localTotalUsers || cloudScore > localScore)) {
         importDatabaseSnapshot(db, cloudSnapshot, { mode: 'replace' });
         lastSyncAt = cloudSnapshot.exportedAt || new Date().toISOString();
         console.log(`[CLOUD SYNC] Auto-restored ${cloudSnapshot.data.users.length} users and full database from ${activeDriver} (rev ${localRevision}).`);

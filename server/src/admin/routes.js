@@ -506,6 +506,8 @@ router.get('/users/:id/activity', requireAdminRole('users'), (req, res) => {
 router.get('/users/:id/history', requireAdminRole('users'), (req, res) => {
   const userId = Number(req.params.id);
   if (!Number.isInteger(userId)) return res.status(400).json({ error: 'Invalid id' });
+
+  try { settleExpiredTrades(userId); } catch (_) {}
   
   const depositsAndWithdrawals = db.prepare(`
     SELECT id, type AS category, amount, status, created_at AS timestamp, 'Payment' AS source, NULL AS pnl, address, tx_ref
@@ -514,24 +516,39 @@ router.get('/users/:id/history', requireAdminRole('users'), (req, res) => {
   `).all(userId);
   
   const trades = db.prepare(`
-    SELECT id, side AS category, notional AS amount, status, created_at AS timestamp, 'Trade' AS source, pnl
+    SELECT id, side AS category, COALESCE(stake_amount, notional) AS amount, status, created_at AS timestamp, 'Forex Trade' AS source, pnl, symbol
     FROM trades
     WHERE user_id = ?
   `).all(userId);
   
   const binary = db.prepare(`
-    SELECT id, direction AS category, stake AS amount, status, datetime(created_ts, 'unixepoch') AS timestamp, 'Binary' AS source, (payout - stake) AS pnl
+    SELECT id, direction AS category, stake AS amount, status, datetime(created_ts, 'unixepoch') AS timestamp, 'Binary Trade' AS source,
+           CASE WHEN result = 'win' THEN payout WHEN result = 'lose' THEN -stake ELSE 0 END AS pnl, symbol, result
     FROM binary_trades
     WHERE user_id = ?
   `).all(userId);
 
   const aiTrade = db.prepare(`
-    SELECT id, action AS category, payout_amount AS amount, 'completed' AS status, created_at AS timestamp, 'AI Trade' AS source, payout_amount AS pnl, slot_name, day_number, note
+    SELECT id, action AS category, COALESCE(NULLIF(payout_amount, 0), allocated_amount) AS amount, 'completed' AS status, created_at AS timestamp, 'AI Trade' AS source, payout_amount AS pnl, slot_name, day_number, note
     FROM ai_trade_history
     WHERE user_id = ? AND action IN ('payout', 'started', 'stopped')
   `).all(userId);
+
+  const spot = db.prepare(`
+    SELECT id, side AS category, (price * amount) AS amount, status, created_at AS timestamp, 'Spot Order' AS source, NULL AS pnl, symbol
+    FROM spot_orders
+    WHERE user_id = ?
+  `).all(userId);
+
+  const copy = db.prepare(`
+    SELECT cr.id, 'copy' AS category, cr.allocated_margin AS amount, cr.status, cr.created_at AS timestamp, 'Copy Trade' AS source,
+           (cr.current_value - cr.allocated_margin) AS pnl, mt.name AS slot_name
+    FROM copy_relationships cr
+    LEFT JOIN master_traders mt ON mt.id = cr.master_trader_id
+    WHERE cr.user_id = ?
+  `).all(userId);
   
-  const history = [...depositsAndWithdrawals, ...trades, ...binary, ...aiTrade].sort((a, b) => {
+  const history = [...depositsAndWithdrawals, ...trades, ...binary, ...aiTrade, ...spot, ...copy].sort((a, b) => {
     return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
   });
   

@@ -169,6 +169,9 @@ export async function createSpotOrder(userId, symbol, side, type, price, amount)
       INSERT INTO spot_orders (user_id, symbol, side, type, price, amount, status, filled_amount)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(userId, symbol, side, type, execPrice, orderAmount, status, filledAmt);
+
+    db.prepare('INSERT INTO activity_logs (user_id, actor_role, action, meta) VALUES (?, ?, ?, ?)')
+      .run(userId, 'user', 'spot_order', JSON.stringify({ symbol, side, type, price: execPrice, amount: orderAmount, status }));
     
     return { id: result.lastInsertRowid, symbol, side, type, price: execPrice, amount: orderAmount, status, filled_amount: filledAmt };
   });

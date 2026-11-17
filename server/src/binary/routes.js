@@ -150,6 +150,18 @@ export function settleExpiredTrades(userId) {
     locked = Math.max(0, locked - stake);
 
     updateBinaryTradeSettleStmt.run(result, settlementPrice, payout, now, trade.id);
+    try {
+      db.prepare('INSERT INTO activity_logs (user_id, actor_role, action, meta) VALUES (?, ?, ?, ?)')
+        .run(userId, 'system', 'binary_trade_settled', JSON.stringify({
+          symbol: trade.symbol,
+          direction: trade.direction,
+          stake,
+          result,
+          payout: round2(payout),
+          entry_price: entryPrice,
+          settlement_price: settlementPrice
+        }));
+    } catch (_) {}
   }
 
   updateBalanceStmt.run(round2(available), round2(locked), userId);
@@ -191,7 +203,7 @@ export function getOverview(userId, limit = 15) {
   settleExpiredTrades(userId);
   const balance = getOrInitBalance(userId);
   const openRows = selectOpenBinaryTradesStmt.all(userId).map(normaliseTradePayload);
-  const historyRows = selectRecentBinaryTradesStmt.all(userId, Math.max(1, Math.min(Number(limit) || 15, 50))).map(normaliseTradePayload);
+  const historyRows = selectRecentBinaryTradesStmt.all(userId, Math.max(1, Math.min(Number(limit) || 15, 200))).map(normaliseTradePayload);
   const stats = buildStats(userId);
   return {
     open: openRows,
@@ -218,6 +230,19 @@ router.get('/overview', (req, res) => {
   } catch (err) {
     console.error('binary overview error', err);
     res.status(500).json({ error: 'Failed to load binary overview' });
+  }
+});
+
+router.get('/history', (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(Number(req.query.limit ?? 200), 500));
+    settleExpiredTrades(req.user.id);
+    const rows = selectRecentBinaryTradesStmt.all(req.user.id, limit).map(normaliseTradePayload);
+    const stats = buildStats(req.user.id);
+    res.json({ trades: rows, stats });
+  } catch (err) {
+    console.error('binary history error', err);
+    res.status(500).json({ error: 'Failed to load binary trade history' });
   }
 });
 
@@ -268,6 +293,17 @@ router.post('/', (req, res) => {
       round2(balance.locked + stake),
       req.user.id
     );
+
+    try {
+      db.prepare('INSERT INTO activity_logs (user_id, actor_role, action, meta) VALUES (?, ?, ?, ?)')
+        .run(req.user.id, 'user', 'binary_trade_open', JSON.stringify({
+          symbol: normSymbol,
+          direction: normalizedDirection,
+          stake,
+          duration: selectedDuration,
+          entry_price: entry
+        }));
+    } catch (_) {}
 
     const overview = getOverview(req.user.id, 15);
 
