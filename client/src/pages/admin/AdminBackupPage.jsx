@@ -161,9 +161,10 @@ export default function AdminBackupPage() {
               To permanently keep every user account, balance, deposit, trade, and profile picture across all future updates:
             </p>
             <ol className="list-decimal list-inside text-xs text-amber-900 space-y-1">
-              <li>Create a free <strong>PostgreSQL</strong> database on Render, Neon, or Supabase (or a free <strong>Turso</strong> DB).</li>
-              <li>Open your <strong>Render Web Service → Environment → Environment Variables</strong>.</li>
-              <li>Add <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono">DATABASE_URL</code> (or <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono">TURSO_DATABASE_URL</code> + <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono">TURSO_AUTH_TOKEN</code>) and Save.</li>
+              <li>First, click <strong>Download Backup (.json)</strong> below to save your current accounts.</li>
+              <li>In <strong>Vercel → Storage → Create Database</strong>, create a free <strong>Neon</strong> Postgres database (recommended — never expires, unlike Render Free Postgres which expires after 30 days) and copy its <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono">DATABASE_URL</code>.</li>
+              <li>Paste <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono">DATABASE_URL</code> into <strong>Render → avapartner-api → Environment → Add Environment Variable</strong> and Save.</li>
+              <li>After Render restarts, upload your <code className="bg-amber-100 px-1.5 py-0.5 rounded">.json</code> backup below once — from then on, all data stays permanently synced across every update.</li>
             </ol>
           </div>
         )}

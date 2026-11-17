@@ -68,6 +68,30 @@ let isRestoring = false;
 let lastSyncAt = null;
 let lastSyncError = null;
 let lastKnownCloudUserCount = 0;
+let localRevision = 0;
+
+function buildPgPoolConfig(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    const isLocal = u.hostname === 'localhost' || u.hostname === '127.0.0.1';
+    u.searchParams.delete('sslmode');
+    u.searchParams.delete('channel_binding');
+    return {
+      connectionString: u.toString(),
+      ssl: isLocal ? false : { rejectUnauthorized: false },
+      max: 3,
+      idleTimeoutMillis: 30000
+    };
+  } catch {
+    const isLocal = rawUrl.includes('localhost') || rawUrl.includes('127.0.0.1');
+    return {
+      connectionString: rawUrl,
+      ssl: isLocal ? false : { rejectUnauthorized: false },
+      max: 3,
+      idleTimeoutMillis: 30000
+    };
+  }
+}
 
 function encodeSnapshot(snapshot) {
   const json = JSON.stringify(snapshot);
@@ -398,21 +422,17 @@ export function importDatabaseSnapshot(db = dbRef, snapshot, { mode = 'merge' } 
 async function initRemoteDriver() {
   if (DATABASE_URL) {
     try {
-      const useSsl = !DATABASE_URL.includes('localhost') && !DATABASE_URL.includes('127.0.0.1');
-      pgPool = new Pool({
-        connectionString: DATABASE_URL,
-        ssl: useSsl ? { rejectUnauthorized: false } : false,
-        max: 3,
-        idleTimeoutMillis: 30000
-      });
+      pgPool = new Pool(buildPgPoolConfig(DATABASE_URL));
       await pgPool.query(`
         CREATE TABLE IF NOT EXISTS avapartner_cloud_state (
           id TEXT PRIMARY KEY,
           payload TEXT NOT NULL,
           user_count INTEGER DEFAULT 0,
+          revision INTEGER DEFAULT 1,
           updated_at TIMESTAMPTZ DEFAULT NOW()
         );
       `);
+      await pgPool.query(`ALTER TABLE avapartner_cloud_state ADD COLUMN IF NOT EXISTS revision INTEGER DEFAULT 1;`);
       activeDriver = 'postgres';
       console.log('[CLOUD SYNC] Connected to persistent PostgreSQL (DATABASE_URL).');
       return;
@@ -434,9 +454,13 @@ async function initRemoteDriver() {
           id TEXT PRIMARY KEY,
           payload TEXT NOT NULL,
           user_count INTEGER DEFAULT 0,
+          revision INTEGER DEFAULT 1,
           updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
       `);
+      try {
+        await tursoClient.execute(`ALTER TABLE avapartner_cloud_state ADD COLUMN revision INTEGER DEFAULT 1`);
+      } catch (_) {}
       activeDriver = 'turso';
       console.log('[CLOUD SYNC] Connected to persistent Turso/libSQL (TURSO_DATABASE_URL).');
       return;
@@ -450,21 +474,40 @@ async function initRemoteDriver() {
   activeDriver = 'none';
 }
 
-async function readCloudSnapshot() {
+async function readCloudStateRow() {
   if (activeDriver === 'postgres' && pgPool) {
-    const res = await pgPool.query('SELECT payload, user_count, updated_at FROM avapartner_cloud_state WHERE id = $1', ['primary']);
+    const res = await pgPool.query('SELECT payload, user_count, revision, updated_at FROM avapartner_cloud_state WHERE id = $1', ['primary']);
     if (!res.rows.length) return null;
-    lastKnownCloudUserCount = Number(res.rows[0].user_count || 0);
-    return decodeSnapshot(res.rows[0].payload);
+    const row = res.rows[0];
+    lastKnownCloudUserCount = Number(row.user_count || 0);
+    localRevision = Number(row.revision || 1);
+    return decodeSnapshot(row.payload);
   }
   if (activeDriver === 'turso' && tursoClient) {
     const res = await tursoClient.execute({
-      sql: 'SELECT payload, user_count, updated_at FROM avapartner_cloud_state WHERE id = ?',
+      sql: 'SELECT payload, user_count, revision, updated_at FROM avapartner_cloud_state WHERE id = ?',
       args: ['primary']
     });
     if (!res.rows.length) return null;
-    lastKnownCloudUserCount = Number(res.rows[0].user_count || 0);
-    return decodeSnapshot(res.rows[0].payload);
+    const row = res.rows[0];
+    lastKnownCloudUserCount = Number(row.user_count || 0);
+    localRevision = Number(row.revision || 1);
+    return decodeSnapshot(row.payload);
+  }
+  return null;
+}
+
+async function getRemoteMeta() {
+  if (activeDriver === 'postgres' && pgPool) {
+    const res = await pgPool.query('SELECT user_count, revision FROM avapartner_cloud_state WHERE id = $1', ['primary']);
+    return res.rows[0] || null;
+  }
+  if (activeDriver === 'turso' && tursoClient) {
+    const res = await tursoClient.execute({
+      sql: 'SELECT user_count, revision FROM avapartner_cloud_state WHERE id = ?',
+      args: ['primary']
+    });
+    return res.rows[0] || null;
   }
   return null;
 }
@@ -472,47 +515,64 @@ async function readCloudSnapshot() {
 export async function pushSnapshotToCloud({ force = false } = {}) {
   if (activeDriver === 'none' || !dbRef) return { synced: false, reason: 'No external cloud DB configured' };
 
-  const snapshot = exportDatabaseSnapshot(dbRef);
-  const localUserCount = snapshot.userCount;
-
-  // Guard: never overwrite a populated cloud backup with a blank freshly-booted container
-  if (!force && lastKnownCloudUserCount > 1 && localUserCount <= 1) {
-    return { synced: false, reason: 'Refused to overwrite populated cloud backup with fresh single-admin DB' };
-  }
-
-  const encoded = encodeSnapshot(snapshot);
-
   try {
+    // Check for concurrent rolling-deploy updates from another container
+    const remoteMeta = await getRemoteMeta();
+    const remoteRev = Number(remoteMeta?.revision || 0);
+    const remoteUsers = Number(remoteMeta?.user_count || 0);
+    if (remoteUsers > lastKnownCloudUserCount) lastKnownCloudUserCount = remoteUsers;
+
+    if (!force && remoteRev > localRevision) {
+      const newerCloudSnap = await readCloudStateRow();
+      if (newerCloudSnap?.data) {
+        importDatabaseSnapshot(dbRef, newerCloudSnap, { mode: 'merge' });
+      }
+    }
+
+    const snapshot = exportDatabaseSnapshot(dbRef);
+    const localUserCount = snapshot.userCount;
+
+    // Guard: never overwrite a populated cloud backup with a blank freshly-booted container
+    if (!force && lastKnownCloudUserCount > 1 && localUserCount <= 1) {
+      return { synced: false, reason: 'Refused to overwrite populated cloud backup with fresh single-admin DB' };
+    }
+
+    const encoded = encodeSnapshot(snapshot);
+    const nextRevision = Math.max(localRevision, remoteRev) + 1;
+
     if (activeDriver === 'postgres' && pgPool) {
       await pgPool.query(
         `
-        INSERT INTO avapartner_cloud_state (id, payload, user_count, updated_at)
-        VALUES ($1, $2, $3, NOW())
+        INSERT INTO avapartner_cloud_state (id, payload, user_count, revision, updated_at)
+        VALUES ($1, $2, $3, $4, NOW())
         ON CONFLICT (id) DO UPDATE SET
           payload = EXCLUDED.payload,
           user_count = EXCLUDED.user_count,
+          revision = EXCLUDED.revision,
           updated_at = NOW()
         `,
-        ['primary', encoded, localUserCount]
+        ['primary', encoded, localUserCount, nextRevision]
       );
     } else if (activeDriver === 'turso' && tursoClient) {
       await tursoClient.execute({
         sql: `
-          INSERT INTO avapartner_cloud_state (id, payload, user_count, updated_at)
-          VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+          INSERT INTO avapartner_cloud_state (id, payload, user_count, revision, updated_at)
+          VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
           ON CONFLICT (id) DO UPDATE SET
             payload = excluded.payload,
             user_count = excluded.user_count,
+            revision = excluded.revision,
             updated_at = CURRENT_TIMESTAMP
         `,
-        args: ['primary', encoded, localUserCount]
+        args: ['primary', encoded, localUserCount, nextRevision]
       });
     }
     dirty = false;
     lastSyncAt = new Date().toISOString();
     lastSyncError = null;
     lastKnownCloudUserCount = localUserCount;
-    return { synced: true, userCount: localUserCount, updatedAt: lastSyncAt };
+    localRevision = nextRevision;
+    return { synced: true, userCount: localUserCount, revision: nextRevision, updatedAt: lastSyncAt };
   } catch (err) {
     lastSyncError = err.message;
     console.error('[CLOUD SYNC PUSH ERROR]', err.message);
@@ -520,7 +580,7 @@ export async function pushSnapshotToCloud({ force = false } = {}) {
   }
 }
 
-export function scheduleCloudSync(delayMs = 1200) {
+export function scheduleCloudSync(delayMs = 300) {
   if (isRestoring) return;
   dirty = true;
   if (activeDriver === 'none') return;
@@ -537,14 +597,14 @@ export async function initCloudPersistence(db) {
 
   if (activeDriver !== 'none') {
     try {
-      const cloudSnapshot = await readCloudSnapshot();
+      const cloudSnapshot = await readCloudStateRow();
       const localNonAdminCount = db.prepare("SELECT COUNT(*) AS c FROM users WHERE role != 'admin'").get()?.c || 0;
       const localTotalUsers = db.prepare('SELECT COUNT(*) AS c FROM users').get()?.c || 0;
 
       if (cloudSnapshot?.data?.users?.length > 0 && (localNonAdminCount === 0 || cloudSnapshot.data.users.length > localTotalUsers)) {
         importDatabaseSnapshot(db, cloudSnapshot, { mode: 'replace' });
         lastSyncAt = cloudSnapshot.exportedAt || new Date().toISOString();
-        console.log(`[CLOUD SYNC] Auto-restored ${cloudSnapshot.data.users.length} users and full database from ${activeDriver}.`);
+        console.log(`[CLOUD SYNC] Auto-restored ${cloudSnapshot.data.users.length} users and full database from ${activeDriver} (rev ${localRevision}).`);
       } else if (localTotalUsers > 0 && !cloudSnapshot) {
         await pushSnapshotToCloud({ force: true });
       }
@@ -560,7 +620,7 @@ export async function initCloudPersistence(db) {
   }
 
   registerMutationListener(() => {
-    scheduleCloudSync(1200);
+    scheduleCloudSync(300);
   });
 
   if (safetyInterval) clearInterval(safetyInterval);

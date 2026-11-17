@@ -22,9 +22,16 @@ export const DB_FILE = (() => {
   if (fs.existsSync('/data')) return '/data/data.db';
   return './data.db';
 })();
-export const DATABASE_URL = (process.env.DATABASE_URL || process.env.POSTGRES_URL || '').trim();
-export const TURSO_DATABASE_URL = (process.env.TURSO_DATABASE_URL || '').trim();
-export const TURSO_AUTH_TOKEN = (process.env.TURSO_AUTH_TOKEN || '').trim();
+const cleanEnv = (v) => (v || '').trim().replace(/^["']|["']$/g, '');
+
+export const DATABASE_URL = cleanEnv(
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_URL ||
+  process.env.POSTGRES_URL_NON_POOLING ||
+  process.env.NEON_DATABASE_URL
+);
+export const TURSO_DATABASE_URL = cleanEnv(process.env.TURSO_DATABASE_URL || process.env.LIBSQL_URL);
+export const TURSO_AUTH_TOKEN = cleanEnv(process.env.TURSO_AUTH_TOKEN || process.env.LIBSQL_AUTH_TOKEN);
 export const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173')
   .split(',')
   .map(s => s.trim())
