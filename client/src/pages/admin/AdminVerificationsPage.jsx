@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import { api } from '../../api'
 import { useAdminAuth } from '../../adminStore'
+import { formatBdDateTime } from '../../utils/bdTime'
 
 const STATUS_LABELS = {
   awaiting_approval: 'Awaiting approval',
@@ -173,7 +174,7 @@ export default function AdminVerificationsPage() {
                           <div className="text-xs text-slate-500">{row.face_similarity ? `${row.face_similarity.toFixed(1)}% similarity` : 'Pending'}</div>
                           <div className="text-[11px] text-slate-400">{row.face_confidence ? `${row.face_confidence.toFixed(1)}% confidence` : '—'}</div>
                           {row.face_checked_at ? (
-                            <div className="text-[10px] text-slate-400">{new Date(row.face_checked_at).toLocaleString()}</div>
+                            <div className="text-[10px] text-slate-400">{formatBdDateTime(row.face_checked_at)}</div>
                           ) : null}
                         </td>
                         <td className="py-2">
@@ -182,7 +183,7 @@ export default function AdminVerificationsPage() {
                           </span>
                         </td>
                         <td className="py-2 text-xs text-slate-400">
-                          {row.submitted_at ? new Date(row.submitted_at).toLocaleString() : '—'}
+                          {row.submitted_at ? formatBdDateTime(row.submitted_at, { showZone: true }) : '—'}
                         </td>
                         <td className="py-2">
                           <div className="text-xs text-slate-500 max-w-[220px] break-words">

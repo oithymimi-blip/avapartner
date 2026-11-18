@@ -5,21 +5,10 @@ import { ShieldCheck, ShieldAlert, Copy, CheckCircle2, KeyRound, ArrowRight, Ale
 import { useAuth } from '../store'
 import { api } from '../api'
 import { socket } from '../socket'
+import { formatBdDateTime } from '../utils/bdTime'
 
 function formatDateTime(value) {
-  if (!value) return ''
-  const str = String(value).trim()
-  const ms = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(str)
-    ? new Date(str.replace(' ', 'T') + 'Z').getTime()
-    : new Date(str).getTime()
-  if (!ms) return ''
-  return new Date(ms).toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  return formatBdDateTime(value, { showZone: true })
 }
 
 export default function Security() {

@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useAuth } from '../../store'
 import { socket } from '../../socket'
 import { api } from '../../api'
+import { formatBdDateTime } from '../../utils/bdTime'
 
 const navItems = [
   { label: 'Dashboard', icon: '📊', path: '/admin', permission: 'analytics' },
@@ -334,8 +335,8 @@ export default function AdminLayout() {
                           <div className="flex-1 min-w-0">
                             <div className="text-xs font-semibold text-white flex items-center justify-between">
                               <span className="truncate">{n.title}</span>
-                              <span className="text-[10px] text-slate-400 font-normal ml-2">
-                                {n.created_at ? new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now'}
+                              <span className="text-[10px] text-slate-400 font-normal ml-2 shrink-0">
+                                {n.created_at ? formatBdDateTime(n.created_at) : 'now'}
                               </span>
                             </div>
                             <div className="text-xs text-slate-300 mt-0.5 break-words">{n.message}</div>

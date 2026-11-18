@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../../api'
 import { useAdminAuth } from '../../adminStore'
 import { socket } from '../../socket'
+import { bdDatetimeLocalToIso, formatBdDate, formatBdDateTime, formatBdTime, parseTimestampMs, toBdDatetimeLocalValue } from '../../utils/bdTime'
 
 const currency = (value = 0) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(Number(value) || 0)
 const IB_LEVELS = ['BRONZE', 'SILVER', 'GOLD']
@@ -435,7 +436,7 @@ export default function AdminUsersPage() {
                 <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-soft relative group">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400 mb-1">Joined</div>
                   <div className="text-lg font-semibold text-slate-900 truncate pr-6">
-                    {userDetail?.created_at ? new Date(userDetail.created_at).toLocaleDateString() : '—'}
+                    {userDetail?.created_at ? formatBdDate(userDetail.created_at) : '—'}
                   </div>
                   <button 
                     onClick={() => setEditingTime({ table: 'users', id: selectedUser.id, field: 'created_at', value: userDetail?.created_at || '' })}
@@ -663,7 +664,7 @@ export default function AdminUsersPage() {
                       return (
                         <tr key={`${item.source}-${item.id}-${idx}`} className="text-slate-700 hover:bg-slate-50 transition group">
                           <td className="py-3 whitespace-nowrap relative">
-                            <span className="text-slate-500">{new Date(item.timestamp).toLocaleString()}</span>
+                            <span className="text-slate-500">{formatBdDateTime(item.timestamp, { showZone: true }) || '—'}</span>
                             <button 
                               onClick={() => setEditingTime({ table: tableMap[item.source], id: item.id, field: timeFieldMap[item.source], value: item.timestamp })}
                               className="ml-2 opacity-0 group-hover:opacity-100 text-indigo-500 hover:text-indigo-700 transition inline-flex align-middle"
@@ -756,7 +757,7 @@ export default function AdminUsersPage() {
                         .map((item, idx) => (
                           <tr key={item.id} className="text-slate-700 hover:bg-slate-50 transition group">
                             <td className="py-3 whitespace-nowrap">
-                              <span className="text-slate-500">{new Date(item.timestamp).toLocaleString()}</span>
+                              <span className="text-slate-500">{formatBdDateTime(item.timestamp, { showZone: true }) || '—'}</span>
                             </td>
                             <td className={`py-3 text-right font-mono font-semibold ${activeTab === 'deposits' ? 'text-emerald-600' : 'text-slate-900'}`}>
                               {editingPaymentId === item.id ? (
@@ -824,7 +825,7 @@ export default function AdminUsersPage() {
                     userActivity.map((item, idx) => (
                       <tr key={idx} className="text-slate-700 hover:bg-slate-50 transition group">
                         <td className="py-3 whitespace-nowrap text-slate-500 relative">
-                          {new Date(item.timestamp).toLocaleString()}
+                          {formatBdDateTime(item.timestamp, { showZone: true }) || '—'}
                         </td>
                         <td className="py-3 font-medium text-slate-900">{item.action}</td>
                         <td className="py-3 text-slate-500 font-mono text-xs break-all">{item.description}</td>
@@ -867,7 +868,7 @@ export default function AdminUsersPage() {
                       const pnlClass = livePnl >= 0 ? 'text-emerald-600' : 'text-rose-600';
                       return (
                         <tr key={trade.id} className="text-slate-700 hover:bg-slate-50 transition">
-                          <td className="py-3 font-medium text-slate-500">{new Date(trade.created_at).toLocaleTimeString()}</td>
+                          <td className="py-3 font-medium text-slate-500">{formatBdTime(trade.created_at, { includeSeconds: true })}</td>
                           <td className="py-3 font-semibold text-slate-900">{trade.symbol}</td>
                           <td className={`py-3 font-bold uppercase text-[11px] ${trade.side === 'buy' ? 'text-emerald-500' : 'text-rose-500'}`}>{trade.side}</td>
                           <td className="py-3 text-right font-mono">{qty.toFixed(2)}</td>
@@ -964,7 +965,7 @@ export default function AdminUsersPage() {
                         return (
                           <tr key={trade.id} className="text-slate-700 hover:bg-slate-50 transition">
                             <td className="py-3 font-medium text-slate-500">
-                              {trade.created_ts ? new Date(trade.created_ts * 1000).toLocaleTimeString() : '—'}
+                              {trade.created_ts ? formatBdTime(trade.created_ts * 1000, { includeSeconds: true }) : '—'}
                             </td>
                             <td className="py-3 font-semibold text-slate-900">{trade.symbol}</td>
                             <td className="py-3 font-bold uppercase text-[11px]">
@@ -1023,7 +1024,7 @@ export default function AdminUsersPage() {
                         const isWin = trade.result === 'win';
                         const isPush = trade.result === 'push';
                         const netPnl = trade.status === 'settled' ? (Number(trade.payout || 0) - Number(trade.stake || 0)) : 0;
-                        const createdDate = trade.created_ts ? new Date(trade.created_ts * 1000).toLocaleString() : '—';
+                        const createdDate = trade.created_ts ? formatBdDateTime(trade.created_ts * 1000, { showZone: true }) : '—';
 
                         return (
                           <tr key={trade.id || idx} className="text-slate-700 hover:bg-slate-50 transition group">
@@ -1098,7 +1099,7 @@ export default function AdminUsersPage() {
                     </div>
                     <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-soft">
                       <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Started</div>
-                      <div className="text-sm font-semibold text-slate-700">{aiTradeSession.started_at ? new Date(aiTradeSession.started_at).toLocaleString() : '—'}</div>
+                      <div className="text-sm font-semibold text-slate-700">{aiTradeSession.started_at ? formatBdDateTime(aiTradeSession.started_at, { showZone: true }) : '—'}</div>
                     </div>
                   </>
                 )}
@@ -1137,9 +1138,9 @@ export default function AdminUsersPage() {
                     const payouts = (s.events || []).filter(e => e.action === 'payout')
                     const startEv = (s.events || []).find(e => e.action === 'started')
                     const stopEv = (s.events || []).find(e => e.action === 'stopped')
-                    const startD = startEv ? new Date(startEv.created_at) : null
-                    const stopD = stopEv ? new Date(stopEv.created_at) : null
-                    const durMs = startD && stopD ? stopD - startD : null
+                    const startMs = startEv ? parseTimestampMs(startEv.created_at) : 0
+                    const stopMs = stopEv ? parseTimestampMs(stopEv.created_at) : 0
+                    const durMs = startMs && stopMs ? stopMs - startMs : null
                     const durLabel = durMs ? `${Math.floor(durMs/86400000)}d ${Math.floor((durMs%86400000)/3600000)}h` : s.status === 'active' ? 'Running…' : '—'
                     const slotColors = { 1: 'bg-sky-100 text-sky-700 border-sky-200', 2: 'bg-violet-100 text-violet-700 border-violet-200', 3: 'bg-amber-100 text-amber-700 border-amber-200', 4: 'bg-emerald-100 text-emerald-700 border-emerald-200' }
                     return (
@@ -1153,7 +1154,7 @@ export default function AdminUsersPage() {
                             </div>
                             <div className="flex flex-wrap gap-x-3 text-[11px] text-slate-500 mt-0.5">
                               <span>Invested: <span className="font-mono font-semibold text-slate-700">{currency(s.allocated_amount)}</span></span>
-                              {startD && <span>Started: {startD.toLocaleDateString()}</span>}
+                              {startMs > 0 && <span>Started: {formatBdDate(startMs)}</span>}
                               <span>Duration: {durLabel}</span>
                               <span>Payouts: {payouts.length}</span>
                             </div>
@@ -1168,14 +1169,14 @@ export default function AdminUsersPage() {
                           {payouts.map((ev, i) => (
                             <div key={ev.id} className="flex items-center gap-3 px-5 py-2.5 border-b border-slate-100 last:border-0 text-sm">
                               <span className={`shrink-0 w-6 h-6 rounded-full border flex items-center justify-center text-[10px] font-bold ${slotColors[s.slot] || slotColors[1]}`}>{ev.day_number || i+1}</span>
-                              <span className="flex-1 text-slate-600 text-xs">Day {ev.day_number || i+1} — <span className="text-slate-400">{new Date(ev.created_at).toLocaleString()}</span></span>
+                              <span className="flex-1 text-slate-600 text-xs">Day {ev.day_number || i+1} — <span className="text-slate-400">{formatBdDateTime(ev.created_at, { showZone: true })}</span></span>
                               <span className="text-emerald-600 font-mono font-semibold text-xs">+{currency(ev.payout_amount)}</span>
                             </div>
                           ))}
                           {stopEv && (
                             <div className="flex items-center gap-3 px-5 py-2.5 bg-rose-50">
                               <span className="shrink-0 w-6 h-6 rounded-full bg-rose-100 border border-rose-200 flex items-center justify-center text-rose-500 text-[10px]">■</span>
-                              <span className="flex-1 text-xs text-slate-500">Stopped · {new Date(stopEv.created_at).toLocaleString()}</span>
+                              <span className="flex-1 text-xs text-slate-500">Stopped · {formatBdDateTime(stopEv.created_at, { showZone: true })}</span>
                               {Number(stopEv.payout_amount) > 0 && <span className="text-amber-600 font-mono text-xs font-semibold">+{currency(stopEv.payout_amount)} partial</span>}
                             </div>
                           )}
@@ -1306,7 +1307,7 @@ export default function AdminUsersPage() {
                         <tr><td colSpan={7} className="py-8 text-center text-slate-400">No commission entries.</td></tr>
                       ) : ibLedger.rows.map(row => (
                         <tr key={row.id} className="text-slate-700 hover:bg-slate-50 transition group">
-                          <td className="py-2.5 whitespace-nowrap text-slate-500 text-xs">{new Date(row.created_at).toLocaleString()}</td>
+                          <td className="py-2.5 whitespace-nowrap text-slate-500 text-xs">{formatBdDateTime(row.created_at, { showZone: true }) || '—'}</td>
                           <td className="py-2.5"><span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-600">{IB_ASSET_LABELS[row.asset_class] || row.asset_class}</span></td>
                           <td className="py-2.5 text-xs">{row.source_name || row.source_email || '—'}</td>
                           <td className="py-2.5 text-right font-mono text-xs">{currency(row.trade_amount)}</td>
@@ -1357,7 +1358,7 @@ export default function AdminUsersPage() {
                           <td className="py-2.5"><div className="font-semibold">{m.name || m.email}</div><div className="text-xs text-slate-400 font-mono">{m.email}</div></td>
                           <td className="py-2.5 text-right font-mono">{currency(m.generated_volume)}</td>
                           <td className="py-2.5 text-right font-mono font-semibold text-emerald-600">{currency(m.generated_commission)}</td>
-                          <td className="py-2.5 text-xs text-slate-500">{new Date(m.created_at).toLocaleDateString()}</td>
+                          <td className="py-2.5 text-xs text-slate-500">{formatBdDate(m.created_at) || '—'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1479,16 +1480,16 @@ export default function AdminUsersPage() {
               </div>
               <div className="p-5 space-y-4">
                 <label className="block space-y-1.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">Date & Time</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">Date &amp; Time (Bangladesh Time)</span>
                   <input 
                     type="datetime-local" 
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 font-medium focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
                     value={
                       editingTime.value 
-                        ? new Date(new Date(editingTime.value).getTime() - new Date(editingTime.value).getTimezoneOffset() * 60000).toISOString().slice(0, 16) 
+                        ? toBdDatetimeLocalValue(editingTime.value)
                         : ''
                     }
-                    onChange={(e) => setEditingTime({ ...editingTime, value: new Date(e.target.value).toISOString() })}
+                    onChange={(e) => setEditingTime({ ...editingTime, value: bdDatetimeLocalToIso(e.target.value) })}
                   />
                 </label>
               </div>

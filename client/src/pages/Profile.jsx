@@ -5,6 +5,7 @@ import { api } from '../api'
 import ProfileForm from '../components/ProfileForm'
 import UserAvatar from '../components/UserAvatar'
 import AvatarCropModal from '../components/AvatarCropModal'
+import { formatBdDate } from '../utils/bdTime'
 import {
   Camera,
   Check,
@@ -132,7 +133,7 @@ export default function Profile() {
   }
 
   const memberSince = user?.created_at
-    ? new Date(user.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+    ? formatBdDate(user.created_at)
     : 'Active'
 
   return (

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import CandlestickChart from './CandlestickChart'
 import { api } from '../api'
 import { useAuth } from '../store'
+import { formatBdTime } from '../utils/bdTime'
 
 const FALLBACK_DURATIONS = [30, 60, 120, 300]
 
@@ -282,7 +283,7 @@ export default function BinaryTradePanel({ summary, timeframe, onTimeframeChange
               >
                 <div>
                   <div className="font-semibold text-slate-700">
-                    {new Date((trade.settled_ts || trade.expiry_ts) * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {formatBdTime((trade.settled_ts || trade.expiry_ts) * 1000, { showZone: true })}
                   </div>
                   <div className="text-slate-500 capitalize">{trade.direction}</div>
                 </div>

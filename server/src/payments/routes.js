@@ -41,21 +41,44 @@ const insertRequest = db.prepare(`
 `);
 
 const selectUserRequests = db.prepare(`
-  SELECT pr.*, pm.name AS method_name, pm.network, u.email AS user_email
+  SELECT pr.*,
+         COALESCE(pm.name, 'USDT') AS method_name,
+         COALESCE(pm.network, 'Binance Smart Chain (BEP-20)') AS network,
+         u.email AS user_email,
+         u.name AS user_name,
+         u.handle AS user_handle
   FROM payment_requests pr
   LEFT JOIN payment_methods pm ON pm.id = pr.method_id
   LEFT JOIN users u ON u.id = pr.user_id
   WHERE pr.user_id = ?
-  ORDER BY pr.created_at DESC
+  ORDER BY pr.created_at DESC, pr.id DESC
 `);
 
 const selectRequests = db.prepare(`
-  SELECT pr.*, pm.name AS method_name, pm.network, u.email AS user_email
+  SELECT pr.*,
+         COALESCE(pm.name, 'USDT') AS method_name,
+         COALESCE(pm.network, 'Binance Smart Chain (BEP-20)') AS network,
+         u.email AS user_email,
+         u.name AS user_name,
+         u.handle AS user_handle
   FROM payment_requests pr
   LEFT JOIN payment_methods pm ON pm.id = pr.method_id
   LEFT JOIN users u ON u.id = pr.user_id
   WHERE (? IS NULL OR pr.type = ?)
-  ORDER BY pr.created_at DESC
+  ORDER BY pr.created_at DESC, pr.id DESC
+`);
+
+const selectJoinedRequestById = db.prepare(`
+  SELECT pr.*,
+         COALESCE(pm.name, 'USDT') AS method_name,
+         COALESCE(pm.network, 'Binance Smart Chain (BEP-20)') AS network,
+         u.email AS user_email,
+         u.name AS user_name,
+         u.handle AS user_handle
+  FROM payment_requests pr
+  LEFT JOIN payment_methods pm ON pm.id = pr.method_id
+  LEFT JOIN users u ON u.id = pr.user_id
+  WHERE pr.id = ?
 `);
 
 const selectRequestById = db.prepare('SELECT * FROM payment_requests WHERE id = ?');
@@ -257,7 +280,12 @@ function executeWithdrawal({ userId, userEmail, method, amount, address, tag, to
       );
 
     const requestRow = db.prepare(`
-      SELECT pr.*, COALESCE(pm.name, ?) AS method_name, COALESCE(pm.network, ?) AS network, u.email AS user_email
+      SELECT pr.*,
+             COALESCE(pm.name, ?) AS method_name,
+             COALESCE(pm.network, ?) AS network,
+             u.email AS user_email,
+             u.name AS user_name,
+             u.handle AS user_handle
       FROM payment_requests pr
       LEFT JOIN payment_methods pm ON pm.id = pr.method_id
       LEFT JOIN users u ON u.id = pr.user_id
@@ -285,11 +313,16 @@ function executeWithdrawal({ userId, userEmail, method, amount, address, tag, to
     balance: result.balance
   });
   emitSocket('admin_trade_update', { userId, type: 'withdrawal_submitted' });
+  emitSocket('admin_withdrawal_update', { request: result.requestRow });
+
+  const actorLabel = result.requestRow?.user_name
+    ? `${result.requestRow.user_name} (${userEmail})`
+    : userEmail;
 
   notifyAdmin({
     type: 'withdrawal',
     title: '💸 New Withdrawal Request',
-    message: `$${amt.toFixed(2)} withdrawal request to ${shortAddr} submitted by ${userEmail}.`,
+    message: `$${amt.toFixed(2)} withdrawal request to ${shortAddr} submitted by ${actorLabel}.`,
     user_email: userEmail,
     link: '/admin/withdrawals'
   });
@@ -520,6 +553,8 @@ function settleRequestStatus(id, status) {
     updateRequestStatus.run(status, id);
   })();
 
+  const updatedRequest = selectJoinedRequestById.get(id);
+
   if (notifId) {
     const newNotification = db.prepare('SELECT * FROM notifications WHERE id = ?').get(notifId);
     if (newNotification) emitSocket('notification', { notification: newNotification });
@@ -529,21 +564,24 @@ function settleRequestStatus(id, status) {
     type: row.type === 'deposit' ? 'deposit_credited' : 'withdrawal_updated',
     status
   });
-  return { ok: true };
+  if (row.type === 'withdraw' && updatedRequest) {
+    emitSocket('admin_withdrawal_update', { request: updatedRequest });
+  }
+  return { ok: true, request: updatedRequest };
 }
 
 adminRouter.post('/requests/:id/approve', (req, res) => {
   const id = Number(req.params.id);
   const result = settleRequestStatus(id, 'approved');
   if (result.error) return res.status(400).json({ error: result.error });
-  res.json({ ok: true });
+  res.json({ ok: true, request: result.request });
 });
 
 adminRouter.post('/requests/:id/reject', (req, res) => {
   const id = Number(req.params.id);
   const result = settleRequestStatus(id, 'declined');
   if (result.error) return res.status(400).json({ error: result.error });
-  res.json({ ok: true });
+  res.json({ ok: true, request: result.request });
 });
 
 adminRouter.put('/requests/:id/amount', (req, res) => {
@@ -572,7 +610,7 @@ adminRouter.post('/requests/:id/decline', (req, res) => {
   const id = Number(req.params.id);
   const result = settleRequestStatus(id, 'declined');
   if (result.error) return res.status(400).json({ error: result.error });
-  res.json({ ok: true });
+  res.json({ ok: true, request: result.request });
 });
 
 adminRouter.get('/smart-wallets', (req, res) => {

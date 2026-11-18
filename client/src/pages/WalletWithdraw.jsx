@@ -6,6 +6,7 @@ import { api } from '../api'
 import { useAccount } from '../accountStore'
 import { socket } from '../socket'
 import { getAddressPlaceholder, validateCryptoAddress } from '../utils/addressValidator'
+import { formatBdDateTime } from '../utils/bdTime'
 
 const statusStyles = {
   approved: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
@@ -14,26 +15,8 @@ const statusStyles = {
 }
 const statusLabel = { approved: '✓ Approved', declined: '✕ Declined', pending: '⏳ Pending' }
 
-function parseTimestamp(value) {
-  if (!value) return 0
-  const str = String(value).trim()
-  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(str)) {
-    return new Date(str.replace(' ', 'T') + 'Z').getTime()
-  }
-  const ms = new Date(str).getTime()
-  return Number.isFinite(ms) ? ms : 0
-}
-
 function formatDateTime(value) {
-  const ms = parseTimestamp(value)
-  if (!ms) return ''
-  return new Date(ms).toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  return formatBdDateTime(value, { showZone: true })
 }
 
 export default function WalletWithdraw() {

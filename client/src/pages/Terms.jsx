@@ -1,11 +1,12 @@
 import React from 'react';
+import { formatBdDate } from '../utils/bdTime';
 
 export default function Terms() {
   return (
     <div className="max-w-4xl mx-auto py-16 px-4">
       <div className="text-center mb-12">
         <h1 className="text-4xl md:text-5xl font-extrabold mb-4">Terms and Conditions</h1>
-        <p className="text-white/60 text-lg">Last updated: {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</p>
+        <p className="text-white/60 text-lg">Last updated: {formatBdDate(Date.now(), { month: 'long', year: 'numeric' })}</p>
       </div>
 
       <div className="bg-[#0d1421] border border-white/10 rounded-3xl p-8 md:p-12 shadow-2xl prose prose-invert prose-brand max-w-none">

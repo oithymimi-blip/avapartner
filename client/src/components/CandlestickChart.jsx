@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createChart, CrosshairMode, LineStyle } from 'lightweight-charts'
 import { socket } from '../socket'
+import { formatBdChartCrosshair, formatBdChartTick } from '../utils/bdTime'
 
 const defaultBase = (() => {
   if (typeof window !== 'undefined') {
@@ -128,6 +129,9 @@ export default function CandlestickChart({
     const chart = createChart(containerRef.current, {
       autoSize: true,
       layout: { background: { type: 'solid', color: 'transparent' }, textColor: 'rgba(255, 255, 255, 0.6)' },
+      localization: {
+        timeFormatter: formatBdChartCrosshair
+      },
       grid: {
         vertLines: { color: 'rgba(255,255,255,0.05)' },
         horzLines: { color: 'rgba(255,255,255,0.05)' }
@@ -137,7 +141,8 @@ export default function CandlestickChart({
         secondsVisible: intervalSec < 60,
         borderVisible: false,
         barSpacing: 12,
-        rightOffset: 8
+        rightOffset: 8,
+        tickMarkFormatter: formatBdChartTick
       },
       rightPriceScale: { borderVisible: false },
       crosshair: { mode: CrosshairMode.Magnet },

@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { api } from '../api'
 import { useAuth } from '../store'
+import { formatBdDate, formatBdDateTime } from '../utils/bdTime'
 
 const LEVEL_CONFIG = {
   BRONZE: {
@@ -174,7 +175,7 @@ export default function IBDashboard() {
             <div className={`text-[10px] uppercase tracking-[0.25em] ${cfg.text} font-bold mb-1`}>IB Level</div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white">{cfg.label}</h1>
             <div className="text-white/50 text-sm mt-1">
-              {data.referral_count} referral{data.referral_count !== 1 ? 's' : ''} · Member since {data.upgraded_at ? new Date(data.upgraded_at).toLocaleDateString() : '—'}
+              {data.referral_count} referral{data.referral_count !== 1 ? 's' : ''} · Member since {data.upgraded_at ? formatBdDate(data.upgraded_at) : '—'}
             </div>
           </div>
           <div className="text-right flex-shrink-0">
@@ -295,7 +296,7 @@ export default function IBDashboard() {
                     </div>
                     <div className="text-right flex-shrink-0">
                       <div className="text-brand font-bold text-sm">+{formatMoney(row.commission_amount)}</div>
-                      <div className="text-[10px] text-white/30">{new Date(row.created_at).toLocaleDateString()}</div>
+                      <div className="text-[10px] text-white/30">{formatBdDate(row.created_at)}</div>
                     </div>
                   </div>
                 ))}
@@ -346,7 +347,7 @@ export default function IBDashboard() {
                   {ledger.map(row => (
                     <tr key={row.id} className="hover:bg-white/[0.02] transition-colors">
                       <td className="p-3 text-white/50 whitespace-nowrap">
-                        {new Date(row.created_at).toLocaleDateString()} {new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {formatBdDateTime(row.created_at, { showZone: true }) || '—'}
                       </td>
                       <td className="p-3 text-white/70 truncate max-w-[120px]">
                         {row.source_name || row.source_email || (row.source_user_id === 0 ? 'System' : `#${row.source_user_id}`)}
@@ -434,7 +435,7 @@ export default function IBDashboard() {
                       </td>
                       <td className="p-3 text-right font-mono text-white/60">{formatMoney(m.generated_volume)}</td>
                       <td className="p-3 text-right font-mono text-brand font-bold">{formatMoney(m.generated_commission)}</td>
-                      <td className="p-3 text-right text-white/40">{new Date(m.created_at).toLocaleDateString()}</td>
+                      <td className="p-3 text-right text-white/40">{formatBdDate(m.created_at) || '—'}</td>
                     </tr>
                   ))}
                 </tbody>

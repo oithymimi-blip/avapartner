@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../../api'
 import { useAdminAuth } from '../../adminStore'
+import { formatBdDateTime, getBdIsoDate } from '../../utils/bdTime'
 
 export default function AdminBackupPage() {
   const { token } = useAdminAuth()
@@ -61,7 +62,7 @@ export default function AdminBackupPage() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `avapartner-backup-${new Date().toISOString().slice(0, 10)}.json`
+      a.download = `avapartner-backup-${getBdIsoDate()}.json`
       document.body.appendChild(a)
       a.click()
       a.remove()
@@ -192,7 +193,7 @@ export default function AdminBackupPage() {
 
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 pt-1">
           <div>
-            Last Cloud Sync: <span className="font-mono text-slate-700">{status?.lastSyncAt ? new Date(status.lastSyncAt).toLocaleString() : 'Never'}</span>
+            Last Cloud Sync: <span className="font-mono text-slate-700">{status?.lastSyncAt ? formatBdDateTime(status.lastSyncAt, { includeSeconds: true, showZone: true }) : 'Never'}</span>
           </div>
           {status?.lastSyncError && (
             <div className="text-rose-600 font-medium">Error: {status.lastSyncError}</div>

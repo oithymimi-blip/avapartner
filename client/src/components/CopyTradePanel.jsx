@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../store';
+import { formatBdDate } from '../utils/bdTime';
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -164,7 +165,7 @@ export default function CopyTradePanel({ onAccountRefresh }) {
                     </div>
                     <div>
                       <div className="font-semibold text-white">{rel.name}</div>
-                      <div className="text-[11px] text-white/50 mt-0.5">Started {new Date(rel.created_at).toLocaleDateString()}</div>
+                      <div className="text-[11px] text-white/50 mt-0.5">Started {formatBdDate(rel.created_at)}</div>
                     </div>
                   </div>
                   

@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../api'
 import { useAdminAuth } from '../adminStore'
+import { socket } from '../socket'
+import { formatBdDateTime, getBdIsoDate, sortByTimestampDesc } from '../utils/bdTime'
 
 const timeframePresets = [
   { label: '24 Hours', value: '24h' },
@@ -20,10 +23,10 @@ const timeframeFactors = {
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
-const toIsoDate = (date) => date.toISOString().split('T')[0]
+const toIsoDate = (date) => getBdIsoDate(date instanceof Date ? date.getTime() : date)
 const getDefaultDateRange = () => ({
-  from: toIsoDate(new Date(Date.now() - 30 * MS_PER_DAY)),
-  to: toIsoDate(new Date())
+  from: toIsoDate(Date.now() - 30 * MS_PER_DAY),
+  to: toIsoDate(Date.now())
 })
 
 const calculateDaysBetween = (from, to) => {
@@ -134,6 +137,8 @@ const AnalyticsPieChart = ({ data, size = 340 }) => {
 export default function AdminDashboard() {
   const { token, admin } = useAdminAuth()
   const [dashboard, setDashboard] = useState(null)
+  const [withdrawals, setWithdrawals] = useState([])
+  const [actingId, setActingId] = useState(null)
   const [selectedRange, setSelectedRange] = useState('30d')
   const [customDateRange, setCustomDateRange] = useState(() => getDefaultDateRange())
 
@@ -143,6 +148,16 @@ export default function AdminDashboard() {
     const perms = admin?.permissions || []
     return perms.includes('all') || perms.includes(perm)
   }
+
+  const loadWithdrawals = useCallback(async () => {
+    if (!token || !hasPermission('users')) return
+    try {
+      const res = await api(token).get('/api/admin/payments/requests?type=withdraw')
+      setWithdrawals(sortByTimestampDesc(res.data || [], 'created_at'))
+    } catch (err) {
+      console.error('withdrawals summary error', err)
+    }
+  }, [token, admin])
 
   const loadDashboard = async () => {
     if (!token || !hasPermission('analytics')) return
@@ -157,7 +172,53 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (!token) return
     loadDashboard()
-  }, [token, admin])
+    loadWithdrawals()
+  }, [token, admin, loadWithdrawals])
+
+  useEffect(() => {
+    if (!token || !hasPermission('users')) return
+    const handleWithdrawalEvent = (payload) => {
+      const req = payload?.request
+      if (req && req.type === 'withdraw') {
+        setWithdrawals(prev => {
+          const exists = prev.some(r => r.id === req.id)
+          const next = exists ? prev.map(r => (r.id === req.id ? { ...r, ...req } : r)) : [req, ...prev]
+          return sortByTimestampDesc(next, 'created_at')
+        })
+      } else {
+        loadWithdrawals()
+      }
+    }
+    const handleNotif = (notif) => {
+      if (notif?.type === 'withdrawal') loadWithdrawals()
+    }
+    socket.on('admin_withdrawal_update', handleWithdrawalEvent)
+    socket.on('admin_notification', handleNotif)
+    return () => {
+      socket.off('admin_withdrawal_update', handleWithdrawalEvent)
+      socket.off('admin_notification', handleNotif)
+    }
+  }, [token, admin, loadWithdrawals])
+
+  const decideWithdrawal = async (req, decision) => {
+    if (!token || actingId) return
+    setActingId(req.id)
+    try {
+      const res = await api(token).post(`/api/admin/payments/requests/${req.id}/${decision}`)
+      const nextStatus = decision === 'approve' ? 'approved' : 'declined'
+      const updated = res.data?.request
+      setWithdrawals(prev => prev.map(r => (
+        r.id === req.id
+          ? { ...r, ...(updated || {}), status: nextStatus, updated_at: updated?.updated_at || new Date().toISOString() }
+          : r
+      )))
+      loadDashboard()
+    } catch (err) {
+      console.error('withdrawal decision error', err)
+    } finally {
+      setActingId(null)
+    }
+  }
 
   const summaryCards = useMemo(() => {
     if (!dashboard?.stats) return []
@@ -380,6 +441,112 @@ export default function AdminDashboard() {
         </>
       ) : (
         renderMissingPermission('Analytics permission required to view KPI cards and analysis charts.')
+      )}
+
+      {hasPermission('users') && (
+        <section className="rounded-3xl bg-white p-6 shadow-soft border border-slate-100 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-lg font-semibold text-slate-900">Withdrawal Requests (Bangladesh Time)</div>
+              <p className="text-xs text-slate-500">Live pending and recently approved withdrawals in Asia/Dhaka (BDT).</p>
+            </div>
+            <Link
+              to="/admin/withdrawals"
+              className="rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-4 py-1.5 text-xs font-semibold transition"
+            >
+              Manage All Withdrawals →
+            </Link>
+          </div>
+
+          {(() => {
+            const pendingList = withdrawals.filter(w => w.status === 'pending')
+            const approvedList = sortByTimestampDesc(withdrawals.filter(w => w.status === 'approved'), 'updated_at').slice(0, 5)
+            return (
+              <div className="grid lg:grid-cols-2 gap-4">
+                <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-600">Pending Requests</span>
+                    <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">
+                      {pendingList.length} pending
+                    </span>
+                  </div>
+                  {pendingList.length === 0 ? (
+                    <div className="text-xs text-slate-400 py-3">No pending withdrawal requests.</div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {pendingList.map(req => (
+                        <div key={req.id} className="rounded-xl bg-white border border-slate-200/70 p-3 space-y-2 text-xs">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="font-bold text-slate-900">
+                              {req.user_name || 'User'} <span className="font-normal text-slate-500">({req.user_email || `#${req.user_id}`})</span>
+                            </div>
+                            <span className="font-mono font-bold text-rose-600 text-sm">${Number(req.amount || 0).toFixed(2)}</span>
+                          </div>
+                          <div className="text-[11px] text-indigo-700 font-medium">
+                            Requested: {formatBdDateTime(req.created_at, { includeSeconds: true, showZone: true }) || '—'}
+                          </div>
+                          <div className="font-mono text-[11px] text-slate-600 break-all">
+                            Address: {req.address || '—'}
+                          </div>
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => decideWithdrawal(req, 'approve')}
+                              disabled={actingId === req.id}
+                              className="rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1 text-[11px] font-semibold disabled:opacity-50"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => decideWithdrawal(req, 'decline')}
+                              disabled={actingId === req.id}
+                              className="rounded-lg bg-rose-500 hover:bg-rose-600 text-white px-3 py-1 text-[11px] font-semibold disabled:opacity-50"
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-600">Recently Approved</span>
+                    <span className="text-xs text-slate-500">{approvedList.length} shown</span>
+                  </div>
+                  {approvedList.length === 0 ? (
+                    <div className="text-xs text-slate-400 py-3">No approved withdrawals yet.</div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {approvedList.map(req => (
+                        <div key={req.id} className="rounded-xl bg-white border border-slate-200/70 p-3 space-y-1 text-xs">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="font-bold text-slate-900">
+                              {req.user_name || 'User'} <span className="font-normal text-slate-500">({req.user_email || `#${req.user_id}`})</span>
+                            </div>
+                            <span className="font-mono font-bold text-emerald-700">${Number(req.amount || 0).toFixed(2)}</span>
+                          </div>
+                          <div className="text-[11px] text-emerald-700 font-medium">
+                            Approved: {formatBdDateTime(req.updated_at || req.created_at, { includeSeconds: true, showZone: true }) || '—'}
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            Requested: {formatBdDateTime(req.created_at, { includeSeconds: true, showZone: true }) || '—'}
+                          </div>
+                          <div className="font-mono text-[11px] text-slate-600 break-all">
+                            Address: {req.address || '—'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
+        </section>
       )}
     </div>
   )

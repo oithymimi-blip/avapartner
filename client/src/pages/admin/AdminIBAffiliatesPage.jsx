@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../api'
 import { useAdminAuth } from '../../adminStore'
+import { formatBdDate, formatBdDateTime } from '../../utils/bdTime'
 
 const currency = (v = 0) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(Number(v) || 0)
 const LEVELS = ['BRONZE', 'SILVER', 'GOLD']
@@ -227,7 +228,7 @@ export default function AdminIBAffiliatesPage() {
                     <tr><td colSpan={7} className="py-8 text-center text-slate-400">No commission entries yet.</td></tr>
                   ) : ledger.rows.map(row => (
                     <tr key={row.id} className="text-slate-700 hover:bg-slate-50 transition group">
-                      <td className="py-2.5 whitespace-nowrap text-slate-500 text-xs">{new Date(row.created_at).toLocaleString()}</td>
+                      <td className="py-2.5 whitespace-nowrap text-slate-500 text-xs">{formatBdDateTime(row.created_at) || '—'}</td>
                       <td className="py-2.5"><span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-600">{ASSET_LABELS[row.asset_class] || row.asset_class}</span></td>
                       <td className="py-2.5 text-xs">{row.source_name || row.source_email || '—'}</td>
                       <td className="py-2.5 text-right font-mono text-xs">{currency(row.trade_amount)}</td>
@@ -271,7 +272,7 @@ export default function AdminIBAffiliatesPage() {
                       <td className="py-2.5"><div className="font-semibold">{m.name || m.email}</div><div className="text-xs text-slate-400 font-mono">{m.email}</div></td>
                       <td className="py-2.5 text-right font-mono">{currency(m.generated_volume)}</td>
                       <td className="py-2.5 text-right font-mono font-semibold text-emerald-600">{currency(m.generated_commission)}</td>
-                      <td className="py-2.5 text-xs text-slate-500">{new Date(m.created_at).toLocaleDateString()}</td>
+                      <td className="py-2.5 text-xs text-slate-500">{formatBdDate(m.created_at) || '—'}</td>
                     </tr>
                   ))}
                 </tbody>

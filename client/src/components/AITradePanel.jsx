@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { api } from '../api';
 import { useAuth } from '../store';
+import { formatBdDate, formatBdDateTime, parseTimestampMs } from '../utils/bdTime';
 
 const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
 
@@ -143,7 +144,7 @@ function AITradeHistory({ token, session: parentSession }) {
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-white/50">
                 <span>Invested: <span className="text-white/80 font-mono">{fmt.format(liveSession.allocated_amount)}</span></span>
-                {liveSession.started_at && <span>Started: <span className="text-white/70">{new Date(liveSession.started_at).toLocaleDateString()}</span></span>}
+                {liveSession.started_at && <span>Started: <span className="text-white/70">{formatBdDate(liveSession.started_at)}</span></span>}
                 <span>Earnings: <span className="text-emerald-400 font-mono">{fmt.format(liveSession.earnings || 0)}</span></span>
               </div>
             </div>
@@ -170,9 +171,9 @@ function AITradeHistory({ token, session: parentSession }) {
           const payouts = (s.events || []).filter(e => e.action === 'payout');
           const startEv = (s.events || []).find(e => e.action === 'started');
           const stopEv  = (s.events || []).find(e => e.action === 'stopped');
-          const startD  = startEv ? new Date(startEv.created_at) : null;
-          const stopD   = stopEv  ? new Date(stopEv.created_at)  : null;
-          const durMs   = startD && stopD ? stopD - startD : null;
+          const startMs = startEv ? parseTimestampMs(startEv.created_at) : 0;
+          const stopMs  = stopEv  ? parseTimestampMs(stopEv.created_at)  : 0;
+          const durMs   = startMs && stopMs ? stopMs - startMs : null;
           const durLabel = durMs ? `${Math.floor(durMs/86400000)}d ${Math.floor((durMs%86400000)/3600000)}h` : s.status === 'active' ? 'Running…' : '--';
           return (
             <div key={s.session_ref} className={`rounded-2xl border ${c.border} bg-black/25 overflow-hidden`}>
@@ -187,7 +188,7 @@ function AITradeHistory({ token, session: parentSession }) {
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-white/50">
                     <span>Invested: <span className="text-white/80 font-mono">{fmt.format(s.allocated_amount)}</span></span>
-                    {startD && <span>Started: <span className="text-white/70">{startD.toLocaleDateString()}</span></span>}
+                    {startMs > 0 && <span>Started: <span className="text-white/70">{formatBdDate(startMs)}</span></span>}
                     <span>Duration: <span className="text-white/70">{durLabel}</span></span>
                     <span>Payouts: <span className="text-white/70">{payouts.length}</span></span>
                   </div>
@@ -206,7 +207,7 @@ function AITradeHistory({ token, session: parentSession }) {
                       <div className={`w-7 h-7 rounded-full ${c.bg} border ${c.border} flex items-center justify-center text-[11px] font-bold ${c.text} shrink-0`}>{ev.day_number || i+1}</div>
                       <div className="flex-1 text-[11px] text-white/60">
                         Day {ev.day_number || i+1} Payout
-                        <span className="ml-2 text-white/30">{new Date(ev.created_at).toLocaleDateString()} {new Date(ev.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>
+                        <span className="ml-2 text-white/30">{formatBdDateTime(ev.created_at, { showZone: true })}</span>
                       </div>
                       <div className="text-emerald-400 font-mono font-semibold text-sm shrink-0">+{fmt.format(ev.payout_amount)}</div>
                     </div>
@@ -216,7 +217,7 @@ function AITradeHistory({ token, session: parentSession }) {
                       <div className="w-7 h-7 rounded-full bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
                         <svg className="w-3.5 h-3.5 text-rose-400" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
                       </div>
-                      <div className="flex-1 text-[11px] text-white/50">Session stopped · {new Date(stopEv.created_at).toLocaleDateString()} {new Date(stopEv.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
+                      <div className="flex-1 text-[11px] text-white/50">Session stopped · {formatBdDateTime(stopEv.created_at, { showZone: true })}</div>
                       {Number(stopEv.payout_amount) > 0 && <div className="text-amber-400 font-mono text-sm shrink-0">+{fmt.format(stopEv.payout_amount)} <span className="text-white/30 text-[10px]">partial</span></div>}
                     </div>
                   )}

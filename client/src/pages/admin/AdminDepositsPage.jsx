@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAdminAuth } from '../../adminStore'
 import { api } from '../../api'
+import { formatBdDateTime, sortByTimestampDesc } from '../../utils/bdTime'
 
 const badge = {
   pending: 'border-amber-200 bg-amber-50 text-amber-700',
@@ -21,7 +22,7 @@ export default function AdminDepositsPage() {
   const [editingReqAmount, setEditingReqAmount] = useState('')
   const [hotWallet, setHotWallet] = useState({ balance: 0, error: '' })
 
-  const sortByCreated = (list) => [...list].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+  const sortByCreated = (list) => sortByTimestampDesc(list || [], 'created_at')
 
   const loadAll = async () => {
     if (!token) return
@@ -274,7 +275,14 @@ export default function AdminDepositsPage() {
                     )}
                   </div>
                   <div className="text-xs text-slate-500">TX: {req.tx_ref || req.tx_hash || '—'}</div>
-                  <div className="text-xs text-slate-400">User: {req.user_email || req.user_id}</div>
+                  <div className="text-xs text-slate-500">
+                    User: {req.user_name ? `${req.user_name} (${req.user_email || `#${req.user_id}`})` : (req.user_email || req.user_id)}
+                  </div>
+                  {req.created_at && (
+                    <div className="text-[11px] text-slate-400">
+                      Requested: {formatBdDateTime(req.created_at, { includeSeconds: true, showZone: true })}
+                    </div>
+                  )}
                   <div className="flex gap-2 mt-2">
                     <button className="btn bg-emerald-500 text-white" onClick={() => approveRequest(req, 'approve')}>Approve</button>
                     <button className="btn bg-rose-500 text-white" onClick={() => approveRequest(req, 'decline')}>Decline</button>
@@ -310,7 +318,12 @@ export default function AdminDepositsPage() {
                         <button className="text-[10px] text-indigo-500 underline ml-1" onClick={() => { setEditingReqId(req.id); setEditingReqAmount(req.amount) }}>Edit Amount</button>
                       </div>
                     )}
-                    <div className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[200px]">TX: {req.tx_ref || '—'}</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[240px]">TX: {req.tx_ref || '—'}</div>
+                    {req.created_at && (
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        {formatBdDateTime(req.updated_at || req.created_at, { showZone: true })}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

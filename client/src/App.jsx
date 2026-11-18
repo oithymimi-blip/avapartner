@@ -6,6 +6,7 @@ import { api } from './api'
 import { useAccount } from './accountStore'
 import { useNotificationsStore } from './notificationsStore'
 import { socket } from './socket'
+import { formatBdDateTime, getBdYear } from './utils/bdTime'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import Landing from './pages/Landing'
@@ -367,7 +368,7 @@ function Shell({ children }) {
                             <div className="w-full space-y-1">
                               <div className="flex items-center gap-1.5 text-[9px] text-white/40 font-mono">
                                 <div className={`w-2 h-2 rounded-full flex-shrink-0 ${n.is_read ? 'bg-white/20' : 'bg-brand'}`}></div>
-                                <span>{new Date(n.created_at).toLocaleDateString()} {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                <span>{formatBdDateTime(n.created_at, { showZone: true }) || 'now'}</span>
                               </div>
                               <div className="font-semibold text-white leading-tight text-[11px] notification-content break-words whitespace-pre-wrap">{n.title}</div>
                               <div className="text-white/65 text-[10px] leading-snug notification-message break-words whitespace-pre-wrap">{n.message}</div>
@@ -523,7 +524,7 @@ function Shell({ children }) {
             </div>
 
             <div className="text-center text-xs text-white/40 pt-4 border-t border-white/5">
-              © {new Date().getFullYear()} AvaPartner — Official Partner Network of AvaTrade Group. All rights reserved.
+              © {getBdYear()} AvaPartner — Official Partner Network of AvaTrade Group. All rights reserved.
             </div>
           </div>
         </footer>

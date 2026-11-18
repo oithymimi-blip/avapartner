@@ -13,6 +13,7 @@ import { api } from '../api'
 import { useAuth } from '../store'
 import { useAccount } from '../accountStore'
 import { socket } from '../socket'
+import { formatBdDateTime, formatBdTime } from '../utils/bdTime'
 
 const defaultBase = (() => {
   if (typeof window !== 'undefined') {
@@ -348,10 +349,8 @@ export default function UserDashboard() {
   const numericDisplayPrice = Number(displayPrice)
   const volatility = Number(state?.volatility ?? 0)
   const marketPaused = Boolean(state?.paused)
-  const lastUpdated = state?.updated_at ? new Date(state.updated_at) : null
-  const volatilityLabel = Number.isFinite(volatility) ? `${(volatility * 100).toFixed(1)}%` : '--'
-  const lastUpdatedLabel = lastUpdated
-    ? `${lastUpdated.toLocaleDateString()} ${lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+  const lastUpdatedLabel = state?.updated_at
+    ? (formatBdDateTime(state.updated_at, { showZone: true }) || '--')
     : '--'
   const marketStatusLabel = marketPaused ? 'Paused' : 'Live'
   const chartSummary = [
@@ -599,7 +598,7 @@ export default function UserDashboard() {
                 )}
                 {paginatedTrades.map(trade => {
                   const timeLabel = trade.created_at
-                    ? new Date(trade.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    ? formatBdTime(trade.created_at, { showZone: true })
                     : '--'
                   const sizeLabel = Number.isFinite(trade.remaining) && trade.isOpen
                     ? `${trade.remaining.toFixed(2)} / ${trade.qty.toFixed(2)}`
@@ -662,7 +661,7 @@ export default function UserDashboard() {
             )}
             {paginatedTrades.map(trade => {
               const timeLabel = trade.created_at
-                ? new Date(trade.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                ? formatBdTime(trade.created_at, { showZone: true })
                 : '--'
               const sizeLabel = Number.isFinite(trade.remaining) && trade.isOpen
                 ? `${trade.remaining.toFixed(2)} / ${trade.qty.toFixed(2)}`

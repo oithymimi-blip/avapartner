@@ -5,6 +5,7 @@ import { useAccount } from '../accountStore';
 import QRCode from 'react-qr-code';
 import { Copy, CheckCircle2, AlertCircle, Loader2, RefreshCw, ShieldCheck } from 'lucide-react';
 import { socket } from '../socket';
+import { formatBdDateTime } from '../utils/bdTime';
 
 export default function WalletDeposit() {
   const { token, user } = useAuth();
@@ -286,14 +287,7 @@ export default function WalletDeposit() {
                   history.map((req) => (
                     <tr key={req.id} className="hover:bg-white/5 transition-colors">
                       <td className="px-4 py-3 whitespace-nowrap text-slate-300">
-                        {new Date(req.created_at).toLocaleString(undefined, {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          timeZoneName: 'short'
-                        })}
+                        {formatBdDateTime(req.created_at, { showZone: true }) || '—'}
                       </td>
                       <td className="px-4 py-3 font-mono text-emerald-400 font-medium whitespace-nowrap">
                         ${Number(req.amount).toFixed(2)}

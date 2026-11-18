@@ -4,6 +4,7 @@ import { RefreshCw, ArrowUpRight, ArrowDownLeft, Activity, Bot, BarChart3, Clock
 import { api } from '../api'
 import { useAuth } from '../store'
 import { socket } from '../socket'
+import { formatBdDateTime, parseTimestampMs } from '../utils/bdTime'
 
 const currencyFmt = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -23,28 +24,11 @@ function fmtUsd(value) {
 }
 
 function parseTimestamp(value) {
-  if (!value) return 0
-  if (typeof value === 'number') {
-    return value < 1e12 ? value * 1000 : value
-  }
-  const str = String(value).trim()
-  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(str)) {
-    return new Date(str.replace(' ', 'T') + 'Z').getTime()
-  }
-  const ms = new Date(str).getTime()
-  return Number.isFinite(ms) ? ms : 0
+  return parseTimestampMs(value)
 }
 
 function fmtDateTime(value) {
-  const ms = parseTimestamp(value)
-  if (!ms) return '--'
-  return new Date(ms).toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  return formatBdDateTime(value, { showZone: true }) || '--'
 }
 
 function formatPair(sym) {

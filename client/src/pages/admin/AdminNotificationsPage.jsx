@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../api'
 import { useAdminAuth } from '../../adminStore'
+import { formatBdDateTime } from '../../utils/bdTime'
 
 export default function AdminNotificationsPage() {
   const { token, admin } = useAdminAuth()
@@ -93,7 +94,7 @@ export default function AdminNotificationsPage() {
               <div key={note.id} className="rounded-2xl border border-slate-200 p-4">
                 <div className="flex items-center justify-between text-xs text-slate-500">
                   <span>{note.email || 'Broadcast'}</span>
-                  <span>{new Date(note.created_at).toLocaleString()}</span>
+                  <span>{formatBdDateTime(note.created_at, { includeSeconds: true, showZone: true }) || '—'}</span>
                 </div>
                 <div className="text-sm font-semibold text-slate-800 mt-1">{note.title}</div>
                 <div className="text-sm text-slate-600">{note.message}</div>
@@ -108,7 +109,7 @@ export default function AdminNotificationsPage() {
               <div key={item.id} className="text-sm text-slate-600 border-b border-slate-100 pb-2">
                 <div className="flex items-center justify-between text-xs text-slate-500">
                   <span>{item.actor_role}</span>
-                  <span>{new Date(item.ts).toLocaleString()}</span>
+                  <span>{formatBdDateTime(item.ts, { includeSeconds: true, showZone: true }) || '—'}</span>
                 </div>
                 <div className="font-semibold text-slate-800">{item.action.replace(/_/g, ' ')}</div>
                 {item.meta ? (
