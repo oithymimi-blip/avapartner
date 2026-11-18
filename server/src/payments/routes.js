@@ -7,6 +7,7 @@ import { deliverEmail } from '../utils/email.js';
 import { notifyAdmin } from '../notifications/adminNotifications.js';
 import { emitSocket } from '../market/engine.js';
 import { validateCryptoAddress } from '../utils/addressValidator.js';
+import { verifyTotpCode } from '../utils/totp.js';
 
 const router = express.Router();
 
@@ -180,7 +181,7 @@ function resolveWithdrawMethod(methodId) {
   return { id: null, type: 'withdraw', name: 'USDT', network: 'Binance Smart Chain (BEP-20)', active: 1 };
 }
 
-function executeWithdrawal({ userId, userEmail, method, amount, address, tag }) {
+function executeWithdrawal({ userId, userEmail, method, amount, address, tag, totpCode }) {
   const amt = roundCurrency(amount);
   if (!Number.isFinite(amt) || amt < 0.01) {
     const err = new Error('Enter a valid withdrawal amount (minimum $0.01)');
@@ -193,6 +194,25 @@ function executeWithdrawal({ userId, userEmail, method, amount, address, tag }) 
     const err = new Error(addrCheck.message || 'Invalid wallet address');
     err.status = 400;
     throw err;
+  }
+
+  // Enforce Google Authenticator verification if enabled on user's account
+  const sec = db.prepare('SELECT totp_enabled, totp_secret FROM user_security WHERE user_id = ?').get(userId);
+  const requires2fa = Boolean(sec?.totp_enabled && sec?.totp_secret);
+  if (requires2fa) {
+    const cleanCode = String(totpCode || '').replace(/\s+/g, '');
+    if (!cleanCode) {
+      const err = new Error('Enter your 6-digit Google Authenticator code to withdraw funds.');
+      err.status = 400;
+      err.codeRequired = 'GOOGLE_AUTHENTICATOR';
+      throw err;
+    }
+    if (!verifyTotpCode(sec.totp_secret, cleanCode)) {
+      const err = new Error('Invalid or expired Google Authenticator code. Please enter the current 6-digit code.');
+      err.status = 400;
+      err.codeRequired = 'GOOGLE_AUTHENTICATOR';
+      throw err;
+    }
   }
 
   const cleanAddress = addrCheck.normalized || String(address).trim();
@@ -397,10 +417,10 @@ router.post('/withdraw/verify', (req, res) => {
   }
 });
 
-// Direct withdraw endpoint (validates wallet address, atomically deducts available balance, notifies everywhere)
+// Direct withdraw endpoint (validates wallet address, enforces Google Authenticator 2FA when enabled, deducts atomically)
 router.post('/withdraw', (req, res) => {
   try {
-    const { method_id, amount, address, tag } = req.body || {};
+    const { method_id, amount, address, tag, totpCode, code, authenticatorCode } = req.body || {};
     const method = resolveWithdrawMethod(method_id);
     const out = executeWithdrawal({
       userId: req.user.id,
@@ -408,11 +428,15 @@ router.post('/withdraw', (req, res) => {
       method,
       amount,
       address,
-      tag
+      tag,
+      totpCode: totpCode ?? code ?? authenticatorCode
     });
     res.json(out);
   } catch (err) {
-    res.status(err.status || 500).json({ error: err.message || 'Failed to submit withdrawal' });
+    res.status(err.status || 500).json({
+      error: err.message || 'Failed to submit withdrawal',
+      ...(err.codeRequired ? { codeRequired: err.codeRequired } : {})
+    });
   }
 });
 

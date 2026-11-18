@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { AlertCircle, CheckCircle2, Clock, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../store'
 import { api } from '../api'
@@ -49,13 +50,11 @@ export default function WalletWithdraw() {
   const [submitting, setSubmitting] = useState(false)
   const [bals, setBals] = useState({ available: 0, locked: 0 })
   const [aiOn, setAiOn] = useState(false)
+  const [totpEnabled, setTotpEnabled] = useState(false)
 
-  // OTP verification state (kept compatible with /withdraw/verify flow)
-  const [otpStep, setOtpStep] = useState(false)
-  const [otp, setOtp] = useState('')
-  const [verifying, setVerifying] = useState(false)
-  const [resendTimer, setResendTimer] = useState(0)
-  const [resending, setResending] = useState(false)
+  // Google Authenticator 2FA withdrawal confirmation step
+  const [authStep, setAuthStep] = useState(false)
+  const [totpCode, setTotpCode] = useState('')
 
   const selectedMethod = useMemo(
     () => methods.find(m => String(m.id) === String(form.method_id)) || methods[0],
@@ -93,13 +92,14 @@ export default function WalletWithdraw() {
     if (!token) return
     setLoading(true)
     try {
-      const [wR, rR, oR, aR] = await Promise.all([
+      const [wR, rR, oR, aR, sR] = await Promise.all([
         api(token).get('/api/payments/methods?type=withdraw').catch(() => ({
           data: [{ id: 'usdt-withdraw', name: 'USDT', network: 'Binance Smart Chain (BEP-20)', active: true }]
         })),
         api(token).get('/api/payments/requests').catch(() => ({ data: [] })),
         api(token).get('/api/trades/overview', { params: { limit: 1 } }).catch(() => null),
         api(token).get('/api/ai-trade/session').catch(() => ({ data: { session: null, balance: null } })),
+        api(token).get('/api/security/status').catch(() => ({ data: { totp_enabled: false } })),
       ])
 
       const rawMethods = Array.isArray(wR.data) && wR.data.length > 0
@@ -114,6 +114,7 @@ export default function WalletWithdraw() {
           : (active[0]?.id != null ? String(active[0].id) : '')
       }))
       setRequests((rR.data || []).filter(r => r.type === 'withdraw'))
+      setTotpEnabled(Boolean(sR?.data?.totp_enabled))
 
       if (oR?.data) {
         setAccountSummary(oR.data)
@@ -160,40 +161,37 @@ export default function WalletWithdraw() {
     return () => socket.off('user_data_update', handleUpdate)
   }, [user?.id, token, load, syncAccountBalance])
 
-  useEffect(() => {
-    if (resendTimer <= 0) return
-    const interval = setInterval(() => {
-      setResendTimer(prev => (prev > 0 ? prev - 1 : 0))
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [resendTimer])
-
-  const submitWithdrawal = async () => {
+  const validateBeforeSubmit = () => {
     if (!form.method_id && methods.length === 0) {
       setMsg('Please select a network.')
       setMsgOk(false)
-      return
+      return false
     }
     if (!Number.isFinite(parsedAmount) || parsedAmount < 0.01) {
       setMsg('Enter a valid withdrawal amount (minimum $0.01).')
       setMsgOk(false)
-      return
+      return false
     }
     if (parsedAmount > bals.available + 1e-6) {
       setMsg('Insufficient available balance.')
       setMsgOk(false)
-      return
+      return false
     }
     if (!hasAddressInput) {
       setMsg('Wallet address is required.')
       setMsgOk(false)
-      return
+      return false
     }
     if (!addressCheck.valid) {
       setMsg(addressCheck.message || 'Please enter a valid wallet address for the selected network.')
       setMsgOk(false)
-      return
+      return false
     }
+    return true
+  }
+
+  const executeWithdrawSubmit = async (code = '') => {
+    if (!validateBeforeSubmit()) return
 
     setSubmitting(true)
     setMsg('')
@@ -204,6 +202,7 @@ export default function WalletWithdraw() {
         amount: safeAmt,
         address: addressCheck.normalized || form.address.trim(),
         method_id: Number(form.method_id) || form.method_id,
+        ...(code ? { totpCode: code } : {})
       })
 
       // Instantly deduct from available & navbar main balance everywhere
@@ -231,64 +230,47 @@ export default function WalletWithdraw() {
 
       setMsg(`Withdrawal of $${safeAmt.toFixed(2)} USDT submitted! Deducted from your main balance immediately — estimated processing time: 3 to 24 hours.`)
       setMsgOk(true)
-      setOtpStep(false)
+      setAuthStep(false)
+      setTotpCode('')
       setForm(p => ({ ...p, amount: '', address: '', tag: '' }))
     } catch (err) {
-      setMsg(err?.response?.data?.error || 'Failed to submit withdrawal.')
+      const errData = err?.response?.data
+      if (errData?.codeRequired === 'GOOGLE_AUTHENTICATOR') {
+        setTotpEnabled(true)
+        setAuthStep(true)
+      }
+      setMsg(errData?.error || 'Failed to submit withdrawal.')
       setMsgOk(false)
     } finally {
       setSubmitting(false)
     }
   }
 
-  const resendOtp = async () => {
-    if (resendTimer > 0 || resending) return
-    setResending(true)
+  const submitWithdrawal = async () => {
+    if (!validateBeforeSubmit()) return
     setMsg('')
-    try {
-      await api(token).post('/api/payments/withdraw/resend-otp')
-      setMsg('A new verification code has been sent to your email.')
-      setMsgOk(true)
-      setResendTimer(30)
-    } catch (err) {
-      setMsg(err?.response?.data?.error || 'Failed to resend code.')
-      setMsgOk(false)
-    } finally {
-      setResending(false)
+    if (totpEnabled) {
+      setTotpCode('')
+      setAuthStep(true)
+      return
     }
+    await executeWithdrawSubmit('')
   }
 
-  const submitVerifyOtp = async () => {
-    if (otp.length !== 6) {
-      setMsg('Please enter the 6-digit code.')
+  const confirmAuthenticatorWithdraw = async (e) => {
+    e?.preventDefault?.()
+    const clean = totpCode.replace(/\D/g, '')
+    if (clean.length !== 6) {
+      setMsg('Enter the 6-digit code from your Google Authenticator app.')
       setMsgOk(false)
       return
     }
-    setVerifying(true)
-    setMsg('')
-    try {
-      const res = await api(token).post('/api/payments/withdraw/verify', { otp })
-      if (res.data?.balance) syncAccountBalance(res.data.balance)
-      if (res.data?.request) {
-        setRequests(prev => [res.data.request, ...prev.filter(r => r.id !== res.data.request.id)])
-      }
-      setMsg('Withdrawal submitted! Deducted from your balance immediately — estimated processing time: 3 to 24 hours.')
-      setMsgOk(true)
-      setOtpStep(false)
-      setOtp('')
-      setForm(p => ({ ...p, amount: '', address: '', tag: '' }))
-      load()
-    } catch (err) {
-      setMsg(err?.response?.data?.error || 'Verification failed. Please try again.')
-      setMsgOk(false)
-    } finally {
-      setVerifying(false)
-    }
+    await executeWithdrawSubmit(clean)
   }
 
-  const cancelOtp = () => {
-    setOtpStep(false)
-    setOtp('')
+  const cancelAuthStep = () => {
+    setAuthStep(false)
+    setTotpCode('')
     setMsg('')
   }
 
@@ -351,6 +333,31 @@ export default function WalletWithdraw() {
         </div>
       )}
 
+      {/* ── Google Authenticator status banner ── */}
+      {totpEnabled ? (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.07] px-4 py-3 text-xs">
+          <div className="flex items-center gap-2.5 text-emerald-300">
+            <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-400" />
+            <span>
+              <b className="text-white">Google Authenticator (2FA) Active:</b> You will be asked for your 6-digit code when withdrawing funds.
+            </span>
+          </div>
+          <Link to="/security" className="shrink-0 text-[11px] font-semibold text-white/60 hover:text-white transition">
+            Manage
+          </Link>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs">
+          <div className="flex items-center gap-2.5 text-white/65">
+            <ShieldCheck className="w-4 h-4 shrink-0 text-white/40" />
+            <span>Protect withdrawals with 2FA using Google Authenticator.</span>
+          </div>
+          <Link to="/security" className="shrink-0 text-[11px] font-semibold text-brand hover:underline">
+            Set up →
+          </Link>
+        </div>
+      )}
+
       {/* ── Feedback message ── */}
       {msg && (
         <div className={`flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm ${
@@ -363,34 +370,37 @@ export default function WalletWithdraw() {
         </div>
       )}
 
-      {/* ── OTP Verification Step ── */}
-      {otpStep ? (
-        <div className="rounded-3xl border border-cyan-500/20 bg-black/25 p-5 sm:p-6 space-y-5">
+      {/* ── Google Authenticator 2FA Step ── */}
+      {authStep ? (
+        <form onSubmit={confirmAuthenticatorWithdraw} className="rounded-3xl border border-emerald-500/25 bg-black/25 p-5 sm:p-6 space-y-5">
           <div className="text-center space-y-2">
-            <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mx-auto">
-              <svg className="w-7 h-7 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-              </svg>
+            <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center mx-auto">
+              <ShieldCheck className="w-7 h-7 text-emerald-400" />
             </div>
-            <h2 className="text-lg font-bold text-white">Email Verification Required</h2>
-            <p className="text-sm text-white/50">
-              We&apos;ve sent a 6-digit verification code to <b className="text-white/80">{user?.email}</b>.
-              Enter it below to confirm your withdrawal.
+            <h2 className="text-lg font-bold text-white">Google Authenticator Verification</h2>
+            <p className="text-sm text-white/55">
+              Enter the 6-digit code from your <b className="text-white">Google Authenticator</b> app to authorize this withdrawal.
             </p>
           </div>
 
           <div className="rounded-xl bg-white/[0.03] border border-white/8 p-4 space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-white/40">Amount</span>
-              <span className="font-mono text-brand font-semibold">${Number(form.amount).toFixed(2)}</span>
+              <span className="font-mono text-rose-400 font-semibold">-${Number(form.amount).toFixed(2)} USDT</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-white/40">To Address</span>
-              <span className="font-mono text-white/70 text-xs truncate max-w-[200px]" title={form.address}>{form.address}</span>
+              <span className="text-white/40">Balance After Withdraw</span>
+              <span className="font-mono text-white font-semibold">${remainingAfterWithdraw.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-white/40 shrink-0">To Address</span>
+              <span className="font-mono text-white/75 text-xs truncate max-w-[230px]" title={addressCheck.normalized || form.address}>
+                {addressCheck.normalized || form.address}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-white/40">Network</span>
-              <span className="text-white/70">{selectedMethod?.name} · {selectedMethod?.network}</span>
+              <span className="text-white/75">{selectedMethod?.name} · {selectedMethod?.network}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-white/40">Processing Time</span>
@@ -399,49 +409,38 @@ export default function WalletWithdraw() {
           </div>
 
           <div>
-            <label className="block text-xs text-white/50 mb-1.5">Verification Code</label>
+            <label className="block text-xs text-white/50 mb-1.5">Google Authenticator Code</label>
             <input
               type="text"
               inputMode="numeric"
               maxLength={6}
               placeholder="000000"
-              value={otp}
-              onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
-              className="w-full rounded-xl border border-white/10 bg-black/40 text-white font-mono text-center tracking-[0.3em] text-lg px-4 py-3.5 placeholder-white/20 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+              value={totpCode}
+              onChange={e => setTotpCode(e.target.value.replace(/\D/g, ''))}
+              autoFocus
+              className="w-full rounded-xl border border-white/15 bg-black/40 text-white font-mono text-center tracking-[0.35em] text-xl px-4 py-3.5 placeholder-white/20 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
             />
           </div>
 
           <button
-            onClick={submitVerifyOtp}
-            disabled={verifying || otp.length !== 6}
-            className="w-full rounded-2xl py-4 font-bold text-base tracking-wide transition-all duration-300 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-cyan-500 to-cyan-600 text-white shadow-[0_8px_24px_rgba(6,182,212,0.3)] hover:shadow-[0_12px_32px_rgba(6,182,212,0.45)]"
+            type="submit"
+            disabled={submitting || totpCode.length !== 6}
+            className="w-full rounded-2xl py-4 font-bold text-base tracking-wide transition-all duration-300 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-rose-500 to-rose-600 text-white shadow-[0_8px_24px_rgba(244,63,94,0.3)] hover:shadow-[0_12px_32px_rgba(244,63,94,0.45)]"
           >
-            {verifying ? 'Verifying…' : 'Confirm Withdrawal'}
+            {submitting ? 'Verifying & Withdrawing…' : 'Confirm & Withdraw Funds'}
           </button>
 
-          <div className="flex flex-col items-center gap-3 pt-2 border-t border-white/5">
-            <div className="flex items-center gap-2 text-sm text-white/50">
-              <span>Didn&apos;t receive the code?</span>
-              <button
-                type="button"
-                onClick={resendOtp}
-                disabled={resendTimer > 0 || resending}
-                className={`text-cyan-400 font-medium text-sm transition-opacity ${
-                  resendTimer > 0 || resending ? 'opacity-50 cursor-not-allowed' : 'hover:underline'
-                }`}
-              >
-                {resending ? 'Sending…' : resendTimer > 0 ? `Resend (${resendTimer}s)` : 'Resend Code'}
-              </button>
-            </div>
+          <div className="flex justify-center pt-1">
             <button
               type="button"
-              onClick={cancelOtp}
-              className="text-xs text-white/30 hover:text-white/60 transition-colors"
+              onClick={cancelAuthStep}
+              disabled={submitting}
+              className="text-xs text-white/40 hover:text-white/75 transition-colors"
             >
-              ← Go back and edit details
+              ← Go back and edit withdrawal details
             </button>
           </div>
-        </div>
+        </form>
       ) : (
         /* ── Withdrawal form ── */
         <div className="rounded-3xl border border-white/10 bg-black/25 p-5 sm:p-6 space-y-4">
@@ -614,7 +613,7 @@ export default function WalletWithdraw() {
                 </svg>
                 Processing Withdrawal…
               </span>
-            ) : 'Submit Withdrawal'}
+            ) : totpEnabled ? 'Continue with Google Authenticator' : 'Submit Withdrawal'}
           </button>
         </div>
       )}

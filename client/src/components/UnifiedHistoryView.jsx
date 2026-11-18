@@ -79,6 +79,10 @@ function describeActivity(act) {
       return `Withdrawal approved (${fmtUsd(meta?.amount || 0)})`
     case 'withdrawal_declined':
       return `Withdrawal declined & refunded (${fmtUsd(meta?.amount || 0)})`
+    case 'totp_enabled':
+      return 'Enabled Google Authenticator (2FA)'
+    case 'totp_disabled':
+      return 'Disabled Google Authenticator (2FA)'
     case 'set_user_balance':
       return `Balance updated to ${fmtUsd(meta?.amount || 0)}`
     case 'open_trade':
