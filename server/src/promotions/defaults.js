@@ -210,31 +210,33 @@ export function ensurePromotionsSchemaAndDefaults(db, { skipPromoSeed = false } 
   ensureCol(db, 'payment_requests', 'bonus_lock_snapshot', 'bonus_lock_snapshot TEXT');
 
   ensureCol(db, 'promotions', 'apply_withdrawal_condition', 'apply_withdrawal_condition INTEGER NOT NULL DEFAULT 1');
-  const addedMultiplier = ensureCol(db, 'promotions', 'profit_multiplier', 'profit_multiplier REAL NOT NULL DEFAULT 2');
+  ensureCol(db, 'promotions', 'profit_multiplier', 'profit_multiplier REAL NOT NULL DEFAULT 2');
   ensureCol(db, 'promotions', 'cashout_pct_per_milestone', 'cashout_pct_per_milestone REAL NOT NULL DEFAULT 50');
   ensureCol(db, 'promotions', 'required_milestones', 'required_milestones INTEGER NOT NULL DEFAULT 2');
   ensureCol(db, 'promotions', 'allowed_sources', "allowed_sources TEXT NOT NULL DEFAULT 'ai_trade,forex,binary'");
   ensureCol(db, 'promotions', 'total_global_limit', 'total_global_limit INTEGER NOT NULL DEFAULT 0');
   ensureCol(db, 'promotions', 'sort_order', 'sort_order INTEGER NOT NULL DEFAULT 0');
 
-  if (addedMultiplier) {
-    // One-time upgrade of default seeded WELCOME100 so account gets 2 times 100% deposit bonus with auto-credit
+  const upsertSetting = db.prepare(`
+    INSERT OR IGNORE INTO bonus_system_settings (key, value) VALUES (?, ?)
+  `);
+  for (const [k, v] of Object.entries(DEFAULT_BONUS_SETTINGS)) {
+    upsertSetting.run(k, String(v));
+  }
+
+  const migratedV2 = db.prepare("SELECT value FROM bonus_system_settings WHERE key = 'migration_welcome100_v2'").get();
+  if (!migratedV2) {
     db.prepare(`
       UPDATE promotions
       SET max_claims_per_user = 2,
           auto_credit = 1,
           title = '100% Deposit Welcome Bonus',
           subtitle = 'Get a 100% deposit match up to 2 times on your account — double your trading power instantly.',
-          terms = 'Claimable up to 2 times per account on deposits of $50+. Profit must be earned from AI Trade, Forex, or Binary: double total balance to cash out 50%, repeat a 2nd double for 50% again, then full balance unlocks.'
-      WHERE promo_code = 'WELCOME100' AND max_claims_per_user = 1
+          terms = 'Claimable up to 2 times per account on deposits of $50+. Profit must be earned from AI Trade, Forex, or Binary: double total balance to cash out 50%, repeat a 2nd double for 50% again, then full balance unlocks.',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE promo_code = 'WELCOME100' AND title = '100% First Deposit Welcome Bonus' AND max_claims_per_user = 1
     `).run();
-  }
-
-  const upsertSetting = db.prepare(`
-    INSERT OR IGNORE INTO bonus_system_settings (key, value) VALUES (?, ?)
-  `);
-  for (const [k, v] of Object.entries(DEFAULT_BONUS_SETTINGS)) {
-    upsertSetting.run(k, String(v));
+    db.prepare("INSERT OR REPLACE INTO bonus_system_settings (key, value) VALUES ('migration_welcome100_v2', '1')").run();
   }
 
   const count = db.prepare('SELECT COUNT(*) AS c FROM promotions').get()?.c || 0;
