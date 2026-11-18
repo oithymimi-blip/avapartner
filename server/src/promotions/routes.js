@@ -377,7 +377,24 @@ adminRouter.get('/', (req, res) => {
 });
 
 adminRouter.put('/settings', (req, res) => {
-  const updated = saveBonusSystemSettings(req.body || {});
+  const body = req.body || {};
+  const updated = saveBonusSystemSettings(body);
+  if (body.sync_to_offers) {
+    db.prepare(`
+      UPDATE promotions
+      SET profit_multiplier = ?,
+          cashout_pct_per_milestone = ?,
+          required_milestones = ?,
+          allowed_sources = ?,
+          updated_at = CURRENT_TIMESTAMP
+    `).run(
+      updated.default_double_multiplier,
+      updated.default_cashout_pct,
+      updated.default_required_milestones,
+      updated.allowed_profit_sources.join(',')
+    );
+  }
+  emitSocket('promotions_updated', { ts: Date.now() });
   res.json({ ok: true, settings: updated });
 });
 
@@ -467,6 +484,7 @@ adminRouter.post('/', (req, res) => {
       )
     `).run(data);
     const created = db.prepare('SELECT * FROM promotions WHERE id = ?').get(Number(info.lastInsertRowid));
+    emitSocket('promotions_updated', { ts: Date.now() });
     res.json({ ok: true, promotion: created });
   } catch (err) {
     if (String(err?.message || '').includes('UNIQUE')) {
@@ -516,6 +534,7 @@ adminRouter.put('/:id', (req, res) => {
       WHERE id = @id
     `).run({ ...merged, id });
     const updated = db.prepare('SELECT * FROM promotions WHERE id = ?').get(id);
+    emitSocket('promotions_updated', { ts: Date.now() });
     res.json({ ok: true, promotion: updated });
   } catch (err) {
     if (String(err?.message || '').includes('UNIQUE')) {
@@ -529,6 +548,7 @@ adminRouter.delete('/:id', (req, res) => {
   const id = Number(req.params.id);
   const info = db.prepare('DELETE FROM promotions WHERE id = ?').run(id);
   if (info.changes === 0) return res.status(404).json({ error: 'Promotion not found.' });
+  emitSocket('promotions_updated', { ts: Date.now() });
   res.json({ ok: true });
 });
 

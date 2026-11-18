@@ -365,7 +365,7 @@ export default function AdminLayout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50 md:rounded-tl-3xl">
+        <main style={{ colorScheme: 'light' }} className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50 text-slate-900 md:rounded-tl-3xl">
           <Outlet />
         </main>
       </div>

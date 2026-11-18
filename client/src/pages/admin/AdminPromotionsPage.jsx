@@ -12,13 +12,20 @@ import {
   Settings,
   Lock,
   Unlock,
-  Copy,
   Wand2,
-  Link2
+  Link2,
+  Sliders,
+  Megaphone,
+  ShieldCheck
 } from 'lucide-react'
 import { api } from '../../api'
 import { useAdminAuth } from '../../adminStore'
 import { formatBdDateTime } from '../../utils/bdTime'
+
+const ADMIN_INPUT_CLS =
+  'w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/15 focus:outline-none'
+const ADMIN_MONO_INPUT_CLS = `${ADMIN_INPUT_CLS} font-mono font-medium`
+const ADMIN_LABEL_CLS = 'block text-xs font-semibold text-slate-700 mb-1.5'
 
 const emptyForm = {
   title: '',
@@ -27,7 +34,7 @@ const emptyForm = {
   badge_text: 'HOT OFFER',
   bonus_type: 'percentage',
   bonus_value: '100',
-  max_bonus_amount: '500',
+  max_bonus_amount: '0',
   min_deposit: '50',
   promo_code: '',
   terms: '',
@@ -66,6 +73,7 @@ export default function AdminPromotionsPage() {
   const [promotions, setPromotions] = useState([])
   const [claims, setClaims] = useState([])
   const [locks, setLocks] = useState([])
+  const [syncToOffers, setSyncToOffers] = useState(true)
   const [settings, setSettings] = useState({
     system_enabled: true,
     default_double_multiplier: 2,
@@ -229,10 +237,10 @@ export default function AdminPromotionsPage() {
       }
       if (editingId) {
         await api(token).put(`/api/admin/promotions/${editingId}`, payload)
-        notify('Promotion updated successfully.')
+        notify('Promotion updated successfully — Deposit Bonus Calculator & offers updated live.')
       } else {
         await api(token).post('/api/admin/promotions', payload)
-        notify('New promotion created successfully.')
+        notify('New promotion created and published live.')
       }
       setShowForm(false)
       setEditingId(null)
@@ -249,9 +257,17 @@ export default function AdminPromotionsPage() {
     e.preventDefault()
     setSavingSettings(true)
     try {
-      const res = await api(token).put('/api/admin/promotions/settings', settings)
+      const res = await api(token).put('/api/admin/promotions/settings', {
+        ...settings,
+        sync_to_offers: syncToOffers
+      })
       if (res.data?.settings) setSettings(res.data.settings)
-      notify('Global bonus automation & cashout conditions saved! All changes are now live.')
+      await loadData()
+      notify(
+        syncToOffers
+          ? 'Global rules saved & synced across all bonus offers and calculators!'
+          : 'Global system & automation rules saved!'
+      )
     } catch (e) {
       notify(e?.response?.data?.error || 'Failed to save system settings.', true)
     } finally {
@@ -362,8 +378,14 @@ export default function AdminPromotionsPage() {
     }
   }
 
+  const previewMult = Math.max(1.01, Number(settings.default_double_multiplier || 2))
+  const previewPct = Math.min(100, Math.max(1, Number(settings.default_cashout_pct || 50)))
+  const previewMiles = Math.max(1, Number(settings.default_required_milestones || 2))
+  const previewTarget = 10000 * previewMult
+  const previewCashout = previewTarget * (previewPct / 100)
+
   return (
-    <div className="space-y-6">
+    <div style={{ colorScheme: 'light' }} className="space-y-6 text-slate-900">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="text-xs uppercase tracking-[0.3em] text-slate-400">Admin</div>
@@ -375,15 +397,15 @@ export default function AdminPromotionsPage() {
         <button
           type="button"
           onClick={openCreateForm}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-sm transition"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-sm transition"
         >
           <Plus className="w-4 h-4" />
           <span>New Bonus / Promo Code</span>
         </button>
       </div>
 
-      {msg && <div className="rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700">{msg}</div>}
-      {err && <div className="rounded-2xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700">{err}</div>}
+      {msg && <div className="rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700 font-medium">{msg}</div>}
+      {err && <div className="rounded-2xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700 font-medium">{err}</div>}
 
       {/* Summary KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -415,7 +437,7 @@ export default function AdminPromotionsPage() {
           type="button"
           onClick={() => setTab('claims')}
           className={`px-4 py-2 rounded-xl text-sm font-semibold border transition ${
-            tab === 'claims' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            tab === 'claims' ? 'bg-slate-900 text-white border-slate-900 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
           }`}
         >
           User Bonus Claims ({claims.length})
@@ -424,7 +446,7 @@ export default function AdminPromotionsPage() {
           type="button"
           onClick={() => setTab('offers')}
           className={`px-4 py-2 rounded-xl text-sm font-semibold border transition ${
-            tab === 'offers' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            tab === 'offers' ? 'bg-slate-900 text-white border-slate-900 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
           }`}
         >
           Offers &amp; Promo Codes ({promotions.length})
@@ -433,7 +455,7 @@ export default function AdminPromotionsPage() {
           type="button"
           onClick={() => setTab('locks')}
           className={`px-4 py-2 rounded-xl text-sm font-semibold border transition ${
-            tab === 'locks' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            tab === 'locks' ? 'bg-slate-900 text-white border-slate-900 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
           }`}
         >
           User Bonus Locks &amp; Milestones ({locks.length})
@@ -442,7 +464,7 @@ export default function AdminPromotionsPage() {
           type="button"
           onClick={() => setTab('settings')}
           className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border transition ${
-            tab === 'settings' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            tab === 'settings' ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
           }`}
         >
           <Settings className="w-4 h-4" />
@@ -452,187 +474,198 @@ export default function AdminPromotionsPage() {
 
       {/* Create / Edit Offer Form */}
       {showForm && (
-        <form onSubmit={handleSaveOffer} className="rounded-3xl bg-white border border-slate-200 p-6 shadow-sm space-y-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <Gift className="w-5 h-5 text-indigo-600" />
+        <form onSubmit={handleSaveOffer} className="rounded-3xl bg-white border border-slate-200 p-6 sm:p-7 shadow-sm space-y-6">
+          <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2.5">
+              <span className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center">
+                <Gift className="w-5 h-5" />
+              </span>
               <span>{editingId ? 'Edit Promotion / Bonus Offer' : 'Create New Promotion / Bonus Offer'}</span>
             </h2>
-            <button type="button" onClick={() => setShowForm(false)} className="text-sm text-slate-500 hover:text-slate-800">Cancel</button>
+            <button type="button" onClick={() => setShowForm(false)} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition">
+              Close
+            </button>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Offer Title *</label>
-              <input
-                type="text"
-                required
-                value={form.title}
-                onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                placeholder="e.g. 100% Deposit Welcome Bonus"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
-              />
+          <div className="rounded-2xl bg-slate-50/70 border border-slate-200/80 p-4 sm:p-5 space-y-4">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+              <Megaphone className="w-4 h-4 text-indigo-500" />
+              <span>Offer Details &amp; Bonus Ratios</span>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Category</label>
-              <select
-                value={form.category}
-                onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
-              >
-                <option value="deposit_bonus">Deposit Bonus</option>
-                <option value="welcome_bonus">New User Bonus</option>
-                <option value="promo_offer">Offer Promotion</option>
-                <option value="cashback">Cashback Reward</option>
-              </select>
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Subtitle / Marketing Hook</label>
-              <input
-                type="text"
-                value={form.subtitle}
-                onChange={e => setForm(f => ({ ...f, subtitle: e.target.value }))}
-                placeholder="Short summary shown on offer card"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Bonus Calculation Type</label>
-              <select
-                value={form.bonus_type}
-                onChange={e => setForm(f => ({ ...f, bonus_type: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
-              >
-                <option value="percentage">Percentage of Deposit (%)</option>
-                <option value="fixed">Fixed Dollar Bonus ($)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
-                {form.bonus_type === 'fixed' ? 'Bonus Amount ($)' : 'Bonus Ratio Percentage (%)'} *
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                required
-                value={form.bonus_value}
-                onChange={e => setForm(f => ({ ...f, bonus_value: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Max Bonus Cap ($ — 0 for no cap)</label>
-              <input
-                type="number"
-                step="1"
-                min="0"
-                value={form.max_bonus_amount}
-                onChange={e => setForm(f => ({ ...f, max_bonus_amount: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Minimum Deposit ($ — 0 if no deposit needed)</label>
-              <input
-                type="number"
-                step="1"
-                min="0"
-                value={form.min_deposit}
-                onChange={e => setForm(f => ({ ...f, min_deposit: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Redeemable Promo Code (for marketing anywhere)</label>
-              <div className="flex gap-2">
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className={ADMIN_LABEL_CLS}>Offer Title *</label>
                 <input
                   type="text"
-                  value={form.promo_code}
-                  onChange={e => setForm(f => ({ ...f, promo_code: e.target.value.toUpperCase() }))}
-                  placeholder="e.g. WELCOME100"
-                  className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 font-mono uppercase"
+                  required
+                  value={form.title}
+                  onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                  placeholder="e.g. 100% Deposit Welcome Bonus"
+                  className={ADMIN_INPUT_CLS}
                 />
-                <button
-                  type="button"
-                  onClick={() => setForm(f => ({ ...f, promo_code: makeRandomPromoCode() }))}
-                  className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold"
-                  title="Generate random promo code"
-                >
-                  <Wand2 className="w-3.5 h-3.5" />
-                  <span>Generate</span>
-                </button>
               </div>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Badge Label</label>
-              <input
-                type="text"
-                value={form.badge_text}
-                onChange={e => setForm(f => ({ ...f, badge_text: e.target.value }))}
-                placeholder="100% BONUS / NEW USER"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Max Claims Per User Account</label>
-              <input
-                type="number"
-                min="1"
-                value={form.max_claims_per_user}
-                onChange={e => setForm(f => ({ ...f, max_claims_per_user: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Global Campaign Redemption Cap (0 = unlimited)</label>
-              <input
-                type="number"
-                min="0"
-                value={form.total_global_limit}
-                onChange={e => setForm(f => ({ ...f, total_global_limit: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Sort Order (lower shows first)</label>
-              <input
-                type="number"
-                value={form.sort_order}
-                onChange={e => setForm(f => ({ ...f, sort_order: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Expires At (optional)</label>
-              <input
-                type="datetime-local"
-                value={form.expires_at}
-                onChange={e => setForm(f => ({ ...f, expires_at: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Terms &amp; Eligibility Notes</label>
-              <textarea
-                rows={2}
-                value={form.terms}
-                onChange={e => setForm(f => ({ ...f, terms: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
-              />
+              <div>
+                <label className={ADMIN_LABEL_CLS}>Category</label>
+                <select
+                  value={form.category}
+                  onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                  className={ADMIN_INPUT_CLS}
+                >
+                  <option value="deposit_bonus">Deposit Bonus</option>
+                  <option value="welcome_bonus">New User Bonus</option>
+                  <option value="promo_offer">Offer Promotion</option>
+                  <option value="cashback">Cashback Reward</option>
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className={ADMIN_LABEL_CLS}>Subtitle / Marketing Hook</label>
+                <input
+                  type="text"
+                  value={form.subtitle}
+                  onChange={e => setForm(f => ({ ...f, subtitle: e.target.value }))}
+                  placeholder="Short summary shown on offer card"
+                  className={ADMIN_INPUT_CLS}
+                />
+              </div>
+              <div>
+                <label className={ADMIN_LABEL_CLS}>Bonus Calculation Type</label>
+                <select
+                  value={form.bonus_type}
+                  onChange={e => setForm(f => ({ ...f, bonus_type: e.target.value }))}
+                  className={ADMIN_INPUT_CLS}
+                >
+                  <option value="percentage">Percentage of Deposit (%)</option>
+                  <option value="fixed">Fixed Dollar Bonus ($)</option>
+                </select>
+              </div>
+              <div>
+                <label className={ADMIN_LABEL_CLS}>
+                  {form.bonus_type === 'fixed' ? 'Bonus Amount ($)' : 'Bonus Ratio Percentage (%)'} *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  required
+                  value={form.bonus_value}
+                  onChange={e => setForm(f => ({ ...f, bonus_value: e.target.value }))}
+                  className={ADMIN_MONO_INPUT_CLS}
+                />
+              </div>
+              <div>
+                <label className={ADMIN_LABEL_CLS}>Max Bonus Cap ($ — 0 for Unlimited / No Cap)</label>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={form.max_bonus_amount}
+                  onChange={e => setForm(f => ({ ...f, max_bonus_amount: e.target.value }))}
+                  className={ADMIN_MONO_INPUT_CLS}
+                />
+              </div>
+              <div>
+                <label className={ADMIN_LABEL_CLS}>Minimum Deposit ($ — 0 if no deposit needed)</label>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={form.min_deposit}
+                  onChange={e => setForm(f => ({ ...f, min_deposit: e.target.value }))}
+                  className={ADMIN_MONO_INPUT_CLS}
+                />
+              </div>
+              <div>
+                <label className={ADMIN_LABEL_CLS}>Redeemable Promo Code (for marketing anywhere)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={form.promo_code}
+                    onChange={e => setForm(f => ({ ...f, promo_code: e.target.value.toUpperCase() }))}
+                    placeholder="e.g. WELCOME100"
+                    className={`${ADMIN_MONO_INPUT_CLS} uppercase`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, promo_code: makeRandomPromoCode() }))}
+                    className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold shadow-sm transition"
+                    title="Generate random promo code"
+                  >
+                    <Wand2 className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Generate</span>
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className={ADMIN_LABEL_CLS}>Badge Label</label>
+                <input
+                  type="text"
+                  value={form.badge_text}
+                  onChange={e => setForm(f => ({ ...f, badge_text: e.target.value }))}
+                  placeholder="100% BONUS / NEW USER"
+                  className={ADMIN_INPUT_CLS}
+                />
+              </div>
+              <div>
+                <label className={ADMIN_LABEL_CLS}>Max Claims Per User Account</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={form.max_claims_per_user}
+                  onChange={e => setForm(f => ({ ...f, max_claims_per_user: e.target.value }))}
+                  className={ADMIN_MONO_INPUT_CLS}
+                />
+              </div>
+              <div>
+                <label className={ADMIN_LABEL_CLS}>Global Campaign Cap (0 = unlimited)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={form.total_global_limit}
+                  onChange={e => setForm(f => ({ ...f, total_global_limit: e.target.value }))}
+                  className={ADMIN_MONO_INPUT_CLS}
+                />
+              </div>
+              <div>
+                <label className={ADMIN_LABEL_CLS}>Sort Order (lower shows first)</label>
+                <input
+                  type="number"
+                  value={form.sort_order}
+                  onChange={e => setForm(f => ({ ...f, sort_order: e.target.value }))}
+                  className={ADMIN_MONO_INPUT_CLS}
+                />
+              </div>
+              <div>
+                <label className={ADMIN_LABEL_CLS}>Expires At (optional)</label>
+                <input
+                  type="datetime-local"
+                  value={form.expires_at}
+                  onChange={e => setForm(f => ({ ...f, expires_at: e.target.value }))}
+                  className={ADMIN_INPUT_CLS}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className={ADMIN_LABEL_CLS}>Terms &amp; Eligibility Notes</label>
+                <textarea
+                  rows={2}
+                  value={form.terms}
+                  onChange={e => setForm(f => ({ ...f, terms: e.target.value }))}
+                  className={ADMIN_INPUT_CLS}
+                />
+              </div>
             </div>
           </div>
 
           {/* Per-Offer Cashout & Withdrawal Rule Controls */}
-          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 space-y-3">
+          <div className="rounded-2xl bg-amber-50/60 border border-amber-200/80 p-4 sm:p-5 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="text-sm font-bold text-slate-800 flex items-center gap-2">
+              <div className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <Lock className="w-4 h-4 text-amber-600" />
                 <span>Cashout &amp; Withdrawal Conditions for This Bonus</span>
               </div>
-              <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+              <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-800 cursor-pointer bg-white px-3 py-1.5 rounded-xl border border-amber-200">
                 <input
                   type="checkbox"
+                  className="accent-indigo-600 w-4 h-4"
                   checked={form.apply_withdrawal_condition}
                   onChange={e => setForm(f => ({ ...f, apply_withdrawal_condition: e.target.checked }))}
                 />
@@ -641,20 +674,20 @@ export default function AdminPromotionsPage() {
             </div>
 
             {form.apply_withdrawal_condition && (
-              <div className="grid md:grid-cols-3 gap-3">
+              <div className="grid md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Profit Multiplier (2 = Double)</label>
+                  <label className={ADMIN_LABEL_CLS}>Profit Multiplier (2 = Double)</label>
                   <input
                     type="number"
                     step="0.1"
                     min="1.1"
                     value={form.profit_multiplier}
                     onChange={e => setForm(f => ({ ...f, profit_multiplier: e.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-mono text-slate-900"
+                    className={ADMIN_MONO_INPUT_CLS}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Cashout % Per Milestone</label>
+                  <label className={ADMIN_LABEL_CLS}>Cashout % Per Milestone</label>
                   <input
                     type="number"
                     step="1"
@@ -662,26 +695,27 @@ export default function AdminPromotionsPage() {
                     max="100"
                     value={form.cashout_pct_per_milestone}
                     onChange={e => setForm(f => ({ ...f, cashout_pct_per_milestone: e.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-mono text-slate-900"
+                    className={ADMIN_MONO_INPUT_CLS}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Required Milestones (Times)</label>
+                  <label className={ADMIN_LABEL_CLS}>Required Milestones (Times)</label>
                   <input
                     type="number"
                     step="1"
                     min="1"
                     value={form.required_milestones}
                     onChange={e => setForm(f => ({ ...f, required_milestones: e.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-mono text-slate-900"
+                    className={ADMIN_MONO_INPUT_CLS}
                   />
                 </div>
-                <div className="md:col-span-3 flex flex-wrap items-center gap-4 pt-1 text-xs text-slate-700">
+                <div className="md:col-span-3 flex flex-wrap items-center gap-4 pt-1 text-xs text-slate-800 bg-white rounded-xl border border-amber-200/70 px-3.5 py-2.5">
                   <span className="font-semibold">Required Profit Sources:</span>
                   {SOURCE_OPTIONS.map(s => (
-                    <label key={s.key} className="inline-flex items-center gap-1.5 cursor-pointer">
+                    <label key={s.key} className="inline-flex items-center gap-1.5 cursor-pointer font-medium">
                       <input
                         type="checkbox"
+                        className="accent-indigo-600 w-4 h-4"
                         checked={form.allowed_sources.includes(s.key)}
                         onChange={() => toggleFormSource(s.key)}
                       />
@@ -693,24 +727,24 @@ export default function AdminPromotionsPage() {
             )}
           </div>
 
-          <div className="flex flex-wrap gap-6 pt-1 text-sm text-slate-700">
-            <label className="inline-flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.active} onChange={e => setForm(f => ({ ...f, active: e.target.checked }))} />
-              <span>Active (Visible to Users)</span>
+          <div className="grid sm:grid-cols-3 gap-3 text-sm text-slate-700">
+            <label className="rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 flex items-center gap-2.5 cursor-pointer hover:bg-slate-100/70">
+              <input type="checkbox" className="accent-indigo-600 w-4 h-4" checked={form.active} onChange={e => setForm(f => ({ ...f, active: e.target.checked }))} />
+              <span className="font-medium text-slate-800">Active (Visible to Users)</span>
             </label>
-            <label className="inline-flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.featured} onChange={e => setForm(f => ({ ...f, featured: e.target.checked }))} />
-              <span>Featured Offer</span>
+            <label className="rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 flex items-center gap-2.5 cursor-pointer hover:bg-slate-100/70">
+              <input type="checkbox" className="accent-indigo-600 w-4 h-4" checked={form.featured} onChange={e => setForm(f => ({ ...f, featured: e.target.checked }))} />
+              <span className="font-medium text-slate-800">Featured Offer</span>
             </label>
-            <label className="inline-flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.auto_credit} onChange={e => setForm(f => ({ ...f, auto_credit: e.target.checked }))} />
-              <span>Auto-Credit Instantly on Qualifying Deposit</span>
+            <label className="rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 flex items-center gap-2.5 cursor-pointer hover:bg-slate-100/70">
+              <input type="checkbox" className="accent-indigo-600 w-4 h-4" checked={form.auto_credit} onChange={e => setForm(f => ({ ...f, auto_credit: e.target.checked }))} />
+              <span className="font-medium text-slate-800">Auto-Credit on Deposit</span>
             </label>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600">Cancel</button>
-            <button type="submit" disabled={saving} className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold disabled:opacity-50">
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-sm font-semibold text-slate-700">Cancel</button>
+            <button type="submit" disabled={saving} className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow-sm disabled:opacity-50">
               {saving ? 'Saving...' : (editingId ? 'Save Changes' : 'Create Offer')}
             </button>
           </div>
@@ -834,7 +868,7 @@ export default function AdminPromotionsPage() {
                 {p.subtitle && <p className="text-xs text-slate-600">{p.subtitle}</p>}
                 <div className="grid grid-cols-4 gap-2 pt-2 text-xs text-slate-600">
                   <div><span className="text-slate-400 block text-[10px]">Code</span><strong className="font-mono">{p.promo_code || '—'}</strong></div>
-                  <div><span className="text-slate-400 block text-[10px]">Min Dep</span><strong className="font-mono">${Number(p.min_deposit).toFixed(0)}</strong></div>
+                  <div><span className="text-slate-400 block text-[10px]">Max Cap</span><strong className="font-mono">{Number(p.max_bonus_amount) > 0 ? `$${Number(p.max_bonus_amount).toLocaleString()}` : 'No Cap'}</strong></div>
                   <div><span className="text-slate-400 block text-[10px]">Per User</span><strong className="font-mono">{p.max_claims_per_user}x</strong></div>
                   <div><span className="text-slate-400 block text-[10px]">Claims</span><strong className="font-mono">{p.total_claims_count || 0}{p.total_global_limit > 0 ? `/${p.total_global_limit}` : ''}</strong></div>
                 </div>
@@ -983,139 +1017,177 @@ export default function AdminPromotionsPage() {
         </div>
       ) : (
         /* Global System & Automation Tab */
-        <form onSubmit={handleSaveSettings} className="rounded-3xl bg-white border border-slate-200 p-6 shadow-sm space-y-6">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">Global Bonus Rules &amp; Automation Control</h2>
-            <p className="text-xs text-slate-500 mt-1">
-              Edit default bonus ratios, withdrawal turnover conditions, allowed trading engines, and marketing copy globally. Changes take effect immediately across user &amp; withdrawal flows.
-            </p>
+        <form onSubmit={handleSaveSettings} className="rounded-3xl bg-white border border-slate-200 p-6 sm:p-7 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+            <div className="flex items-start gap-3">
+              <span className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center shrink-0">
+                <Sliders className="w-5 h-5" />
+              </span>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Global Bonus Rules &amp; Automation Control</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Edit default bonus multipliers, cashout percentages, qualifying trading sources, and marketing copy anytime.
+                </p>
+              </div>
+            </div>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold shrink-0">
+              <ShieldCheck className="w-4 h-4" />
+              <span>Real-Time Automation</span>
+            </span>
           </div>
 
           <div className="grid md:grid-cols-3 gap-4">
-            <label className="rounded-2xl border border-slate-200 p-4 flex items-start gap-3 cursor-pointer hover:bg-slate-50">
+            <label className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 flex items-start gap-3 cursor-pointer hover:bg-slate-100/70 transition">
               <input
                 type="checkbox"
                 checked={Boolean(settings.system_enabled)}
                 onChange={e => setSettings(s => ({ ...s, system_enabled: e.target.checked }))}
-                className="mt-1"
+                className="mt-1 w-4 h-4 accent-indigo-600"
               />
               <div>
                 <div className="text-sm font-bold text-slate-900">Promotions System Active</div>
-                <div className="text-xs text-slate-500">Master switch to show or pause all user bonus offers.</div>
+                <div className="text-xs text-slate-500 mt-0.5">Master switch to show or pause all user bonus offers.</div>
               </div>
             </label>
 
-            <label className="rounded-2xl border border-slate-200 p-4 flex items-start gap-3 cursor-pointer hover:bg-slate-50">
+            <label className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 flex items-start gap-3 cursor-pointer hover:bg-slate-100/70 transition">
               <input
                 type="checkbox"
                 checked={Boolean(settings.enforce_withdrawal_conditions)}
                 onChange={e => setSettings(s => ({ ...s, enforce_withdrawal_conditions: e.target.checked }))}
-                className="mt-1"
+                className="mt-1 w-4 h-4 accent-indigo-600"
               />
               <div>
                 <div className="text-sm font-bold text-slate-900">Enforce Cashout Conditions</div>
-                <div className="text-xs text-slate-500">Enforce profit-double &amp; 50% milestone cashout locks on active bonus balances.</div>
+                <div className="text-xs text-slate-500 mt-0.5">Enforce profit-double &amp; milestone cashout locks on active bonus balances.</div>
               </div>
             </label>
 
-            <label className="rounded-2xl border border-slate-200 p-4 flex items-start gap-3 cursor-pointer hover:bg-slate-50">
+            <label className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 flex items-start gap-3 cursor-pointer hover:bg-slate-100/70 transition">
               <input
                 type="checkbox"
                 checked={Boolean(settings.auto_match_deposit_bonus)}
                 onChange={e => setSettings(s => ({ ...s, auto_match_deposit_bonus: e.target.checked }))}
-                className="mt-1"
+                className="mt-1 w-4 h-4 accent-indigo-600"
               />
               <div>
                 <div className="text-sm font-bold text-slate-900">Auto-Apply Deposit Bonus</div>
-                <div className="text-xs text-slate-500">Automatically match &amp; run qualifying deposit bonuses whenever a user deposits.</div>
+                <div className="text-xs text-slate-500 mt-0.5">Automatically match &amp; run qualifying deposit bonuses whenever a user deposits.</div>
               </div>
             </label>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Default Profit Multiplier (2 = Double)</label>
-              <input
-                type="number"
-                step="0.1"
-                min="1.1"
-                value={settings.default_double_multiplier}
-                onChange={e => setSettings(s => ({ ...s, default_double_multiplier: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900"
-              />
+          <div className="rounded-2xl bg-slate-50/70 border border-slate-200/80 p-4 sm:p-5 space-y-4">
+            <div className="grid md:grid-cols-3 gap-4">
+              <div>
+                <label className={ADMIN_LABEL_CLS}>Default Profit Multiplier (2 = Double)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="1.1"
+                  value={settings.default_double_multiplier}
+                  onChange={e => setSettings(s => ({ ...s, default_double_multiplier: e.target.value }))}
+                  className={ADMIN_MONO_INPUT_CLS}
+                />
+              </div>
+              <div>
+                <label className={ADMIN_LABEL_CLS}>Default Cashout % Per Milestone</label>
+                <input
+                  type="number"
+                  step="1"
+                  min="1"
+                  max="100"
+                  value={settings.default_cashout_pct}
+                  onChange={e => setSettings(s => ({ ...s, default_cashout_pct: e.target.value }))}
+                  className={ADMIN_MONO_INPUT_CLS}
+                />
+              </div>
+              <div>
+                <label className={ADMIN_LABEL_CLS}>Default Required Milestones (Times)</label>
+                <input
+                  type="number"
+                  step="1"
+                  min="1"
+                  value={settings.default_required_milestones}
+                  onChange={e => setSettings(s => ({ ...s, default_required_milestones: e.target.value }))}
+                  className={ADMIN_MONO_INPUT_CLS}
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Default Cashout % Per Milestone</label>
-              <input
-                type="number"
-                step="1"
-                min="1"
-                max="100"
-                value={settings.default_cashout_pct}
-                onChange={e => setSettings(s => ({ ...s, default_cashout_pct: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900"
-              />
+
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700">
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="font-semibold text-slate-900 text-xs uppercase tracking-wider">Qualifying Profit Sources:</span>
+                {SOURCE_OPTIONS.map(src => {
+                  const arr = Array.isArray(settings.allowed_profit_sources) ? settings.allowed_profit_sources : []
+                  const checked = arr.includes(src.key)
+                  return (
+                    <label key={src.key} className="inline-flex items-center gap-2 cursor-pointer font-medium">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 accent-indigo-600"
+                        checked={checked}
+                        onChange={() => {
+                          const next = checked ? arr.filter(x => x !== src.key) : [...arr, src.key]
+                          setSettings(s => ({ ...s, allowed_profit_sources: next.length ? next : [src.key] }))
+                        }}
+                      />
+                      <span>{src.label}</span>
+                    </label>
+                  )
+                })}
+              </div>
+
+              <label className="inline-flex items-center gap-2 text-xs font-semibold text-indigo-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 accent-indigo-600"
+                  checked={syncToOffers}
+                  onChange={e => setSyncToOffers(e.target.checked)}
+                />
+                <span>Sync ratios to all existing offers on save</span>
+              </label>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Default Required Milestones (Times)</label>
-              <input
-                type="number"
-                step="1"
-                min="1"
-                value={settings.default_required_milestones}
-                onChange={e => setSettings(s => ({ ...s, default_required_milestones: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900"
-              />
+
+            {/* Live Calculation Preview */}
+            <div className="rounded-xl bg-indigo-50/80 border border-indigo-200 px-4 py-3 text-xs text-indigo-900 flex flex-wrap items-center justify-between gap-2">
+              <span>
+                <strong>Live Formula Preview ($5,000 Deposit + 100% Bonus):</strong>{' '}
+                Start <strong className="font-mono">$10,000</strong> → Target ({previewMult}x){' '}
+                <strong className="font-mono">${previewTarget.toLocaleString()}</strong> → Eligible Cashout ({previewPct}%){' '}
+                <strong className="font-mono">${previewCashout.toLocaleString()}</strong> ×{' '}
+                <strong>{previewMiles}</strong> times before full unlock
+              </span>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-2xl p-4">
-            <span className="font-semibold text-slate-900">Default Qualifying Profit Sources:</span>
-            {SOURCE_OPTIONS.map(src => {
-              const arr = Array.isArray(settings.allowed_profit_sources) ? settings.allowed_profit_sources : []
-              const checked = arr.includes(src.key)
-              return (
-                <label key={src.key} className="inline-flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => {
-                      const next = checked ? arr.filter(x => x !== src.key) : [...arr, src.key]
-                      setSettings(s => ({ ...s, allowed_profit_sources: next.length ? next : [src.key] }))
-                    }}
-                  />
-                  <span>{src.label}</span>
-                </label>
-              )
-            })}
-          </div>
-
-          <div className="space-y-4">
+          <div className="rounded-2xl bg-slate-50/70 border border-slate-200/80 p-4 sm:p-5 space-y-4">
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-500">User Promotions Page Content</div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Promotions Page Headline</label>
+              <label className={ADMIN_LABEL_CLS}>Promotions Page Headline</label>
               <input
                 type="text"
                 value={settings.page_headline}
                 onChange={e => setSettings(s => ({ ...s, page_headline: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
+                className={ADMIN_INPUT_CLS}
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Promotions Page Subheadline</label>
+              <label className={ADMIN_LABEL_CLS}>Promotions Page Subheadline</label>
               <textarea
                 rows={2}
                 value={settings.page_subheadline}
                 onChange={e => setSettings(s => ({ ...s, page_subheadline: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
+                className={ADMIN_INPUT_CLS}
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Withdrawal Condition Rule Explanation (shown to users)</label>
+              <label className={ADMIN_LABEL_CLS}>Withdrawal Condition Rule Explanation (shown to users)</label>
               <textarea
                 rows={3}
                 value={settings.withdrawal_rule_summary}
                 onChange={e => setSettings(s => ({ ...s, withdrawal_rule_summary: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
+                className={ADMIN_INPUT_CLS}
               />
             </div>
           </div>
@@ -1124,7 +1196,7 @@ export default function AdminPromotionsPage() {
             <button
               type="submit"
               disabled={savingSettings}
-              className="px-6 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-sm disabled:opacity-50"
+              className="px-6 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-sm disabled:opacity-50 transition"
             >
               {savingSettings ? 'Saving Settings...' : 'Save Global System & Automation Rules'}
             </button>
@@ -1135,39 +1207,39 @@ export default function AdminPromotionsPage() {
       {/* Approve Claim Modal */}
       {reviewingClaim && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4">
+          <div style={{ colorScheme: 'light' }} className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4 text-slate-900">
             <div className="flex items-center gap-2 text-lg font-bold text-slate-900">
               <Sparkles className="w-5 h-5 text-emerald-600" />
               <span>Approve &amp; Credit Bonus</span>
             </div>
-            <div className="text-xs text-slate-600 space-y-1 bg-slate-50 rounded-xl p-3">
+            <div className="text-xs text-slate-600 space-y-1 bg-slate-50 border border-slate-200 rounded-xl p-3">
               <div><strong>User:</strong> {reviewingClaim.user_email}</div>
               <div><strong>Offer:</strong> {reviewingClaim.promo_title}</div>
               <div><strong>Qualifying Deposit:</strong> ${Number(reviewingClaim.deposit_amount || 0).toFixed(2)}</div>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Bonus Amount to Credit ($)</label>
+              <label className={ADMIN_LABEL_CLS}>Bonus Amount to Credit ($)</label>
               <input
                 type="number"
                 step="0.01"
                 min="0.01"
                 value={approveAmount}
                 onChange={e => setApproveAmount(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900"
+                className={ADMIN_MONO_INPUT_CLS}
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Admin Note (optional)</label>
+              <label className={ADMIN_LABEL_CLS}>Admin Note (optional)</label>
               <input
                 type="text"
                 value={approveNote}
                 onChange={e => setApproveNote(e.target.value)}
                 placeholder="e.g. Credited first deposit welcome bonus"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
+                className={ADMIN_INPUT_CLS}
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setReviewingClaim(null)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600">Cancel</button>
+              <button type="button" onClick={() => setReviewingClaim(null)} className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-sm font-semibold text-slate-700">Cancel</button>
               <button
                 type="button"
                 disabled={processingClaimId === reviewingClaim.id}
@@ -1185,88 +1257,88 @@ export default function AdminPromotionsPage() {
       {/* Edit Lock Modal */}
       {editingLock && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <form onSubmit={handleSaveLock} className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between">
+          <form style={{ colorScheme: 'light' }} onSubmit={handleSaveLock} className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl space-y-4 text-slate-900">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <div className="flex items-center gap-2 text-lg font-bold text-slate-900">
                 <Lock className="w-5 h-5 text-indigo-600" />
                 <span>Edit User Bonus Lock &amp; Milestones</span>
               </div>
-              <button type="button" onClick={() => setEditingLock(null)} className="text-sm text-slate-500">Close</button>
+              <button type="button" onClick={() => setEditingLock(null)} className="text-sm font-semibold text-slate-500 hover:text-slate-800">Close</button>
             </div>
 
-            <div className="text-xs text-slate-600 bg-slate-50 rounded-xl p-3">
+            <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-xl p-3">
               <strong>User:</strong> {editingLock.user_email} • <strong>Offer:</strong> {editingLock.promo_title}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Milestone Base Balance ($)</label>
+                <label className={ADMIN_LABEL_CLS}>Milestone Base Balance ($)</label>
                 <input
                   type="number"
                   step="0.01"
                   min="0.01"
                   value={lockForm.milestone_base_balance}
                   onChange={e => setLockForm(f => ({ ...f, milestone_base_balance: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900"
+                  className={ADMIN_MONO_INPUT_CLS}
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Profit Multiplier (e.g. 2)</label>
+                <label className={ADMIN_LABEL_CLS}>Profit Multiplier (e.g. 2)</label>
                 <input
                   type="number"
                   step="0.1"
                   min="1.1"
                   value={lockForm.profit_multiplier}
                   onChange={e => setLockForm(f => ({ ...f, profit_multiplier: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900"
+                  className={ADMIN_MONO_INPUT_CLS}
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Cashout % Per Milestone</label>
+                <label className={ADMIN_LABEL_CLS}>Cashout % Per Milestone</label>
                 <input
                   type="number"
                   min="1"
                   max="100"
                   value={lockForm.cashout_pct}
                   onChange={e => setLockForm(f => ({ ...f, cashout_pct: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900"
+                  className={ADMIN_MONO_INPUT_CLS}
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Completed / Required</label>
+                <label className={ADMIN_LABEL_CLS}>Completed / Required</label>
                 <div className="flex gap-2">
                   <input
                     type="number"
                     min="0"
                     value={lockForm.milestones_completed}
                     onChange={e => setLockForm(f => ({ ...f, milestones_completed: e.target.value }))}
-                    className="w-1/2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900"
+                    className={ADMIN_MONO_INPUT_CLS}
                   />
                   <input
                     type="number"
                     min="1"
                     value={lockForm.required_milestones}
                     onChange={e => setLockForm(f => ({ ...f, required_milestones: e.target.value }))}
-                    className="w-1/2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900"
+                    className={ADMIN_MONO_INPUT_CLS}
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Manual Profit Credit Offset ($)</label>
+                <label className={ADMIN_LABEL_CLS}>Manual Profit Credit Offset ($)</label>
                 <input
                   type="number"
                   step="0.01"
                   value={lockForm.manual_profit_offset}
                   onChange={e => setLockForm(f => ({ ...f, manual_profit_offset: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900"
+                  className={ADMIN_MONO_INPUT_CLS}
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Lock Status</label>
+                <label className={ADMIN_LABEL_CLS}>Lock Status</label>
                 <select
                   value={lockForm.status}
                   onChange={e => setLockForm(f => ({ ...f, status: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
+                  className={ADMIN_INPUT_CLS}
                 >
                   <option value="active">Active (Enforced)</option>
                   <option value="completed">Completed (Full Withdrawal)</option>
@@ -1275,8 +1347,8 @@ export default function AdminPromotionsPage() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setEditingLock(null)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600">Cancel</button>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button type="button" onClick={() => setEditingLock(null)} className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-sm font-semibold text-slate-700">Cancel</button>
               <button type="submit" disabled={savingLock} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold disabled:opacity-50">
                 {savingLock ? 'Saving...' : 'Save Lock Changes'}
               </button>

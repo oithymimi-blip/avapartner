@@ -10,22 +10,22 @@ export const DEFAULT_BONUS_SETTINGS = {
   page_subheadline:
     'Unlock 100% deposit bonuses, new user rewards, and custom promo codes. Double your balance via AI Trade, Forex, or Binary to cash out 50% across 2 milestones.',
   withdrawal_rule_summary:
-    'Example: Deposit $100 + 100% Bonus ($100) = $200. Double to $400 via AI Trade, Forex, or Binary to withdraw 50% ($200). Double your remaining balance a 2nd time to withdraw 50% again — after 2 completed milestones, 100% of remaining funds are eligible for normal withdrawal.'
+    'Example: Deposit $5,000 + 100% Bonus ($5,000) = $10,000 starting capital. Double to $20,000 via AI Trade, Forex, or Binary to withdraw 50% ($10,000). Double your remaining balance a 2nd time to withdraw 50% again — after 2 completed milestones, 100% of remaining funds are eligible for normal withdrawal.'
 };
 
 export const DEFAULT_PROMOTIONS = [
   {
     title: '100% Deposit Welcome Bonus',
-    subtitle: 'Get a 100% deposit match up to 2 times on your account — double your trading power instantly.',
+    subtitle: 'Get a full 100% deposit match (2x total starting balance) up to 2 times per account.',
     category: 'deposit_bonus',
     badge_text: '100% BONUS',
     bonus_type: 'percentage',
     bonus_value: 100,
-    max_bonus_amount: 500,
+    max_bonus_amount: 0,
     min_deposit: 50,
     promo_code: 'WELCOME100',
     terms:
-      'Claimable up to 2 times per account on deposits of $50+. Profit must be earned from AI Trade, Forex, or Binary: double total balance to cash out 50%, repeat a 2nd double for 50% again, then full balance unlocks.',
+      'Claimable up to 2 times per account on deposits of $50+ with no upper bonus cap. Profit must be earned from AI Trade, Forex, or Binary: double total balance to cash out 50%, repeat a 2nd double for 50% again, then full balance unlocks.',
     auto_credit: 1,
     featured: 1,
     active: 1,
@@ -237,6 +237,25 @@ export function ensurePromotionsSchemaAndDefaults(db, { skipPromoSeed = false } 
       WHERE promo_code = 'WELCOME100' AND title = '100% First Deposit Welcome Bonus' AND max_claims_per_user = 1
     `).run();
     db.prepare("INSERT OR REPLACE INTO bonus_system_settings (key, value) VALUES ('migration_welcome100_v2', '1')").run();
+  }
+
+  const migratedV3 = db.prepare("SELECT value FROM bonus_system_settings WHERE key = 'migration_welcome100_nocap_v3'").get();
+  if (!migratedV3) {
+    db.prepare(`
+      UPDATE promotions
+      SET max_bonus_amount = 0,
+          subtitle = 'Get a full 100% deposit match (2x total starting balance) up to 2 times per account.',
+          terms = 'Claimable up to 2 times per account on deposits of $50+ with no upper bonus cap. Profit must be earned from AI Trade, Forex, or Binary: double total balance to cash out 50%, repeat a 2nd double for 50% again, then full balance unlocks.',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE promo_code = 'WELCOME100' AND max_bonus_amount = 500
+    `).run();
+    db.prepare(`
+      UPDATE bonus_system_settings
+      SET value = ?
+      WHERE key = 'withdrawal_rule_summary'
+        AND value LIKE 'Example: Deposit $100 + 100% Bonus ($100) = $200.%'
+    `).run(DEFAULT_BONUS_SETTINGS.withdrawal_rule_summary);
+    db.prepare("INSERT OR REPLACE INTO bonus_system_settings (key, value) VALUES ('migration_welcome100_nocap_v3', '1')").run();
   }
 
   const count = db.prepare('SELECT COUNT(*) AS c FROM promotions').get()?.c || 0;

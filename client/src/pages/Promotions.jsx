@@ -84,6 +84,13 @@ function formatSources(str) {
     .join(' / ')
 }
 
+function fmtUsd(val) {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(Number(val) || 0)
+}
+
 function calcEstimatedBonus(promo, amount) {
   if (!promo) return 0
   const dep = Math.max(0, Number(amount) || 0)
@@ -146,6 +153,17 @@ export default function Promotions() {
   }, [loadPromotions])
 
   useEffect(() => {
+    const handleFocus = () => loadPromotions()
+    const handlePromosUpdated = () => loadPromotions()
+    window.addEventListener('focus', handleFocus)
+    socket.on('promotions_updated', handlePromosUpdated)
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      socket.off('promotions_updated', handlePromosUpdated)
+    }
+  }, [loadPromotions])
+
+  useEffect(() => {
     if (!user?.id) return
     const handleUpdate = (payload) => {
       if (payload?.user_id === user.id) {
@@ -167,6 +185,14 @@ export default function Promotions() {
     [selectedCalcPromo, numericCalcDep]
   )
   const meetsCalcMin = selectedCalcPromo ? numericCalcDep >= Number(selectedCalcPromo.min_deposit || 0) : true
+  const calcAppliedBonus = meetsCalcMin ? estimatedBonus : 0
+  const calcTotalCapital = numericCalcDep + calcAppliedBonus
+  const calcMultiplier = Number(selectedCalcPromo?.profit_multiplier || settings?.default_double_multiplier || 2)
+  const calcCashoutPct = Number(selectedCalcPromo?.cashout_pct_per_milestone || settings?.default_cashout_pct || 50)
+  const calcMilestones = Number(selectedCalcPromo?.required_milestones || settings?.default_required_milestones || 2)
+  const calcHasCond = selectedCalcPromo ? Number(selectedCalcPromo.apply_withdrawal_condition) === 1 && (settings?.enforce_withdrawal_conditions !== false) : true
+  const calcTargetBalance = calcTotalCapital * calcMultiplier
+  const calcCashoutAmount = calcHasCond ? calcTargetBalance * (calcCashoutPct / 100) : calcTotalCapital
 
   const totalCreditedBonus = useMemo(
     () => claims.filter(c => c.status === 'credited').reduce((s, c) => s + Number(c.bonus_amount || 0), 0),
@@ -414,11 +440,11 @@ export default function Promotions() {
         <div className="grid sm:grid-cols-3 gap-2.5 text-xs">
           <div className="rounded-xl bg-white/5 border border-white/10 p-3">
             <div className="font-bold text-amber-300 mb-0.5">1. Deposit + Bonus = {multiplierLabel}x Target</div>
-            <div className="text-white/60">Example: $100 deposit + $100 bonus = $200 starting capital. Double to $400 via AI Trade, Forex, or Binary.</div>
+            <div className="text-white/60">Example: $5,000 deposit + $5,000 bonus = $10,000 starting capital. Reach ${(10000 * multiplierLabel).toLocaleString()} ({multiplierLabel}x) via AI Trade, Forex, or Binary.</div>
           </div>
           <div className="rounded-xl bg-white/5 border border-white/10 p-3">
             <div className="font-bold text-emerald-300 mb-0.5">2. {cashoutLabel}% Cashout × {milestonesLabel} Milestones</div>
-            <div className="text-white/60">Each time you double via trading profit, cash out up to {cashoutLabel}% ({milestonesLabel} times total).</div>
+            <div className="text-white/60">Each time you reach {multiplierLabel}x via trading profit, withdraw {cashoutLabel}% (e.g. ${((10000 * multiplierLabel) * (cashoutLabel / 100)).toLocaleString()} of ${(10000 * multiplierLabel).toLocaleString()}).</div>
           </div>
           <div className="rounded-xl bg-white/5 border border-white/10 p-3">
             <div className="font-bold text-sky-300 mb-0.5">3. Full Normal Withdrawal</div>
@@ -501,8 +527,8 @@ export default function Promotions() {
               </span>
               <span>Deposit Bonus Calculator</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              {['50', '100', '250', '500', '1000'].map(amt => (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {['50', '100', '500', '1000', '5000'].map(amt => (
                 <button
                   key={amt}
                   type="button"
@@ -513,7 +539,7 @@ export default function Promotions() {
                       : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
                   }`}
                 >
-                  ${amt}
+                  ${Number(amt).toLocaleString()}
                 </button>
               ))}
             </div>
@@ -530,7 +556,7 @@ export default function Promotions() {
                 {promotions.length === 0 && <option value="">No active offers</option>}
                 {promotions.map(p => (
                   <option key={p.id} value={p.id}>
-                    {p.title} ({p.bonus_type === 'fixed' ? `$${p.bonus_value}` : `${p.bonus_value}%`})
+                    {p.title} ({p.bonus_type === 'fixed' ? `$${p.bonus_value}` : `${p.bonus_value}%`}{Number(p.max_bonus_amount) > 0 ? ` • Max $${Number(p.max_bonus_amount).toLocaleString()}` : ''})
                   </option>
                 ))}
               </select>
@@ -549,41 +575,54 @@ export default function Promotions() {
           </div>
 
           {selectedCalcPromo && (
-            <div className="rounded-xl bg-white/5 border border-white/10 p-3.5 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-4 text-xs">
+            <div className="rounded-xl bg-white/5 border border-white/10 p-3.5 space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                 <div>
                   <span className="text-white/50 block text-[10px] uppercase">Estimated Bonus</span>
                   <span className={`font-mono font-extrabold text-base ${meetsCalcMin ? 'text-amber-300' : 'text-white/40'}`}>
-                    {meetsCalcMin ? `+$${estimatedBonus.toFixed(2)}` : `Min $${Number(selectedCalcPromo.min_deposit).toFixed(0)}`}
+                    {meetsCalcMin ? `+$${fmtUsd(estimatedBonus)}` : `Min $${Number(selectedCalcPromo.min_deposit).toFixed(0)}`}
                   </span>
                 </div>
-                <div className="w-px h-7 bg-white/10 hidden sm:block" />
                 <div>
                   <span className="text-white/50 block text-[10px] uppercase">Total Starting Capital</span>
                   <span className="font-mono font-extrabold text-base text-brand">
-                    ${(numericCalcDep + (meetsCalcMin ? estimatedBonus : 0)).toFixed(2)}
+                    ${fmtUsd(calcTotalCapital)}
                   </span>
                 </div>
-                {Number(selectedCalcPromo.apply_withdrawal_condition) === 1 && meetsCalcMin && (
-                  <>
-                    <div className="w-px h-7 bg-white/10 hidden sm:block" />
-                    <div>
-                      <span className="text-white/50 block text-[10px] uppercase">Target ({selectedCalcPromo.profit_multiplier || 2}x)</span>
-                      <span className="font-mono font-bold text-sm text-sky-300">
-                        ${((numericCalcDep + estimatedBonus) * Number(selectedCalcPromo.profit_multiplier || 2)).toFixed(2)}
-                      </span>
-                    </div>
-                  </>
-                )}
+                <div>
+                  <span className="text-white/50 block text-[10px] uppercase">
+                    {calcHasCond ? `Target (${calcMultiplier}x)` : 'Trading Target'}
+                  </span>
+                  <span className="font-mono font-extrabold text-base text-sky-300">
+                    {calcHasCond && meetsCalcMin ? `$${fmtUsd(calcTargetBalance)}` : '—'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-white/50 block text-[10px] uppercase">
+                    {calcHasCond ? `Cashout (${calcCashoutPct}% × ${calcMilestones})` : 'Withdrawal'}
+                  </span>
+                  <span className="font-mono font-extrabold text-base text-emerald-300">
+                    {meetsCalcMin ? (calcHasCond ? `$${fmtUsd(calcCashoutAmount)}` : '100% Free') : '—'}
+                  </span>
+                </div>
               </div>
-              <Link
-                to={`/wallet/deposit${selectedCalcPromo.promo_code ? `?promo=${encodeURIComponent(selectedCalcPromo.promo_code)}` : ''}`}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand hover:bg-emerald-400 text-black font-bold text-xs transition"
-              >
-                <Wallet className="w-3.5 h-3.5" />
-                <span>Deposit &amp; Claim</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/10">
+                <span className="text-[11px] text-white/60">
+                  {Number(selectedCalcPromo.max_bonus_amount) > 0
+                    ? `Bonus capped at $${Number(selectedCalcPromo.max_bonus_amount).toLocaleString()} (editable in Admin).`
+                    : selectedCalcPromo.bonus_type === 'fixed'
+                    ? `Fixed $${Number(selectedCalcPromo.bonus_value).toLocaleString()} bonus on $${Number(selectedCalcPromo.min_deposit).toLocaleString()}+ deposit.`
+                    : `Full ${Number(selectedCalcPromo.bonus_value)}% match with no upper cap.`}
+                </span>
+                <Link
+                  to={`/wallet/deposit${selectedCalcPromo.promo_code ? `?promo=${encodeURIComponent(selectedCalcPromo.promo_code)}` : ''}`}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand hover:bg-emerald-400 text-black font-bold text-xs transition"
+                >
+                  <Wallet className="w-3.5 h-3.5" />
+                  <span>Deposit &amp; Claim</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
             </div>
           )}
         </div>
