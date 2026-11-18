@@ -228,6 +228,18 @@ body.theme-light .user-menu-promo-btn {
   color: #92400e !important;
 }
 
+body.theme-light .user-menu-pdf-btn {
+  background: linear-gradient(to right, rgba(16, 185, 129, 0.14), rgba(20, 184, 166, 0.14)) !important;
+  border-color: rgba(16, 185, 129, 0.4) !important;
+  color: #065f46 !important;
+}
+
+.theme-light header button.nav-pdf-btn {
+  background-color: rgba(16, 185, 129, 0.14) !important;
+  border-color: rgba(16, 185, 129, 0.45) !important;
+  color: #047857 !important;
+}
+
 body.theme-light .user-menu-logout-btn {
   background-color: #fff1f2 !important;
   border-color: rgba(244, 63, 94, 0.3) !important;

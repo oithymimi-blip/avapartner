@@ -53,6 +53,7 @@ import AdminPromotionsPage from './pages/admin/AdminPromotionsPage'
 import AdminBackupPage from './pages/admin/AdminBackupPage'
 import Promotions from './pages/Promotions'
 import InstallAppButton from './components/InstallAppButton'
+import CompanyProfileButton from './components/CompanyProfileButton'
 import UserAvatar from './components/UserAvatar'
 import VerifiedBadge from './components/VerifiedBadge'
 import {
@@ -69,7 +70,8 @@ import {
   ChevronRight,
   PlusCircle,
   LogIn,
-  UserPlus
+  UserPlus,
+  FileText
 } from 'lucide-react'
 
 const navCurrency = new Intl.NumberFormat('en-US', {
@@ -117,6 +119,7 @@ function Shell({ children }) {
   const markAllRead = useNotificationsStore(state => state.markAllRead)
   const [menuOpen, setMenuOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
+  const [menuPdfOpen, setMenuPdfOpen] = useState(false)
   const [activePromoCount, setActivePromoCount] = useState(0)
   const [balanceHidden, setBalanceHidden] = useState(() => localStorage.getItem('balance_hidden') === '1')
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark')
@@ -385,7 +388,8 @@ function Shell({ children }) {
               </div>
             )}
             {!user && (
-              <div className="flex items-center gap-2 text-xs sm:text-sm">
+              <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
+                <CompanyProfileButton variant="nav" />
                 <Link to="/login" className="btn px-3 py-1.5 sm:px-4 sm:py-2 inline-flex items-center gap-1.5">
                   <LogIn className="w-3.5 h-3.5" />
                   <span>Login</span>
@@ -516,6 +520,24 @@ function Shell({ children }) {
                       <InstallAppButton variant="menu" />
                       <button
                         type="button"
+                        onClick={() => {
+                          setMenuOpen(false)
+                          setMenuPdfOpen(true)
+                        }}
+                        className="user-menu-card-btn user-menu-pdf-btn w-full text-left px-2.5 py-2 rounded-xl bg-gradient-to-r from-emerald-500/20 via-brand/15 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 border border-brand/40 text-emerald-200 font-semibold flex items-center justify-between gap-2.5 transition-all duration-150 group"
+                      >
+                        <span className="flex items-center gap-2.5 min-w-0">
+                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-white text-emerald-600 shadow-sm ring-1 ring-slate-900/10 flex-shrink-0">
+                            <FileText className="w-4 h-4" />
+                          </span>
+                          <span className="truncate text-[13px]">Company Profile (PDF)</span>
+                        </span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-brand/20 text-brand border border-brand/35 flex-shrink-0">
+                          19p PDF
+                        </span>
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => handleNavigate('/promotions')}
                         className="user-menu-card-btn user-menu-promo-btn w-full text-left px-2.5 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 via-orange-500/15 to-emerald-500/15 hover:from-amber-500/30 hover:to-emerald-500/25 border border-amber-400/35 text-amber-200 font-semibold flex items-center justify-between gap-2.5 transition-all duration-150 group"
                       >
@@ -599,6 +621,7 @@ function Shell({ children }) {
       <main className="flex-1 max-w-6xl mx-auto w-full px-3 sm:px-4 pb-6 mt-[52px] sm:mt-[60px] min-w-0">
         {children}
       </main>
+      <CompanyProfileButton hideTrigger open={menuPdfOpen} onOpenChange={setMenuPdfOpen} />
       {!user && (
         <footer className="border-t border-white/10 bg-[#05080e]">
           <div className="max-w-6xl mx-auto px-4 py-14">
@@ -631,6 +654,7 @@ function Shell({ children }) {
                     <li><Link to="/why-us" className="hover:text-brand transition-colors">Why Choose Us</Link></li>
                     <li><Link to="/careers" className="hover:text-brand transition-colors">Global Careers</Link></li>
                     <li><Link to="/blog" className="hover:text-brand transition-colors">Partner Insights</Link></li>
+                    <li><CompanyProfileButton variant="footer-link" /></li>
                   </ul>
                 </div>
                 <div>

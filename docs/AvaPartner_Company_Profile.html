@@ -1,0 +1,2727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AvaPartner — Official Corporate Profile, Security Architecture &amp; Platform Handbook</title>
+<style>
+  :root {
+    --bg-dark: #070b12;
+    --bg-card-dark: #0d1421;
+    --brand: #00df9a;
+    --brand-deep: #059669;
+    --brand-soft: #ecfdf5;
+    --sky: #0284c7;
+    --sky-soft: #f0f9ff;
+    --amber: #d97706;
+    --amber-soft: #fffbeb;
+    --violet: #7c3aed;
+    --violet-soft: #f5f3ff;
+    --rose: #e11d48;
+    --rose-soft: #fff1f2;
+    --ink: #0f172a;
+    --ink-muted: #475569;
+    --ink-light: #64748b;
+    --border: #e2e8f0;
+    --surface: #f8fafc;
+  }
+
+  * { box-sizing: border-box; }
+
+  @page {
+    size: A4;
+    margin: 15mm 14mm 16mm 14mm;
+    @top-left {
+      content: "AVAPARTNER · CORPORATE PROFILE & HANDBOOK";
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 7.2pt;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: #64748b;
+      border-bottom: 0.5pt solid #e2e8f0;
+      padding-bottom: 4pt;
+      margin-bottom: 6pt;
+    }
+    @top-right {
+      content: "9 REGULATED JURISDICTIONS · EST. 2006";
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 7.2pt;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: #059669;
+      border-bottom: 0.5pt solid #e2e8f0;
+      padding-bottom: 4pt;
+      margin-bottom: 6pt;
+    }
+    @bottom-left {
+      content: "Five Lamps Place, Dublin 1, Ireland · CBI #C53877 · avapartner.com · https://avapartner.vercel.app/";
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 6.7pt;
+      color: #64748b;
+      border-top: 0.5pt solid #e2e8f0;
+      padding-top: 4pt;
+    }
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 7.5pt;
+      font-weight: 700;
+      color: #0f172a;
+      border-top: 0.5pt solid #e2e8f0;
+      padding-top: 4pt;
+    }
+  }
+
+  @page :first {
+    margin: 0;
+    @top-left { content: none; }
+    @top-right { content: none; }
+    @bottom-left { content: none; }
+    @bottom-right { content: none; }
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 9.2pt;
+    line-height: 1.5;
+    color: var(--ink);
+    background: #ffffff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ── Cover Page ── */
+  .cover {
+    width: 210mm;
+    height: 297mm;
+    background: radial-gradient(circle at 88% 12%, rgba(0, 223, 154, 0.20), transparent 45%),
+                radial-gradient(circle at 10% 88%, rgba(14, 165, 233, 0.16), transparent 45%),
+                linear-gradient(160deg, #070b12 0%, #0b1220 55%, #070b12 100%);
+    color: #ffffff;
+    padding: 18mm 16mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    page-break-after: always;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover strong { color: #ffffff; }
+
+  .cover-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    padding-bottom: 14pt;
+  }
+
+  .brand-lockup {
+    display: flex;
+    align-items: center;
+    gap: 11pt;
+  }
+
+  .brand-mark {
+    width: 36pt;
+    height: 36pt;
+    border-radius: 10pt;
+    background: linear-gradient(135deg, #00df9a 0%, #34d399 55%, #0ea5e9 100%);
+    color: #04130d;
+    font-weight: 900;
+    font-size: 15pt;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: -0.02em;
+  }
+
+  .brand-name {
+    font-size: 18pt;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+  .brand-name span { color: #00df9a; }
+  .brand-sub {
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: rgba(255,255,255,0.55);
+    margin-top: 2pt;
+  }
+
+  .cover-doc-pill {
+    padding: 5pt 11pt;
+    border-radius: 999px;
+    border: 1px solid rgba(0,223,154,0.35);
+    background: rgba(0,223,154,0.10);
+    color: #00df9a;
+    font-size: 7.3pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    white-space: nowrap;
+  }
+
+  .cover-hero {
+    margin: auto 0;
+    padding: 10pt 0;
+  }
+
+  .cover-kicker {
+    display: inline-block;
+    padding: 5pt 12pt;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.14);
+    color: #e2e8f0;
+    font-size: 8pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    margin-bottom: 16pt;
+  }
+
+  .cover-title {
+    font-size: 32pt;
+    font-weight: 900;
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+    margin: 0 0 14pt 0;
+  }
+  .cover-title .accent { color: #00df9a; }
+
+  .cover-desc {
+    font-size: 11.2pt;
+    line-height: 1.6;
+    color: rgba(255,255,255,0.78);
+    max-width: 92%;
+    margin: 0 0 24pt 0;
+  }
+
+  .cover-kpis {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8pt;
+    margin-bottom: 20pt;
+  }
+
+  .cover-kpi {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.11);
+    border-top: 2.5pt solid #00df9a;
+    border-radius: 10pt;
+    padding: 10pt 8pt;
+    text-align: center;
+  }
+  .cover-kpi .val {
+    font-size: 13pt;
+    font-weight: 900;
+    color: #00df9a;
+    line-height: 1.15;
+  }
+  .cover-kpi .lbl {
+    font-size: 7pt;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #ffffff;
+    font-weight: 700;
+    margin-top: 4pt;
+  }
+  .cover-kpi .sub {
+    font-size: 6.5pt;
+    color: rgba(255,255,255,0.52);
+    margin-top: 2pt;
+  }
+
+  .cover-modules {
+    background: rgba(13, 20, 33, 0.85);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 12pt;
+    padding: 12pt 14pt;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8pt 14pt;
+    font-size: 8pt;
+    color: rgba(255,255,255,0.82);
+  }
+  .cover-modules div::before {
+    content: "✦ ";
+    color: #00df9a;
+    font-weight: 900;
+  }
+
+  .cover-footer {
+    border-top: 1px solid rgba(255,255,255,0.14);
+    padding-top: 11pt;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 14pt;
+    font-size: 7.6pt;
+    color: rgba(255,255,255,0.68);
+  }
+  .cover-portal-card {
+    text-align: right;
+    flex-shrink: 0;
+    background: rgba(13, 20, 33, 0.88);
+    border: 1px solid rgba(0, 223, 154, 0.32);
+    border-right: 3pt solid #00df9a;
+    border-radius: 8pt;
+    padding: 7.5pt 10.5pt;
+    min-width: 195pt;
+  }
+  .portal-kicker {
+    font-size: 6.3pt;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #94a3b8;
+    font-weight: 800;
+    margin-bottom: 3pt;
+  }
+  .portal-row {
+    font-size: 7.4pt;
+    line-height: 1.42;
+    color: rgba(255,255,255,0.75);
+  }
+  .portal-lbl { color: rgba(255,255,255,0.56); font-weight: 500; }
+  .cover-portal-card strong.portal-accent { color: #00df9a; }
+  .portal-tz {
+    font-size: 6.7pt;
+    color: rgba(255,255,255,0.54);
+    margin-top: 2.5pt;
+    border-top: 0.5pt solid rgba(255,255,255,0.10);
+    padding-top: 2.5pt;
+  }
+  .cover-bg-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .cover-top, .cover-hero, .cover-footer { position: relative; z-index: 1; }
+  .reg-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4pt;
+    margin-top: 6pt;
+  }
+  .reg-chip {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px;
+    padding: 2pt 6.5pt;
+    font-size: 6.6pt;
+    color: rgba(255,255,255,0.82);
+  }
+
+  /* ── Interior Typography & Structure ── */
+  .section-break { page-break-before: always; break-before: page; }
+  .avoid-break { break-inside: avoid; page-break-inside: avoid; }
+
+  .sec-header {
+    margin-bottom: 10pt;
+    padding-bottom: 6pt;
+    border-bottom: 1.5pt solid var(--ink);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 10pt;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  .sec-num {
+    font-size: 7.8pt;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--brand-deep);
+    display: block;
+    margin-bottom: 1.5pt;
+  }
+  .sec-title {
+    font-size: 16pt;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    margin: 0;
+    line-height: 1.15;
+  }
+  .sec-tag {
+    font-size: 7.2pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 3pt 8pt;
+    border-radius: 999px;
+    background: var(--brand-soft);
+    color: var(--brand-deep);
+    border: 1px solid #a7f3d0;
+    white-space: nowrap;
+  }
+
+  h2 {
+    font-size: 11.2pt;
+    font-weight: 800;
+    color: var(--ink);
+    margin: 11pt 0 5pt 0;
+    letter-spacing: -0.01em;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  h3 {
+    font-size: 9.6pt;
+    font-weight: 800;
+    color: var(--ink);
+    margin: 8pt 0 3pt 0;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  p { margin: 0 0 6pt 0; color: var(--ink-muted); }
+  strong { color: var(--ink); }
+  ul, ol { margin: 0 0 7pt 0; padding-left: 14pt; color: var(--ink-muted); }
+  li { margin-bottom: 2.5pt; }
+
+  code, .mono {
+    font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 8pt;
+  }
+  .code-pill {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 7.6pt;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 4pt;
+    padding: 1pt 5pt;
+    color: #0f172a;
+    font-weight: 700;
+  }
+
+  /* ── Grids & Cards ── */
+  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8pt; margin-bottom: 8pt; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7.5pt; margin-bottom: 8pt; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7.5pt; margin-bottom: 8pt; }
+
+  .card {
+    border: 1px solid var(--border);
+    border-radius: 8.5pt;
+    padding: 8pt 10pt;
+    background: #ffffff;
+    break-inside: avoid;
+  }
+  .card-muted {
+    border: 1px solid var(--border);
+    border-radius: 8.5pt;
+    padding: 8pt 10pt;
+    background: var(--surface);
+    break-inside: avoid;
+  }
+  .card-dark {
+    border-radius: 9pt;
+    padding: 10pt 12pt;
+    background: var(--bg-dark);
+    color: #ffffff;
+    break-inside: avoid;
+  }
+  .card-dark p { color: rgba(255,255,255,0.78); }
+  .card-dark strong { color: #ffffff; }
+
+  .callout {
+    border-radius: 8.5pt;
+    padding: 8pt 11pt;
+    margin: 7pt 0 9pt 0;
+    border-left: 3.5pt solid var(--brand-deep);
+    background: var(--brand-soft);
+    break-inside: avoid;
+  }
+  .callout.sky { border-left-color: var(--sky); background: var(--sky-soft); }
+  .callout.amber { border-left-color: var(--amber); background: var(--amber-soft); }
+  .callout.rose { border-left-color: var(--rose); background: var(--rose-soft); border: 1px solid #fecdd3; border-left-width: 4pt; }
+  .callout-title {
+    font-weight: 800;
+    font-size: 8.8pt;
+    color: var(--ink);
+    margin-bottom: 2.5pt;
+  }
+  .callout.rose .callout-title { color: #9f1239; }
+
+  /* ── Tables ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 5pt 0 9pt 0;
+    font-size: 8.1pt;
+  }
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; }
+  th {
+    background: var(--bg-dark);
+    color: #ffffff;
+    text-align: left;
+    padding: 5.5pt 7pt;
+    font-size: 7.2pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  th:first-child { border-top-left-radius: 5.5pt; }
+  th:last-child { border-top-right-radius: 5.5pt; }
+  td {
+    padding: 5pt 7pt;
+    border-bottom: 0.75pt solid var(--border);
+    color: var(--ink-muted);
+    vertical-align: top;
+  }
+  tbody tr:nth-child(even) { background: #f8fafc; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ctr { text-align: center; }
+
+  .badge {
+    display: inline-block;
+    padding: 1.5pt 6pt;
+    border-radius: 999px;
+    font-size: 6.8pt;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .badge-emerald { background: #d1fae5; color: #065f46; }
+  .badge-sky { background: #e0f2fe; color: #075985; }
+  .badge-amber { background: #fef3c7; color: #92400e; }
+  .badge-violet { background: #ede9fe; color: #5b21b6; }
+  .badge-rose { background: #ffe4e6; color: #9f1239; }
+
+  /* ── Specialized Components ── */
+  .toc-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 7pt;
+    margin-top: 8pt;
+  }
+  .toc-item {
+    border: 1px solid var(--border);
+    border-radius: 8pt;
+    padding: 7.5pt 10pt;
+    background: var(--surface);
+    display: flex;
+    gap: 9pt;
+    align-items: flex-start;
+    break-inside: avoid;
+  }
+  .toc-num {
+    min-width: 24pt;
+    width: auto;
+    height: 22pt;
+    padding: 0 5pt;
+    border-radius: 6pt;
+    background: var(--bg-dark);
+    color: var(--brand);
+    font-weight: 900;
+    font-size: 7.8pt;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .toc-title { font-weight: 800; font-size: 8.8pt; color: var(--ink); line-height: 1.25; }
+  .toc-desc { font-size: 7.5pt; color: var(--ink-light); margin-top: 2pt; line-height: 1.35; }
+
+  .timeline-row {
+    display: flex;
+    gap: 10pt;
+    padding: 5.5pt 0 5.5pt 10pt;
+    border-left: 2pt solid var(--brand-deep);
+    margin-left: 4pt;
+    break-inside: avoid;
+  }
+  .year-pill {
+    background: var(--bg-dark);
+    color: var(--brand);
+    font-weight: 900;
+    font-size: 7.8pt;
+    padding: 2pt 8pt;
+    border-radius: 999px;
+    height: fit-content;
+    flex-shrink: 0;
+  }
+
+  .exec-card {
+    border: 1px solid var(--border);
+    border-radius: 8pt;
+    padding: 6.5pt 8.5pt;
+    background: #ffffff;
+    break-inside: avoid;
+  }
+  .exec-head {
+    display: flex;
+    align-items: center;
+    gap: 7pt;
+    margin-bottom: 3.5pt;
+  }
+  .avatar {
+    width: 24pt;
+    height: 24pt;
+    border-radius: 7pt;
+    background: linear-gradient(135deg, #070b12 0%, #059669 100%);
+    color: #00df9a;
+    font-weight: 900;
+    font-size: 8.5pt;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .exec-name { font-weight: 800; font-size: 8.8pt; color: var(--ink); line-height: 1.15; }
+  .exec-role { font-size: 7.3pt; font-weight: 700; color: var(--brand-deep); }
+  .exec-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 6.9pt;
+    color: var(--ink-light);
+    border-top: 0.5pt solid var(--border);
+    padding-top: 3pt;
+    margin-top: 4pt;
+  }
+
+  .formula-box {
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: 7pt;
+    padding: 6.5pt 9pt;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 7.7pt;
+    margin: 4pt 0 6pt 0;
+    border-left: 3pt solid #00df9a;
+  }
+
+  .slot-card {
+    border: 1px solid var(--border);
+    border-top: 3pt solid var(--brand-deep);
+    border-radius: 9pt;
+    padding: 8.5pt 9.5pt;
+    background: var(--surface);
+    break-inside: avoid;
+  }
+  .slot-card.s2 { border-top-color: var(--violet); }
+  .slot-card.s3 { border-top-color: var(--amber); }
+  .slot-card.s4 { border-top-color: var(--sky); }
+
+  .flow-strip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8pt;
+    margin: 6pt 0 9pt 0;
+  }
+  .flow-box {
+    border: 1px solid var(--border);
+    border-radius: 8pt;
+    padding: 8pt 9pt;
+    background: var(--surface);
+    break-inside: avoid;
+  }
+  .flow-step {
+    display: inline-block;
+    font-size: 7pt;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--brand-deep);
+    margin-bottom: 2pt;
+  }
+
+  .faq-item {
+    border: 1px solid var(--border);
+    border-radius: 8pt;
+    padding: 7.5pt 10pt;
+    margin-bottom: 6pt;
+    background: #ffffff;
+    break-inside: avoid;
+  }
+  .faq-q {
+    font-weight: 800;
+    font-size: 8.8pt;
+    color: var(--ink);
+    margin-bottom: 3pt;
+  }
+  .faq-cat {
+    font-size: 6.8pt;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--brand-deep);
+    margin-bottom: 2pt;
+  }
+
+  .legal-block h3 {
+    font-size: 9pt;
+    color: var(--ink);
+    margin: 6.5pt 0 2pt 0;
+  }
+  .legal-block p, .legal-block li {
+    font-size: 8.2pt;
+    line-height: 1.44;
+  }
+
+  /* ── Executive Visual Diagrams & Bars ── */
+  .eco-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 7pt;
+    margin: 6pt 0 8pt 0;
+  }
+  .eco-node {
+    border: 1px solid var(--border);
+    border-top: 3pt solid var(--brand-deep);
+    border-radius: 8pt;
+    padding: 7.5pt 9pt;
+    background: #ffffff;
+    break-inside: avoid;
+  }
+  .eco-node.parent { border-top-color: var(--ink); background: var(--surface); }
+  .eco-node.subco { border-top-color: #00df9a; background: #070b12; color: #ffffff; }
+  .eco-node.subco p { color: rgba(255,255,255,0.78); }
+  .eco-node.subco strong { color: #00df9a; }
+
+  .sun-strip {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 5pt;
+    margin: 5pt 0 8pt 0;
+  }
+  .sun-cell {
+    border: 1px solid var(--border);
+    border-radius: 7pt;
+    padding: 6pt 6.5pt;
+    background: var(--surface);
+    break-inside: avoid;
+  }
+  .sun-cell.audit {
+    background: #070b12;
+    color: #ffffff;
+    border-color: #059669;
+  }
+  .sun-cell.audit p { color: rgba(255,255,255,0.76); }
+  .sun-time {
+    font-size: 6.7pt;
+    font-weight: 800;
+    color: var(--brand-deep);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .sun-cell.audit .sun-time { color: #00df9a; }
+
+  .bar-track {
+    width: 100%;
+    height: 5pt;
+    background: #e2e8f0;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-top: 4pt;
+  }
+  .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #059669 0%, #00df9a 100%);
+    border-radius: 999px;
+  }
+  .bar-fill.violet { background: linear-gradient(90deg, #6d28d9 0%, #a78bfa 100%); }
+  .bar-fill.amber { background: linear-gradient(90deg, #d97706 0%, #fbbf24 100%); }
+  .bar-fill.sky { background: linear-gradient(90deg, #0284c7 0%, #38bdf8 100%); }
+
+  .stat-strip {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6pt;
+    margin: 4pt 0 8pt 0;
+  }
+  .stat-box {
+    background: var(--bg-dark);
+    color: #ffffff;
+    border-radius: 7pt;
+    padding: 6pt 7pt;
+    text-align: center;
+    border-bottom: 2pt solid #00df9a;
+  }
+  .stat-box .n { font-size: 11.5pt; font-weight: 900; color: #00df9a; line-height: 1.1; }
+  .stat-box .l { font-size: 6.7pt; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(255,255,255,0.78); margin-top: 2pt; }
+
+  .small { font-size: 7.6pt; color: var(--ink-light); }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- PAGE 1: COVER PAGE                                             -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="cover">
+  <svg class="cover-bg-svg" viewBox="0 0 794 1123" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+    <defs>
+      <pattern id="gridPattern" width="44" height="44" patternUnits="userSpaceOnUse">
+        <path d="M 44 0 L 0 0 0 44" fill="none" stroke="rgba(255,255,255,0.035)" stroke-width="1"/>
+      </pattern>
+    </defs>
+    <rect width="794" height="1123" fill="url(#gridPattern)" />
+    <circle cx="720" cy="110" r="240" fill="none" stroke="rgba(0,223,154,0.10)" stroke-width="1.2"/>
+    <circle cx="720" cy="110" r="320" fill="none" stroke="rgba(0,223,154,0.05)" stroke-width="1"/>
+    <circle cx="90" cy="960" r="210" fill="none" stroke="rgba(14,165,233,0.08)" stroke-width="1"/>
+  </svg>
+  <div class="cover-top">
+    <div class="brand-lockup">
+      <div class="brand-mark">AP</div>
+      <div>
+        <div class="brand-name">Ava<span>Partner</span></div>
+        <div class="brand-sub">Official Global Financial Network</div>
+      </div>
+    </div>
+    <div class="cover-doc-pill">Corporate Dossier · 2026 Global Edition</div>
+  </div>
+
+  <div class="cover-hero">
+    <div class="cover-kicker">🇮🇪 Headquartered in Dublin, Ireland · AvaTrade Group (Est. 2006) · 5 Continents</div>
+    <h1 class="cover-title">
+      Official <span class="accent">Company Profile</span>,<br />
+      Global Business &amp; Partner Handbook
+    </h1>
+    <p class="cover-desc">
+      A complete executive, operational, technical, and legal dossier on the <strong>AvaPartner</strong> international ecosystem and its official affiliate &amp; sub-company portal (<strong style="color:#00df9a;">https://avapartner.vercel.app/</strong>)—covering global teams, 9 regulated jurisdictions, 5-layer security, AI Trade slots, Forex &amp; Binary trading, 2-tier IB commission ratios, and compliance policies.
+    </p>
+
+    <div class="cover-kpis">
+      <div class="cover-kpi">
+        <div class="val">$300M+</div>
+        <div class="lbl">Paid to Partners</div>
+        <div class="sub">$314.8M+ cumulative</div>
+      </div>
+      <div class="cover-kpi">
+        <div class="val">150,000+</div>
+        <div class="lbl">Active Partners</div>
+        <div class="sub">Affiliates &amp; IBs</div>
+      </div>
+      <div class="cover-kpi">
+        <div class="val">9</div>
+        <div class="lbl">Global Licenses</div>
+        <div class="sub">Across 5 continents</div>
+      </div>
+      <div class="cover-kpi">
+        <div class="val">150+</div>
+        <div class="lbl">Countries</div>
+        <div class="sub">20+ languages</div>
+      </div>
+      <div class="cover-kpi">
+        <div class="val">340+</div>
+        <div class="lbl">Specialists</div>
+        <div class="sub">8 global offices</div>
+      </div>
+    </div>
+
+    <div class="cover-modules">
+      <div>Company &amp; Sub-Company Structure</div>
+      <div>9-Jurisdiction Regulation</div>
+      <div>International Teams &amp; 6 Divisions</div>
+      <div>5-Continent Global Business</div>
+      <div>5-Layer Security, 2FA &amp; KYC</div>
+      <div>Forex, Binary, Spot &amp; Copy</div>
+      <div>AI Trade 4-Slot Engine</div>
+      <div>CPA, RevShare &amp; IB Ratios</div>
+      <div>Privacy, Terms &amp; Global Contacts</div>
+    </div>
+  </div>
+
+  <div class="cover-footer">
+    <div style="flex:1;">
+      <div><strong>Official Global Headquarters:</strong> AVA Trade EU Ltd / AvaPartner</div>
+      <div>Five Lamps Place, Amiens Street, Dublin 1, D01 E4X0, Ireland · Tel:&nbsp;+353&nbsp;1&nbsp;513&nbsp;7860</div>
+      <div class="reg-strip">
+        <span class="reg-chip">🇮🇪 Ireland (CBI #C53877)</span>
+        <span class="reg-chip">🇦🇺 Australia (ASIC #406684)</span>
+        <span class="reg-chip">🇯🇵 Japan (FSA #1662)</span>
+        <span class="reg-chip">🇦🇪 UAE (ADGM #190018)</span>
+        <span class="reg-chip">🇿🇦 South Africa (FSCA #45984)</span>
+        <span class="reg-chip">🇨🇾 Cyprus (CySEC #347/17)</span>
+        <span class="reg-chip">🇻🇬 BVI (FSC)</span>
+        <span class="reg-chip">🇮🇱 Israel (ISA)</span>
+        <span class="reg-chip">🇵🇱 Poland (KNF)</span>
+      </div>
+    </div>
+    <div class="cover-portal-card">
+      <div class="portal-kicker">Official Network &amp; Sub-Company Portals</div>
+      <div class="portal-row"><span class="portal-lbl">Global Network:</span> <strong>avapartner.com</strong></div>
+      <div class="portal-row"><span class="portal-lbl">Affiliate / Sub-Co:</span> <strong class="portal-accent">https://avapartner.vercel.app/</strong></div>
+      <div class="portal-row"><span class="portal-lbl">Partner Desk:</span> <strong>partners@avapartner.com</strong></div>
+      <div class="portal-tz">Audit Timezone: BDT (UTC+6) · 24/5 Desk</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- PAGE 2: TABLE OF CONTENTS & EXECUTIVE SUMMARY                  -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section>
+  <div class="sec-header">
+    <div>
+      <span class="sec-num">Document Directory</span>
+      <h1 class="sec-title">Table of Contents &amp; Executive Summary</h1>
+    </div>
+    <span class="sec-tag">AvaPartner 2026</span>
+  </div>
+
+  <div class="callout" style="margin-bottom:8pt;">
+    <div class="callout-title">About This Corporate &amp; International Business Dossier</div>
+    <p style="margin:0; font-size:8.2pt;">
+      This institutional handbook consolidates every pillar of <strong>AvaPartner</strong> and its official affiliate &amp; sub-company trading portal (<strong style="color:var(--brand-deep);">https://avapartner.vercel.app/</strong>)—from corporate heritage, 9-jurisdiction regulation, international leadership, cross-border regional teams, and global B2B expansion to 5-layer security, multi-asset execution (<strong>Forex CFDs, Binary, Spot, Copy, Quantum AI</strong>), exact <strong>CPA / RevShare / IB profit ratios</strong>, and binding legal governance.
+    </p>
+  </div>
+
+  <div class="toc-grid" style="gap:5.5pt; margin-top:6pt;">
+    <div class="toc-item" style="padding:6pt 9pt;">
+      <div class="toc-num">01</div>
+      <div>
+        <div class="toc-title">Company Overview, Sub-Company Structure &amp; Why Us</div>
+        <div class="toc-desc">Est. 2006 legacy, 2006–2026 milestones, 6 pillars &amp; AvaTrade → AvaPartner → avapartner.vercel.app architecture.</div>
+      </div>
+    </div>
+    <div class="toc-item" style="padding:6pt 9pt;">
+      <div class="toc-num">02</div>
+      <div>
+        <div class="toc-title">Global Regulation &amp; 9 Official Jurisdictions</div>
+        <div class="toc-desc">Licensed statutory register across CBI Ireland, ASIC, FSA/FFAJ, ADGM, FSCA, CySEC, BVI, ISA &amp; KNF.</div>
+      </div>
+    </div>
+    <div class="toc-item" style="padding:6pt 9pt;">
+      <div class="toc-num">03</div>
+      <div>
+        <div class="toc-title">Executive Leadership &amp; Governance Charter</div>
+        <div class="toc-desc">8 C-suite &amp; regional directors leading FX treasury, AdTech, compliance &amp; institutional accountability.</div>
+      </div>
+    </div>
+    <div class="toc-item" style="padding:6pt 9pt;">
+      <div class="toc-num">04</div>
+      <div>
+        <div class="toc-title">International Teams &amp; Global Business Operations</div>
+        <div class="toc-desc">340+ specialists, 6 cross-border divisions, 24/5 BDT sync, 5-continent market playbooks, expos &amp; careers.</div>
+      </div>
+    </div>
+    <div class="toc-item" style="padding:6pt 9pt;">
+      <div class="toc-num">05</div>
+      <div>
+        <div class="toc-title">Security Architecture, KYC &amp; Blockchain Custody</div>
+        <div class="toc-desc">Bcrypt/JWT, TOTP 2FA, 100-pt NID verification, AWS Rekognition, BEP-20 smart forwarders &amp; EIP-55 checks.</div>
+      </div>
+    </div>
+    <div class="toc-item" style="padding:6pt 9pt;">
+      <div class="toc-num">06</div>
+      <div>
+        <div class="toc-title">Forex, Binary, Spot, Copy &amp; Mobile Ecosystem</div>
+        <div class="toc-desc">1:100 leverage, 103 CFD assets, 80% Binary payouts, top-100 Spot order book, Master Copy Traders &amp; PWA app.</div>
+      </div>
+    </div>
+    <div class="toc-item" style="padding:6pt 9pt;">
+      <div class="toc-num">07</div>
+      <div>
+        <div class="toc-title">AI Trade Scheme ("Quantum AI Engine")</div>
+        <div class="toc-desc">Starter, Booster, Premium &amp; Titan Mega slots (1.5%–3.5% daily), 60s ticks, 24h auto-payout &amp; Smart AI On.</div>
+      </div>
+    </div>
+    <div class="toc-item" style="padding:6pt 9pt;">
+      <div class="toc-num">08</div>
+      <div>
+        <div class="toc-title">Affiliate Program, CPA, RevShare &amp; IB Ratios</div>
+        <div class="toc-desc">Up to $1,000 CPA, 50% RevShare, Bronze/Silver/Gold 2-tier L1 &amp; L2 ratios, monthly bonuses &amp; 30d projections.</div>
+      </div>
+    </div>
+    <div class="toc-item" style="padding:6pt 9pt;">
+      <div class="toc-num">09–10</div>
+      <div>
+        <div class="toc-title">Deposit Bonuses (2× Rules) &amp; Quick-Start Guide</div>
+        <div class="toc-desc">WELCOME100, BOOST50, NEW25, VIP15 cashout rules &amp; 6-step portal lifecycle (3–24h withdrawals).</div>
+      </div>
+    </div>
+    <div class="toc-item" style="padding:6pt 9pt;">
+      <div class="toc-num">11–13</div>
+      <div>
+        <div class="toc-title">A–Z FAQ, GDPR Privacy, Terms, Risk &amp; 8 Offices</div>
+        <div class="toc-desc">Full legal agreements (avapartner.com &amp; avapartner.vercel.app), CFD risk warning &amp; global contact directory.</div>
+      </div>
+    </div>
+  </div>
+
+  <h2 style="margin-top:9pt;">Executive Snapshot &amp; Official Ecosystem Portals</h2>
+  <p style="font-size:8.6pt; margin-bottom:6pt;">
+    Founded in <strong>2006</strong> in Dublin, Ireland, the <strong>AvaTrade Group</strong> pioneered institutional-quality online multi-asset trading globally. In <strong>2009</strong>, the group launched <strong>AvaPartner</strong> as its dedicated affiliate and Introducing Broker network. Today, AvaPartner connects <strong>150,000+ partners</strong> across <strong>150+ countries</strong> with cumulative distributions exceeding <strong>$314,845,900+</strong>, spanning <code>avapartner.com</code> and its affiliate &amp; sub-company digital trading portal <strong><code>https://avapartner.vercel.app/</code></strong>.
+  </p>
+
+  <div class="grid-3" style="margin-bottom:0;">
+    <div class="card-muted" style="padding:7pt 9pt;">
+      <h3 style="margin-top:0; color:var(--brand-deep);">For Global Traders</h3>
+      <p style="margin:0; font-size:7.9pt;">Trade 103+ CFD pairs (Forex, Gold, Oil, Indices, Crypto), 80%-payout Binary Options, Top-100 Spot pairs, Copy Trading, and 24h Quantum AI slots inside one terminal.</p>
+    </div>
+    <div class="card-muted" style="padding:7pt 9pt;">
+      <h3 style="margin-top:0; color:var(--sky);">For Affiliates &amp; Sub-Companies</h3>
+      <p style="margin:0; font-size:7.9pt;">Monetize financial traffic across 20+ languages via <code>avapartner.com</code> &amp; <strong><code>https://avapartner.vercel.app/</code></strong> with CPA up to <strong>$1,000/FTD</strong> and API postbacks.</p>
+    </div>
+    <div class="card-muted" style="padding:7pt 9pt;">
+      <h3 style="margin-top:0; color:var(--amber);">For Introducing Brokers (IBs)</h3>
+      <p style="margin:0; font-size:7.9pt;">Earn automatic, zero-lockup real-time commissions across AI Trade (up to 12% L1 / 5% L2), Forex (up to $8/lot L1 / $2/lot L2), Binary (up to 3.5%), plus $50–$250 monthly bonuses.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- PAGE 3: SECTION 01 — OVERVIEW, TIMELINE & WHY CHOOSE US        -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="section-break">
+  <div class="sec-header">
+    <div>
+      <span class="sec-num">Section 01</span>
+      <h1 class="sec-title">About AvaPartner, Legacy &amp; Competitive Advantage</h1>
+    </div>
+    <span class="sec-tag">Est. 2006 · Dublin HQ</span>
+  </div>
+
+  <p style="font-size:8.6pt; margin-bottom:6pt;">
+    <strong>AvaPartner</strong> operates as the official partner, affiliate, and Introducing Broker network for <strong>AvaTrade Group</strong> (headquartered at <strong>Five Lamps Place, Amiens Street, Dublin 1, D01 E4X0, Ireland</strong>). Built on a partner-first principle—<em>when our partners thrive, AvaPartner thrives</em>—our ecosystem integrates institutional brokerage regulation across <code>avatrade.com</code>, core partner management on <code>avapartner.com</code>, and turnkey digital client/affiliate onboarding via our official sub-company portal <strong style="color:var(--brand-deep);"><code>https://avapartner.vercel.app/</code></strong>.
+  </p>
+
+  <h2 style="margin-top:7pt;">Corporate Group &amp; Affiliate Sub-Company Ecosystem Architecture</h2>
+  <div class="eco-grid">
+    <div class="eco-node parent">
+      <span class="badge badge-sky">Tier 1 · Regulated Parent</span>
+      <h3 style="margin:4pt 0 2pt 0; font-size:9pt;">AvaTrade Group (Est. 2006)</h3>
+      <div class="mono" style="font-size:7.3pt; color:var(--sky); font-weight:700; margin-bottom:3pt;">avatrade.com</div>
+      <p style="margin:0; font-size:7.5pt;">Holds <strong>9 Tier-1 &amp; regional licenses</strong> (CBI #C53877, ASIC, FSA, ADGM, FSCA, CySEC, BVI, ISA, KNF) &amp; 1,250+ instruments.</p>
+    </div>
+    <div class="eco-node">
+      <span class="badge badge-emerald">Tier 2 · Global Network</span>
+      <h3 style="margin:4pt 0 2pt 0; font-size:9pt;">AvaPartner Network (Est. 2009)</h3>
+      <div class="mono" style="font-size:7.3pt; color:var(--brand-deep); font-weight:700; margin-bottom:3pt;">avapartner.com · avapartner.marketing</div>
+      <p style="margin:0; font-size:7.5pt;">Manages <strong>150,000+ partners</strong> across 150+ countries, paying $314.8M+ via CPA ($1,000), RevShare (50%), &amp; 2-Tier IB deals.</p>
+    </div>
+    <div class="eco-node subco">
+      <span class="badge badge-emerald">Tier 3 · Digital Sub-Portal</span>
+      <h3 style="margin:4pt 0 2pt 0; font-size:9pt; color:#ffffff;">Official Affiliate &amp; Sub-Company Portal</h3>
+      <div class="mono" style="font-size:7.3pt; color:#00df9a; font-weight:700; margin-bottom:3pt;">https://avapartner.vercel.app/</div>
+      <p style="margin:0; font-size:7.5pt;">Unified web &amp; PWA platform for onboarding (<code>/signup</code>), BEP-20 custody, Forex/Binary/Spot/Copy, AI Slots &amp; real-time IB ledger.</p>
+    </div>
+  </div>
+
+  <h2 style="margin-top:6pt;">Corporate Milestones (2006 – 2026)</h2>
+  <div class="card" style="margin-bottom:6pt; padding:5.5pt 9pt;">
+    <div class="timeline-row" style="padding:3.5pt 0 3.5pt 9pt;">
+      <span class="year-pill">2006</span>
+      <div style="font-size:8.2pt;"><strong>Founded in Dublin, Ireland:</strong> AvaTrade Group established to pioneer regulated multi-asset online trading globally.</div>
+    </div>
+    <div class="timeline-row" style="padding:3.5pt 0 3.5pt 9pt;">
+      <span class="year-pill">2009</span>
+      <div style="font-size:8.2pt;"><strong>Launch of AvaPartner Network:</strong> Dedicated global affiliate &amp; Introducing Broker (IB) division launched from Dublin HQ.</div>
+    </div>
+    <div class="timeline-row" style="padding:3.5pt 0 3.5pt 9pt;">
+      <span class="year-pill">2015</span>
+      <div style="font-size:8.2pt;"><strong>Multi-Continent Regulatory Expansion:</strong> Secured Tier-1 approvals across Europe (CBI), Australia (ASIC), Japan (FSA) &amp; Africa (FSCA).</div>
+    </div>
+    <div class="timeline-row" style="padding:3.5pt 0 3.5pt 9pt;">
+      <span class="year-pill">2020</span>
+      <div style="font-size:8.2pt;"><strong>ADGM Middle East &amp; Mobile Apps:</strong> Opened Abu Dhabi Global Market hub &amp; launched proprietary AvaTradeGO &amp; AvaProtect™ suites.</div>
+    </div>
+    <div class="timeline-row" style="padding:3.5pt 0 3.5pt 9pt;">
+      <span class="year-pill">2026</span>
+      <div style="font-size:8.2pt;"><strong>$300M+ Paid &amp; Digital Portal Scale:</strong> Surpassed 150,000+ partners globally alongside the unified <code>avapartner.vercel.app</code> digital trading &amp; IB portal.</div>
+    </div>
+  </div>
+
+  <h2 style="margin-top:6pt;">Why Choose AvaPartner? — Six Core Institutional Pillars</h2>
+  <div class="grid-3" style="gap:6pt; margin-bottom:6pt;">
+    <div class="card" style="padding:6pt 8pt;">
+      <span class="badge badge-emerald">01 · High Commissions</span>
+      <h3 style="margin:3pt 0 1.5pt 0; font-size:8.8pt;">Lucrative Payout Models</h3>
+      <p style="margin:0; font-size:7.5pt;">Up to $1,000/FTD CPA, 50% Lifetime RevShare, and real-time 2-tier L1/L2 IB rebates.</p>
+    </div>
+    <div class="card" style="padding:6pt 8pt;">
+      <span class="badge badge-sky">02 · Reliable Settlements</span>
+      <h3 style="margin:3pt 0 1.5pt 0; font-size:8.8pt;">$300M+ Paid On Time</h3>
+      <p style="margin:0; font-size:7.5pt;">Zero missed payouts since 2006 via BEP-20 USDT rails, wire transfer &amp; instant wallet rebates.</p>
+    </div>
+    <div class="card" style="padding:6pt 8pt;">
+      <span class="badge badge-amber">03 · Creative Suite</span>
+      <h3 style="margin:3pt 0 1.5pt 0; font-size:8.8pt;">20+ Language Assets</h3>
+      <p style="margin:0; font-size:7.5pt;">Localized conversion funnels, dynamic widgets &amp; co-branded international seminar support.</p>
+    </div>
+    <div class="card" style="padding:6pt 8pt;">
+      <span class="badge badge-violet">04 · Personal Service</span>
+      <h3 style="margin:3pt 0 1.5pt 0; font-size:8.8pt;">Dedicated Managers</h3>
+      <p style="margin:0; font-size:7.5pt;">Senior native-speaking Affiliate &amp; Master IB Directors across 8 global offices.</p>
+    </div>
+    <div class="card" style="padding:6pt 8pt;">
+      <span class="badge badge-emerald">05 · High Retention</span>
+      <h3 style="margin:3pt 0 1.5pt 0; font-size:8.8pt;">Multilingual Sales Desks</h3>
+      <p style="margin:0; font-size:7.5pt;">24/5 retention teams plus AvaProtect™ risk tools &amp; AI Trade maximize trader lifetime value.</p>
+    </div>
+    <div class="card" style="padding:6pt 8pt;">
+      <span class="badge badge-sky">06 · Live Telemetry</span>
+      <h3 style="margin:3pt 0 1.5pt 0; font-size:8.8pt;">Real-Time IB Dashboard</h3>
+      <p style="margin:0; font-size:7.5pt;">Live clicks, FTDs, closed lots, L1/L2 overrides &amp; BDT (UTC+6) audited ledgers.</p>
+    </div>
+  </div>
+
+  <div class="callout sky" style="margin:4pt 0 0 0; padding:6.5pt 10pt;">
+    <div class="callout-title" style="font-size:8.4pt;">Global Financial Conferences &amp; Industry Recognition</div>
+    <p style="margin:0; font-size:7.8pt;">
+      AvaPartner’s executive leadership exhibits and hosts VIP partner summits at <strong>iFX EXPO</strong>, <strong>Finance Magnates</strong>, and <strong>Affiliate World</strong> across Dubai, Limassol, London, Bangkok, and Mexico City—winning <strong>Best Global Financial Affiliate Program</strong> at <strong>Forex Expo Dubai (September 2026)</strong>.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- PAGE 4: SECTION 02 — 9 OFFICIAL REGULATORY JURISDICTIONS       -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="section-break">
+  <div class="sec-header">
+    <div>
+      <span class="sec-num">Section 02</span>
+      <h1 class="sec-title">Global Regulatory Framework (9 Official Jurisdictions)</h1>
+    </div>
+    <span class="sec-tag">5 Continents</span>
+  </div>
+
+  <p>
+    Regulatory trust is the single strongest catalyst for conversion in financial marketing. When promoting or trading within the AvaPartner &amp; AvaTrade Group ecosystem, participants operate under strict statutory oversight spanning <strong>9 regulatory authorities across Europe, Asia-Pacific, the Middle East, Africa, and international markets</strong>.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Jurisdiction</th>
+        <th>Official Legal Entity</th>
+        <th>Regulatory Authority</th>
+        <th>License / Reference</th>
+        <th>Regional Scope</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>🇮🇪 Ireland (HQ)</strong></td>
+        <td>AVA Trade EU Ltd</td>
+        <td>Central Bank of Ireland (CBI)</td>
+        <td><span class="code-pill">No. C53877</span></td>
+        <td>European Union (MiFID II)</td>
+      </tr>
+      <tr>
+        <td><strong>🇦🇺 Australia</strong></td>
+        <td>Ava Capital Markets Australia Pty Ltd</td>
+        <td>ASIC</td>
+        <td><span class="code-pill">AFSL No. 406684</span></td>
+        <td>Asia-Pacific (APAC)</td>
+      </tr>
+      <tr>
+        <td><strong>🇯🇵 Japan</strong></td>
+        <td>Ava Trade Japan K.K.</td>
+        <td>FSA &amp; FFAJ</td>
+        <td><span class="code-pill">FSA #1662 / FFAJ #1574</span></td>
+        <td>East Asia</td>
+      </tr>
+      <tr>
+        <td><strong>🇦🇪 UAE</strong></td>
+        <td>Ava Trade Middle East Ltd</td>
+        <td>ADGM Financial Services (FSRA)</td>
+        <td><span class="code-pill">FSP No. 190018</span></td>
+        <td>Middle East &amp; North Africa</td>
+      </tr>
+      <tr>
+        <td><strong>🇿🇦 South Africa</strong></td>
+        <td>Ava Capital Markets Pty Ltd</td>
+        <td>FSCA</td>
+        <td><span class="code-pill">FSP No. 45984</span></td>
+        <td>Africa Region</td>
+      </tr>
+      <tr>
+        <td><strong>🇨🇾 Cyprus (EU)</strong></td>
+        <td>DT Direct Investment Hub Ltd</td>
+        <td>CySEC</td>
+        <td><span class="code-pill">License No. 347/17</span></td>
+        <td>European Economic Area</td>
+      </tr>
+      <tr>
+        <td><strong>🇻🇬 BVI</strong></td>
+        <td>Ava Trade Markets Ltd</td>
+        <td>BVI Financial Services Commission</td>
+        <td><span class="code-pill">SIBA/L/13/1049</span></td>
+        <td>International Global</td>
+      </tr>
+      <tr>
+        <td><strong>🇮🇱 Israel</strong></td>
+        <td>AvaTrade Ltd</td>
+        <td>Israel Securities Authority (ISA)</td>
+        <td><span class="code-pill">No. 514666577</span></td>
+        <td>Middle East Tech Hub</td>
+      </tr>
+      <tr>
+        <td><strong>🇵🇱 Poland</strong></td>
+        <td>AVA Trade EU Ltd (Polish Branch)</td>
+        <td>KNF (Polish Financial Supervision)</td>
+        <td><span class="code-pill">EU MiFID II Passport</span></td>
+        <td>Central &amp; Eastern Europe</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>How Multi-Jurisdiction Licensing Protects Clients &amp; Partners</h2>
+  <div class="grid-2">
+    <div class="card-muted">
+      <h3 style="margin-top:0; color:var(--brand-deep);">Institutional Governance &amp; Fund Oversight</h3>
+      <p style="margin:0; font-size:8.1pt;">
+        Operating under Tier-1 authorities such as the <strong>Central Bank of Ireland</strong>, <strong>ASIC</strong>, <strong>FSA Japan</strong>, and <strong>ADGM FSRA</strong> enforces strict capital adequacy, AML/KYC screening, transparent execution disclosures, and periodic statutory audits across global entities.
+      </p>
+    </div>
+    <div class="card-muted">
+      <h3 style="margin-top:0; color:var(--sky);">Higher Conversion Across 150+ Countries</h3>
+      <p style="margin:0; font-size:8.1pt;">
+        Referred traders across <code>avapartner.com</code> and <code>https://avapartner.vercel.app/</code> benefit from localized compliance disclosures and native-language onboarding—dramatically improving FTD qualification rates for affiliates and IBs.
+      </p>
+    </div>
+  </div>
+
+  <div class="card-dark" style="padding:8pt 11pt; margin-top:4pt;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6pt; font-size:7.6pt;">
+      <span><strong style="color:#00df9a;">5-Continent License Coverage:</strong></span>
+      <span>🇪🇺 Europe (CBI · CySEC · KNF)</span>
+      <span>🌏 APAC (ASIC · FSA/FFAJ)</span>
+      <span>🏜 MENA &amp; Tech (ADGM · ISA)</span>
+      <span>🌍 Africa &amp; Global (FSCA · BVI FSC)</span>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- PAGE 5: SECTION 03 — EXECUTIVE LEADERSHIP & GOVERNANCE         -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="section-break">
+  <div class="sec-header">
+    <div>
+      <span class="sec-num">Section 03</span>
+      <h1 class="sec-title">Executive Leadership &amp; Global Governance Charter</h1>
+    </div>
+    <span class="sec-tag">C-Suite &amp; Regional Directors</span>
+  </div>
+
+  <p style="margin-bottom:6pt; font-size:8.6pt;">
+    AvaPartner's global operations are steered by seasoned financial executives spanning institutional FX treasury, European MiFID II &amp; multi-jurisdiction regulation, AdTech attribution, and regional partner development across <strong>Dublin, London, Sydney, Tokyo, Abu Dhabi, Milan, Warsaw, Limassol, Tel Aviv, Johannesburg, and Mexico City</strong>.
+  </p>
+
+  <div class="grid-2" style="gap:6.5pt; margin-bottom:7pt;">
+    <div class="exec-card">
+      <div class="exec-head">
+        <div class="avatar">DF</div>
+        <div>
+          <div class="exec-name">Dáire Ferguson</div>
+          <div class="exec-role">Chief Executive Officer (CEO)</div>
+        </div>
+      </div>
+      <p style="font-size:7.6pt; margin:0;">Former head of European treasury operations; has led group strategic growth since 2008 and oversees global licensing across 9 jurisdictions.</p>
+      <div class="exec-meta"><span>🇮🇪 Dublin, Ireland (HQ)</span><span>20+ Yrs Institutional FX</span></div>
+    </div>
+
+    <div class="exec-card">
+      <div class="exec-head">
+        <div class="avatar">VS</div>
+        <div>
+          <div class="exec-name">Victoria Sterling</div>
+          <div class="exec-role">VP of Global Partnerships &amp; Affiliate Network</div>
+        </div>
+      </div>
+      <p style="font-size:7.6pt; margin:0;">Spearheads the global AvaPartner ecosystem, managing CPA, RevShare, and Hybrid structures for 150,000+ partners worldwide.</p>
+      <div class="exec-meta"><span>🇮🇪 Dublin &amp; 🇬🇧 London</span><span>15+ Yrs Performance Marketing</span></div>
+    </div>
+
+    <div class="exec-card">
+      <div class="exec-head">
+        <div class="avatar">LO</div>
+        <div>
+          <div class="exec-name">Dr. Liam O’Connor</div>
+          <div class="exec-role">Chief Risk &amp; Regulatory Compliance Officer</div>
+        </div>
+      </div>
+      <p style="font-size:7.6pt; margin:0;">Directs global compliance across CBI, ASIC, FSA, ADGM, FSCA, and CySEC entities, ensuring full partner integrity and client fund protection.</p>
+      <div class="exec-meta"><span>🇮🇪 Dublin, Ireland</span><span>18+ Yrs Central Bank &amp; MiFID II</span></div>
+    </div>
+
+    <div class="exec-card">
+      <div class="exec-head">
+        <div class="avatar">MV</div>
+        <div>
+          <div class="exec-name">Marcus Vance</div>
+          <div class="exec-role">Chief Technology &amp; Attribution Officer (CTO)</div>
+        </div>
+      </div>
+      <p style="font-size:7.6pt; margin:0;">Architect of AvaPartner’s real-time tracking engine, Quantum AI Trade execution infrastructure, and multi-tier Master IB ledger.</p>
+      <div class="exec-meta"><span>🇮🇱 Tel Aviv &amp; 🇮🇪 Dublin</span><span>16+ Yrs Algo Trading &amp; AdTech</span></div>
+    </div>
+
+    <div class="exec-card">
+      <div class="exec-head">
+        <div class="avatar">KT</div>
+        <div>
+          <div class="exec-name">Kenji Takahashi</div>
+          <div class="exec-role">Managing Director — APAC &amp; Japan</div>
+        </div>
+      </div>
+      <p style="font-size:7.6pt; margin:0;">Leads institutional Introducing Broker partnerships and localized partner support across Japan (FSA), Australia (ASIC), and Southeast Asia.</p>
+      <div class="exec-meta"><span>🇯🇵 Tokyo &amp; 🇦🇺 Sydney</span><span>17+ Yrs Asian Capital Markets</span></div>
+    </div>
+
+    <div class="exec-card">
+      <div class="exec-head">
+        <div class="avatar">TM</div>
+        <div>
+          <div class="exec-name">Tariq Al-Mansoor</div>
+          <div class="exec-role">Regional Director — MENA &amp; GCC</div>
+        </div>
+      </div>
+      <p style="font-size:7.6pt; margin:0;">Heads the Abu Dhabi Global Market (ADGM) regional hub, supporting VIP Master IBs, trading academies, and Gulf financial institutions.</p>
+      <div class="exec-meta"><span>🇦🇪 Abu Dhabi, UAE (ADGM)</span><span>14+ Yrs MENA Brokerage</span></div>
+    </div>
+
+    <div class="exec-card">
+      <div class="exec-head">
+        <div class="avatar">SC</div>
+        <div>
+          <div class="exec-name">Sofia Conti</div>
+          <div class="exec-role">Head of European Affiliate Desk</div>
+        </div>
+      </div>
+      <p style="font-size:7.6pt; margin:0;">Manages multilingual affiliate account managers across Western, Central, and Eastern Europe across 15+ languages.</p>
+      <div class="exec-meta"><span>🇮🇹 Milan &amp; 🇵🇱 Warsaw</span><span>12+ Yrs EU Fintech Acquisition</span></div>
+    </div>
+
+    <div class="exec-card">
+      <div class="exec-head">
+        <div class="avatar">CM</div>
+        <div>
+          <div class="exec-name">Carlos Mendoza</div>
+          <div class="exec-role">Director of LATAM &amp; African Partnerships</div>
+        </div>
+      </div>
+      <p style="font-size:7.6pt; margin:0;">Oversees fast-growing IB networks, regional trading seminars, and educational partnerships across Latin America and FSCA South Africa.</p>
+      <div class="exec-meta"><span>🇲🇽 Mexico City &amp; 🇿🇦 Johannesburg</span><span>13+ Yrs Emerging IB Networks</span></div>
+    </div>
+  </div>
+
+  <h2 style="margin-top:6pt;">Executive Governance &amp; Departmental Oversight Matrix</h2>
+  <table style="margin-bottom:0; font-size:7.6pt;">
+    <thead>
+      <tr>
+        <th style="padding:4pt 6pt;">Governance Body</th>
+        <th style="padding:4pt 6pt;">Chair / Lead</th>
+        <th style="padding:4pt 6pt;">Core Mandate &amp; Cross-Border Oversight</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="padding:4pt 6pt;"><strong>Group Executive Committee</strong></td>
+        <td style="padding:4pt 6pt;">Dáire Ferguson &amp; Victoria Sterling</td>
+        <td style="padding:4pt 6pt;">Capital allocation, regional expansion, sub-company portal strategy (<code>avapartner.vercel.app</code>) &amp; annual CPA/RevShare payout budgets.</td>
+      </tr>
+      <tr>
+        <td style="padding:4pt 6pt;"><strong>Global Risk &amp; Compliance Council</strong></td>
+        <td style="padding:4pt 6pt;">Dr. Liam O’Connor</td>
+        <td style="padding:4pt 6pt;">Statutory reporting to CBI, ASIC, FSA, ADGM, FSCA &amp; CySEC; AML/KYC enforcement &amp; financial promotion auditing across 20+ languages.</td>
+      </tr>
+      <tr>
+        <td style="padding:4pt 6pt;"><strong>FinTech, AI &amp; Treasury Architecture Board</strong></td>
+        <td style="padding:4pt 6pt;">Marcus Vance</td>
+        <td style="padding:4pt 6pt;">Quantum AI 4-slot risk parameters, multi-RPC BEP-20 custody, Real-Time 2-Tier IB ledger integrity &amp; BDT (UTC+6) timestamp synchronization.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- PAGE 6: SECTION 04 (PART A) — INTERNATIONAL TEAMS & DIVISIONS  -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="section-break">
+  <div class="sec-header">
+    <div>
+      <span class="sec-num">Section 04 · Part A</span>
+      <h1 class="sec-title">International Teams &amp; Cross-Border Functional Divisions</h1>
+    </div>
+    <span class="sec-tag">340+ Specialists · 5 Continents</span>
+  </div>
+
+  <div class="stat-strip">
+    <div class="stat-box"><div class="n">340+</div><div class="l">Global Staff</div></div>
+    <div class="stat-box"><div class="n">8</div><div class="l">Int'l Offices</div></div>
+    <div class="stat-box"><div class="n">20+</div><div class="l">Desk Languages</div></div>
+    <div class="stat-box"><div class="n">24 / 5</div><div class="l">Session Coverage</div></div>
+    <div class="stat-box"><div class="n">150+</div><div class="l">Active Nations</div></div>
+  </div>
+
+  <h2 style="margin-top:4pt;">Six Specialized International Operating Divisions</h2>
+  <div class="grid-3" style="gap:6pt; margin-bottom:7pt;">
+    <div class="card" style="padding:6.5pt 8pt;">
+      <span class="badge badge-emerald">Division 01</span>
+      <h3 style="margin:3pt 0 2pt 0; font-size:8.5pt;">Affiliate &amp; Performance Media</h3>
+      <p style="margin:0; font-size:7.4pt;">Manages SEO publishers, comparison portals, S2S API postbacks &amp; 20-language funnels on <code>avapartner.com</code> &amp; <code>avapartner.vercel.app</code>.</p>
+    </div>
+    <div class="card" style="padding:6.5pt 8pt;">
+      <span class="badge badge-sky">Division 02</span>
+      <h3 style="margin:3pt 0 2pt 0; font-size:8.5pt;">Master IB &amp; Sub-Company B2B</h3>
+      <p style="margin:0; font-size:7.4pt;">Structures VIP Custom Rate overrides, Level 1/Level 2 multi-tier networks, regional academy partnerships &amp; seminar co-sponsorships.</p>
+    </div>
+    <div class="card" style="padding:6.5pt 8pt;">
+      <span class="badge badge-amber">Division 03</span>
+      <h3 style="margin:3pt 0 2pt 0; font-size:8.5pt;">24/5 Multilingual Conversion</h3>
+      <p style="margin:0; font-size:7.4pt;">Native-speaking account specialists across 4 global regions accelerating KYC onboarding, deposit support &amp; long-term client retention.</p>
+    </div>
+    <div class="card" style="padding:6.5pt 8pt;">
+      <span class="badge badge-violet">Division 04</span>
+      <h3 style="margin:3pt 0 2pt 0; font-size:8.5pt;">Quant AI &amp; Platform R&amp;D</h3>
+      <p style="margin:0; font-size:7.4pt;">Tel Aviv &amp; Dublin engineering teams maintaining 103-asset price feeds, 60s Quantum AI ticks, Spot order books, MT4/MT5 &amp; mobile apps.</p>
+    </div>
+    <div class="card" style="padding:6.5pt 8pt;">
+      <span class="badge badge-rose">Division 05</span>
+      <h3 style="margin:3pt 0 2pt 0; font-size:8.5pt;">Global Regulatory &amp; KYC Risk</h3>
+      <p style="margin:0; font-size:7.4pt;">Cross-border AML analysts auditing NID/Passport submissions (AWS Rekognition 90% biometric score) &amp; vetting affiliate ad compliance.</p>
+    </div>
+    <div class="card" style="padding:6.5pt 8pt;">
+      <span class="badge badge-emerald">Division 06</span>
+      <h3 style="margin:3pt 0 2pt 0; font-size:8.5pt;">Treasury &amp; On-Chain Custody</h3>
+      <p style="margin:0; font-size:7.4pt;">Administers 5-node BSC RPC monitoring, EIP-1167 smart forwarders, bank wires, checksum enforcement &amp; 3–24h withdrawal fulfillment.</p>
+    </div>
+  </div>
+
+  <h2 style="margin-top:5pt;">Regional Partner Desks &amp; Language Specialization (340+ Staff)</h2>
+  <table style="margin-bottom:7pt; font-size:7.6pt;">
+    <thead>
+      <tr>
+        <th style="padding:4pt 5pt;">Regional Desk</th>
+        <th style="padding:4pt 5pt;">Operational Hub Cities</th>
+        <th style="padding:4pt 5pt;">Native Languages Supported</th>
+        <th style="padding:4pt 5pt; white-space:nowrap;">Time Zone</th>
+        <th class="num" style="padding:4pt 5pt; white-space:nowrap;">Dedicated Team</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="padding:4pt 5pt;"><strong>Europe (Global &amp; EU HQ)</strong></td>
+        <td style="padding:4pt 5pt;">Dublin, Milan, Warsaw &amp; Limassol</td>
+        <td style="padding:4pt 5pt;">English, Italian, German, French, Spanish, Polish</td>
+        <td style="padding:4pt 5pt; white-space:nowrap;">UTC+0 / +1 / +2</td>
+        <td class="num" style="padding:4pt 5pt; white-space:nowrap;"><strong>120+ Specialists</strong></td>
+      </tr>
+      <tr>
+        <td style="padding:4pt 5pt;"><strong>Asia-Pacific (APAC)</strong></td>
+        <td style="padding:4pt 5pt;">Sydney &amp; Tokyo</td>
+        <td style="padding:4pt 5pt;">English, Japanese, Mandarin, Vietnamese, Thai</td>
+        <td style="padding:4pt 5pt; white-space:nowrap;">UTC+9 / +10</td>
+        <td class="num" style="padding:4pt 5pt; white-space:nowrap;"><strong>85+ Specialists</strong></td>
+      </tr>
+      <tr>
+        <td style="padding:4pt 5pt;"><strong>Middle East (MENA)</strong></td>
+        <td style="padding:4pt 5pt;">Abu Dhabi (ADGM) &amp; Tel Aviv R&amp;D</td>
+        <td style="padding:4pt 5pt;">Arabic, English, Urdu, Farsi, Hebrew</td>
+        <td style="padding:4pt 5pt; white-space:nowrap;">UTC+2 / +4</td>
+        <td class="num" style="padding:4pt 5pt; white-space:nowrap;"><strong>60+ Specialists</strong></td>
+      </tr>
+      <tr>
+        <td style="padding:4pt 5pt;"><strong>LATAM &amp; Africa</strong></td>
+        <td style="padding:4pt 5pt;">Mexico City, São Paulo &amp; Johannesburg</td>
+        <td style="padding:4pt 5pt;">Spanish, Portuguese, English</td>
+        <td style="padding:4pt 5pt; white-space:nowrap;">UTC-6 / -3 / +2</td>
+        <td class="num" style="padding:4pt 5pt; white-space:nowrap;"><strong>75+ Specialists</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 style="margin-top:5pt;">Follow-the-Sun 24/5 Session Continuity &amp; Standardized Ledger Clock</h2>
+  <div class="sun-strip" style="margin-bottom:0;">
+    <div class="sun-cell">
+      <div class="sun-time">01 · APAC Open</div>
+      <div style="font-weight:800; font-size:7.8pt; margin:1.5pt 0;">Tokyo &amp; Sydney</div>
+      <p style="margin:0; font-size:7pt;">Asian FX, XAUUSD &amp; FSA/ASIC institutional partner handoff.</p>
+    </div>
+    <div class="sun-cell audit">
+      <div class="sun-time">02 · Audit Sync</div>
+      <div style="font-weight:800; font-size:7.8pt; color:#ffffff; margin:1.5pt 0;">BDT (UTC+6) Hub</div>
+      <p style="margin:0; font-size:7pt;">Master clock synchronizing daily ledgers, AI payouts &amp; IB audits.</p>
+    </div>
+    <div class="sun-cell">
+      <div class="sun-time">03 · MENA Overlap</div>
+      <div style="font-weight:800; font-size:7.8pt; margin:1.5pt 0;">Abu Dhabi (ADGM)</div>
+      <p style="margin:0; font-size:7pt;">GCC Master IB VIP servicing &amp; Gulf liquidity coordination.</p>
+    </div>
+    <div class="sun-cell">
+      <div class="sun-time">04 · Europe Peak</div>
+      <div style="font-weight:800; font-size:7.8pt; margin:1.5pt 0;">Dublin · Milan · EU</div>
+      <p style="margin:0; font-size:7pt;">CBI/CySEC/KNF compliance checks, CPA reviews &amp; wire batches.</p>
+    </div>
+    <div class="sun-cell">
+      <div class="sun-time">05 · Americas</div>
+      <div style="font-weight:800; font-size:7.8pt; margin:1.5pt 0;">CDMX &amp; São Paulo</div>
+      <p style="margin:0; font-size:7pt;">New York liquidity close, LATAM seminars &amp; overnight monitoring.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- PAGE 7: SECTION 04 (PART B) — GLOBAL BUSINESS & SUB-COMPANY    -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="section-break">
+  <div class="sec-header">
+    <div>
+      <span class="sec-num">Section 04 · Part B</span>
+      <h1 class="sec-title">Global Business Strategy &amp; Sub-Company Operations</h1>
+    </div>
+    <span class="sec-tag">150+ Countries · B2B &amp; Retail</span>
+  </div>
+
+  <p style="font-size:8.4pt; margin-bottom:6pt;">
+    AvaPartner scales globally through a <strong>multi-jurisdictional B2B + digital acquisition flywheel</strong>—combining localized statutory licensing in mature financial centers with high-growth partner and sub-company web infrastructure on <code>avapartner.com</code> and <strong style="color:var(--brand-deep);"><code>https://avapartner.vercel.app/</code></strong>.
+  </p>
+
+  <h2 style="margin-top:4pt;">5-Continent Market Expansion Playbook</h2>
+  <div class="grid-2" style="gap:6.5pt; margin-bottom:7pt;">
+    <div class="card-muted" style="padding:7pt 9pt; border-left:3pt solid var(--sky);">
+      <div style="font-weight:800; font-size:8.6pt; color:var(--ink); margin-bottom:2pt;">🇪🇺 Europe &amp; EEA Institutional Corridor</div>
+      <div style="font-size:7.1pt; font-weight:700; color:var(--sky); margin-bottom:3pt;">Hubs: Dublin HQ · Milan · Warsaw · Limassol (CBI · CySEC · KNF)</div>
+      <p style="margin:0; font-size:7.5pt;">Anchored by EU MiFID II passporting. Drives high-value Tier-1 CPA acquisition (up to $1,000/FTD), institutional RevShare, financial comparison media partnerships, and strict ESMA-aligned compliance marketing.</p>
+    </div>
+    <div class="card-muted" style="padding:7pt 9pt; border-left:3pt solid var(--brand-deep);">
+      <div style="font-weight:800; font-size:8.6pt; color:var(--ink); margin-bottom:2pt;">🌏 Asia-Pacific &amp; Japan High-Liquidity Engine</div>
+      <div style="font-size:7.1pt; font-weight:700; color:var(--brand-deep); margin-bottom:3pt;">Hubs: Tokyo · Sydney · Southeast Asia (FSA/FFAJ · ASIC)</div>
+      <p style="margin:0; font-size:7.5pt;">Centers on active FX/Gold (<code>XAUUSD</code>) lot generation, Spot crypto depth, and Japanese/APAC Introducing Broker networks. Localized Japanese, Mandarin, Vietnamese, and Thai funnels maximize client activation.</p>
+    </div>
+    <div class="card-muted" style="padding:7pt 9pt; border-left:3pt solid var(--amber);">
+      <div style="font-weight:800; font-size:8.6pt; color:var(--ink); margin-bottom:2pt;">🇦🇪 MENA, GCC &amp; Fintech Innovation Hub</div>
+      <div style="font-size:7.1pt; font-weight:700; color:var(--amber); margin-bottom:3pt;">Hubs: Abu Dhabi (ADGM #190018) · Tel Aviv R&amp;D (ISA)</div>
+      <p style="margin:0; font-size:7.5pt;">Serves Gulf VIP Master IBs, wealth educators, and flagship expos in Dubai/Abu Dhabi while partnering closely with Tel Aviv algorithmic engineering teams building Quantum AI and real-time attribution rails.</p>
+    </div>
+    <div class="card-muted" style="padding:7pt 9pt; border-left:3pt solid var(--violet);">
+      <div style="font-weight:800; font-size:8.6pt; color:var(--ink); margin-bottom:2pt;">🌎 Latin America &amp; Africa Growth Frontiers</div>
+      <div style="font-size:7.1pt; font-weight:700; color:var(--violet); margin-bottom:3pt;">Hubs: Mexico City · São Paulo · Johannesburg (FSCA #45984)</div>
+      <p style="margin:0; font-size:7.5pt;">Rapid grassroots expansion powered by live regional trading seminars, Spanish/Portuguese trading academies, Copy Trading leaders, and 2-tier Level-1 / Level-2 Sub-IB compensation hierarchies.</p>
+    </div>
+  </div>
+
+  <div class="card-dark" style="padding:8.5pt 11pt; margin-bottom:7pt; border:1px solid rgba(0,223,154,0.35);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4pt;">
+      <span style="font-size:7.2pt; text-transform:uppercase; letter-spacing:0.12em; color:#00df9a; font-weight:800;">Digital Sub-Company &amp; Partner Turnkey Infrastructure</span>
+      <span class="mono" style="font-size:7.6pt; color:#00df9a; font-weight:800;">https://avapartner.vercel.app/</span>
+    </div>
+    <p style="font-size:7.8pt; margin:0 0 5pt 0;">
+      Through <strong><code>https://avapartner.vercel.app/</code></strong>, regional affiliates, Master IBs, and authorized sub-company partners access an end-to-end digital trading and partner platform without building exchange software from scratch:
+    </p>
+    <div class="grid-3" style="margin-bottom:0; gap:6pt;">
+      <div style="background:rgba(255,255,255,0.05); border-radius:6pt; padding:5.5pt 7pt;">
+        <div style="font-weight:800; font-size:7.6pt; color:#ffffff;">Instant Global Onboarding</div>
+        <div style="font-size:7.1pt; color:rgba(255,255,255,0.72);">Permanent <code>?ref=CODE</code> linking, multi-language UX &amp; mobile PWA installability on Android &amp; iOS.</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.05); border-radius:6pt; padding:5.5pt 7pt;">
+        <div style="font-weight:800; font-size:7.6pt; color:#ffffff;">Unified Multi-Asset Suite</div>
+        <div style="font-size:7.1pt; color:rgba(255,255,255,0.72);">103 CFDs, 80% Binary, Top-100 Spot, Copy Portfolios &amp; 4-slot Quantum AI Engine under one wallet.</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.05); border-radius:6pt; padding:5.5pt 7pt;">
+        <div style="font-weight:800; font-size:7.6pt; color:#ffffff;">Borderless Treasury Rails</div>
+        <div style="font-size:7.1pt; color:rgba(255,255,255,0.72);">Deterministic BEP-20 USDT deposit custody, hourly Bronze→Gold ranks &amp; 3–24h cross-border payouts.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-bottom:0;">
+    <div class="card-muted" style="padding:7pt 9pt;">
+      <h3 style="margin-top:0; font-size:8.8pt; color:var(--brand-deep);">Global Financial Expos &amp; B2B Co-Marketing</h3>
+      <p style="margin:0; font-size:7.6pt;">
+        AvaPartner represents the Group year-round at flagship financial conventions—<strong>iFX EXPO</strong> (Dubai &amp; Limassol), <strong>Finance Magnates London</strong>, <strong>Affiliate World</strong> (Europe &amp; Bangkok), and <strong>Forex Expo Dubai</strong> (2026 Winner: <em>Best Global Financial Affiliate Program</em>)—plus co-branded educational workshops for Master IBs.
+      </p>
+    </div>
+    <div class="card-muted" style="padding:7pt 9pt;">
+      <h3 style="margin-top:0; font-size:8.8pt; color:var(--sky);">International Careers Across 8 Offices</h3>
+      <p style="margin:0; font-size:7.6pt;">
+        Hybrid global mobility, performance bonuses &amp; summit representation. Open roles: <em>Senior Affiliate Manager (Dublin)</em>, <em>Regional Master IB Director (Abu Dhabi)</em>, <em>APAC Partnerships Exec (Sydney/Tokyo)</em>, <em>Media Strategist (Milan)</em>, <em>LATAM IB Manager (CDMX)</em>. Apply: <strong>careers@avapartner.com</strong>.
+      </p>
+    </div>
+  </div>
+
+  <h2 style="margin-top:7pt;">Global Revenue &amp; Partner Growth Flywheel</h2>
+  <div class="grid-4" style="gap:6pt; margin-bottom:0;">
+    <div class="flow-box" style="padding:6.5pt 8pt;">
+      <span class="flow-step">Stage 01 · Acquisition</span>
+      <div style="font-weight:800; font-size:8pt; color:var(--ink); margin:1.5pt 0;">20+ Language Traffic</div>
+      <p style="margin:0; font-size:7.1pt;">Localized funnels on <code>avapartner.com</code> &amp; <code>avapartner.vercel.app</code> capture global demand.</p>
+    </div>
+    <div class="flow-box" style="padding:6.5pt 8pt;">
+      <span class="flow-step">Stage 02 · Trust</span>
+      <div style="font-weight:800; font-size:8pt; color:var(--ink); margin:1.5pt 0;">9-Jurisdiction Routing</div>
+      <p style="margin:0; font-size:7.1pt;">Statutory regulation &amp; Gold KYC scoring convert visitors into active FTD accounts.</p>
+    </div>
+    <div class="flow-box" style="padding:6.5pt 8pt;">
+      <span class="flow-step">Stage 03 · Retention</span>
+      <div style="font-weight:800; font-size:8pt; color:var(--ink); margin:1.5pt 0;">24/5 Desks &amp; AI Tools</div>
+      <p style="margin:0; font-size:7.1pt;">Native retention teams, AvaProtect™ &amp; Quantum AI maximize multi-month lifetime volume.</p>
+    </div>
+    <div class="flow-box" style="padding:6.5pt 8pt;">
+      <span class="flow-step">Stage 04 · Payout</span>
+      <div style="font-weight:800; font-size:8pt; color:var(--ink); margin:1.5pt 0;">CPA · RevShare · 2-Tier IB</div>
+      <p style="margin:0; font-size:7.1pt;">Zero-lockup credits &amp; monthly salary bonuses settle across global rails.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- PAGE 8: SECTION 05 (PART A) — AUTH, 2FA & KYC VERIFICATION     -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="section-break">
+  <div class="sec-header">
+    <div>
+      <span class="sec-num">Section 05 · Part A</span>
+      <h1 class="sec-title">Security Architecture: Access Control, 2FA &amp; KYC</h1>
+    </div>
+    <span class="sec-tag">Layers 1 – 3</span>
+  </div>
+
+  <p>
+    Financial trust demands verifiable technical safeguards. AvaPartner protects client accounts, identity records, commission ledgers, and digital asset transfers through a five-layer defense-in-depth framework spanning client authentication, biometric KYC, and BNB Smart Chain custody.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <span class="badge badge-emerald">Layer 1 · Access &amp; Credentials</span>
+      <h3 style="margin-top:5pt;">Authentication &amp; Session Integrity</h3>
+      <ul style="font-size:8.1pt; margin-bottom:0;">
+        <li><strong>Bcrypt Password Hashing:</strong> Credentials hashed with bcrypt (10 salt rounds).</li>
+        <li><strong>Signed JWT Sessions:</strong> 7-day signed tokens validated by strict auth middleware (<code>requireAuth</code>).</li>
+        <li><strong>Email OTP &amp; Recovery:</strong> 6-digit registration OTPs (10-min TTL) &amp; single-use UUID password reset tokens (30-min TTL).</li>
+        <li><strong>Admin Role Separation:</strong> Granular permission scopes (<code>admin</code> vs. <code>subadmin</code> role permissions).</li>
+        <li><strong>Transport Hardening:</strong> Helmet HTTP security headers across all API routes.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <span class="badge badge-sky">Layer 2 · Withdrawal Lock</span>
+      <h3 style="margin-top:5pt;">Google Authenticator (2FA TOTP)</h3>
+      <ul style="font-size:8.1pt; margin-bottom:0;">
+        <li><strong>20-Byte Cryptographic Secret:</strong> Generated uniquely per user and paired via standard <code>otpauth://</code> QR code or manual key.</li>
+        <li><strong>Mandatory Withdrawal Check:</strong> When enabled, every withdrawal request strictly requires a live 6-digit TOTP verification code before funds reserve.</li>
+        <li><strong>Protected Deactivation:</strong> Disabling 2FA requires verifying an active 6-digit code from the authenticator app.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Layer 3 — KYC / NID Identity Verification &amp; 100-Point Account Strength</h2>
+  <p>
+    Users verify their identity using a <strong>National ID (NID)</strong>, <strong>Passport</strong>, or <strong>Driving License</strong> alongside residential address verification and Front/Back document scans. When live selfie checks are active, the backend executes <strong>AWS Rekognition (<code>CompareFaces</code>)</strong> against the ID front photograph using a configurable biometric match threshold (default <strong>90%</strong>).
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Verification Component</th>
+        <th>Verified Attributes</th>
+        <th class="ctr">Score Weight</th>
+        <th>Resulting Account Tier</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Registered Profile &amp; Avatar</strong></td>
+        <td>Registered Account Base (+15%), Full Name (+5%), Profile Avatar (+5%)</td>
+        <td class="ctr"><strong>25%</strong></td>
+        <td>Basic Account Active</td>
+      </tr>
+      <tr>
+        <td><strong>Identity Document Info</strong></td>
+        <td>Legal First &amp; Last Name (+10%), NID/ID Number (+10%), Date of Birth (+5%)</td>
+        <td class="ctr"><strong>25%</strong></td>
+        <td>Moderate Strength (50%)</td>
+      </tr>
+      <tr>
+        <td><strong>Full Residential Address</strong></td>
+        <td>Village/Street, Postal Code, City, State/Province &amp; Country</td>
+        <td class="ctr"><strong>20%</strong></td>
+        <td>Strong Profile (70%)</td>
+      </tr>
+      <tr>
+        <td><strong>Document Photo Uploads</strong></td>
+        <td>Compressed ID Front (+10%) &amp; ID Back (+10%) + Optional Live Selfie</td>
+        <td class="ctr"><strong>20%</strong></td>
+        <td>Strong — Awaiting Approval (90%)</td>
+      </tr>
+      <tr>
+        <td><strong>Admin / Biometric Approval</strong></td>
+        <td>Compliance Sign-Off or AWS Rekognition Automated Face Match (≥ 90%)</td>
+        <td class="ctr"><strong>+10%</strong></td>
+        <td><span class="badge badge-amber">Gold Verified Strong (100%)</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <div class="callout-title">Gold Verified Strong Trust Privileges</div>
+    <p style="margin:0; font-size:8.1pt;">
+      Accounts achieving 100% strength earn the <strong>Gold Verified Strong</strong> badge across the profile header and navigation menu, providing elevated institutional trust, seamless KYC compliance, and priority withdrawal review across AvaPartner desks.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- PAGE 9: SECTION 05 (PART B) — BLOCKCHAIN CUSTODY & CHECKSUMS   -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="section-break">
+  <div class="sec-header">
+    <div>
+      <span class="sec-num">Section 05 · Part B</span>
+      <h1 class="sec-title">Blockchain Treasury Custody, Checksums &amp; Audit</h1>
+    </div>
+    <span class="sec-tag">Layers 4 – 5</span>
+  </div>
+
+  <h2>Layer 4 — BEP-20 Deterministic Deposit Wallets &amp; Smart Forwarders</h2>
+  <div class="grid-2">
+    <div class="card-muted">
+      <h3 style="margin-top:0; color:var(--brand-deep);">On-Chain Deposit Detection &amp; Sweeping</h3>
+      <ul style="font-size:8.1pt; margin-bottom:0;">
+        <li><strong>Permanent Deterministic Addresses:</strong> Each user receives a fixed, unique EVM deposit wallet derived via <code>keccak256</code> from the master secret and user identity—never changing across sessions.</li>
+        <li><strong>EIP-1167 Minimal Proxy Forwarders:</strong> Smart contracts (<code>Forwarder.sol</code> &amp; <code>ForwarderFactory.sol</code>) securely flush BNB or BEP-20 USDT (<code>0x55d3...7955</code>) solely to the authorized Treasury Hot Wallet.</li>
+        <li><strong>5-Node BSC RPC Redundancy:</strong> Polls every 20 seconds across 5 independent BSC RPCs (<code>publicnode</code>, <code>defibit</code>, <code>ninicoin</code>, <code>1rpc</code>, <code>binance.org</code>) with strict <code>BigInt</code> Wei idempotency (<code>unswept_credited_wei</code>) so deposits cannot double-credit.</li>
+      </ul>
+    </div>
+
+    <div class="card-muted">
+      <h3 style="margin-top:0; color:var(--sky);">Layer 5 — Data Integrity &amp; Audit Resilience</h3>
+      <ul style="font-size:8.1pt; margin-bottom:0;">
+        <li><strong>ACID Financial Mutations:</strong> Wallet credits, IB commissions, trade settlements, and withdrawals execute inside atomic <code>better-sqlite3</code> WAL transactions.</li>
+        <li><strong>Immutable Activity Ledger:</strong> Every signup, trade, AI payout, KYC review, 2FA toggle, deposit, and withdrawal logs permanently to <code>activity_logs</code>.</li>
+        <li><strong>Standardized Audit Timezone:</strong> All timestamps render in <strong>Bangladesh Standard Time (BDT, Asia/Dhaka, UTC+6)</strong> for unambiguous cross-ledger reconciliation.</li>
+        <li><strong>Automated Snapshots &amp; Cloud Sync:</strong> Full DB backups run every 6 hours (retaining 30 snapshots) plus graceful cloud persistence flushes on shutdown.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Multi-Chain Cryptographic Withdrawal Checksum Protection</h2>
+  <p>
+    Before any withdrawal request is transmitted to the server—and again inside server-side validation—AvaPartner verifies destination wallet addresses synchronously to eliminate typo-induced fund loss and cross-chain errors:
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Network Family</th>
+        <th>Address Format</th>
+        <th>Cryptographic Verification Algorithm</th>
+        <th>Automated Safety Checks</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>BEP-20 / ERC-20 (EVM)</strong></td>
+        <td><code>0x...</code> (42 chars)</td>
+        <td><strong>EIP-55 Keccak-256</strong> Mixed-Case Checksum</td>
+        <td>Rejects zero/burn address, non-hex characters, &amp; TRON <code>T...</code> network mismatches; offers 1-click checksum formatting.</td>
+      </tr>
+      <tr>
+        <td><strong>TRON (TRC-20)</strong></td>
+        <td><code>T...</code> (34 chars)</td>
+        <td><strong>Base58Check Double SHA-256</strong> (<code>0x41</code> prefix)</td>
+        <td>Blocks <code>0x...</code> EVM addresses pasted into TRC-20 fields; catches any single-character typo via checksum.</td>
+      </tr>
+      <tr>
+        <td><strong>Bitcoin (BTC)</strong></td>
+        <td><code>bc1...</code> / <code>1...</code> / <code>3...</code></td>
+        <td><strong>Bech32</strong> (SegWit) &amp; <strong>Base58Check</strong> (Legacy/P2SH)</td>
+        <td>Validates witness program bounds (<code>bc1</code>) and 21-byte payload version checksums.</td>
+      </tr>
+      <tr>
+        <td><strong>Solana (SOL)</strong></td>
+        <td>Base58 (32 bytes)</td>
+        <td><strong>Base58</strong> 32-Byte Public Key Decoding</td>
+        <td>Rejects <code>0x</code> EVM prefixes and validates exact 32-byte key length.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout sky">
+    <div class="callout-title">Withdrawal Processing SLA &amp; Decline Protection</div>
+    <p style="margin:0; font-size:8.1pt;">
+      Withdrawals start from <strong>$0.01 USDT</strong>, immediately reserve funds from Available Balance upon submission, enforce active bonus milestone checks, and settle within <strong>3 to 24 hours</strong>. If any withdrawal is declined, both the full reserved USDT balance and any prior bonus milestone snapshot are refunded automatically.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- PAGE 10: SECTION 06 (PART A) — FOREX, BINARY & SPOT            -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="section-break">
+  <div class="sec-header">
+    <div>
+      <span class="sec-num">Section 06 · Part A</span>
+      <h1 class="sec-title">Trading Ecosystem: Forex CFDs, Binary &amp; Spot Market</h1>
+    </div>
+    <span class="sec-tag">1,250+ Group Instruments</span>
+  </div>
+
+  <p>
+    AvaPartner connects clients to <strong>1,250+ instruments</strong> globally across <strong>MetaTrader 4 (MT4)</strong>, <strong>MetaTrader 5 (MT5)</strong>, <strong>AvaTradeGO</strong>, <strong>WebTrader</strong>, <strong>AvaOptions</strong>, <strong>AvaSocial</strong>, <strong>DupliTrade</strong>, <strong>AvaProtect™</strong>, and our integrated Web/Mobile portal (<code>https://avapartner.vercel.app/</code>).
+  </p>
+
+  <h2>6.1 Forex, Commodities, Indices &amp; Crypto CFDs (103 Core Markets)</h2>
+  <div class="grid-4">
+    <div class="card-muted ctr">
+      <div style="font-size:15pt; font-weight:900; color:var(--brand-deep);">35</div>
+      <div style="font-size:7.5pt; font-weight:800;">Forex Pairs</div>
+      <div class="small">EURUSD, GBPUSD, USDJPY, Crosses &amp; Exotics</div>
+    </div>
+    <div class="card-muted ctr">
+      <div style="font-size:15pt; font-weight:900; color:var(--amber);">8</div>
+      <div style="font-size:7.5pt; font-weight:800;">Metals &amp; Energy</div>
+      <div class="small">XAUUSD, XAGUSD, Platinum, USOIL, UKOIL, NGAS</div>
+    </div>
+    <div class="card-muted ctr">
+      <div style="font-size:15pt; font-weight:900; color:var(--sky);">51</div>
+      <div style="font-size:7.5pt; font-weight:800;">Crypto CFDs</div>
+      <div class="small">BTC, ETH, BNB, SOL, XRP, ADA, SUI, ARB &amp; more</div>
+    </div>
+    <div class="card-muted ctr">
+      <div style="font-size:15pt; font-weight:900; color:var(--violet);">9</div>
+      <div style="font-size:7.5pt; font-weight:800;">Global Indices</div>
+      <div class="small">US30, US500, NAS100, GER40, UK100, JP225, HK50</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3 style="margin-top:0;">Margin, Leverage &amp; PnL Mechanics</h3>
+      <div class="formula-box">
+        Leverage: 1:100 Standard<br/>
+        Required Margin = (Lots × Market Entry Price) ÷ 100<br/>
+        Realized/Open PnL = (Exit − Entry) × Direction × Lots
+      </div>
+      <ul style="font-size:8pt; margin-bottom:0;">
+        <li><strong>Lot Sizing:</strong> Supports <code>0.01</code> Micro, <code>0.10</code> Mini, and <code>1.00+</code> Standard lots.</li>
+        <li><strong>Chart Timeframes:</strong> <code>15s</code>, <code>30s</code>, <code>1m</code>, <code>5m</code>, <code>10m</code>, <code>15m</code>, <code>1h</code>, <code>1d</code> powered by <code>lightweight-charts</code> with 1-second Socket.IO ticks.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;">Risk Management &amp; Order Controls</h3>
+      <ul style="font-size:8pt; margin-bottom:0;">
+        <li><strong>Stop Loss (S/L) &amp; Take Profit (T/P):</strong> Automated server-side tick evaluation closes positions instantly when target prices trigger.</li>
+        <li><strong>Instant Execution &amp; Close All:</strong> Individual position closure or one-click <em>Close All</em> across all open positions.</li>
+        <li><strong>Stop-Out &amp; Negative Balance Protection:</strong> Automatic stop-out when Equity ≤ $0.00, resetting negative balances to $0.00 so traders never owe more than equity deposited.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>6.2 Binary Options Engine &amp; 6.3 Spot Crypto Market</h2>
+  <div class="grid-2">
+    <div class="card">
+      <span class="badge badge-rose">Binary Options · Fixed Payout</span>
+      <h3 style="margin-top:5pt;">Call / Put Instant Expiry Trading</h3>
+      <ul style="font-size:8.1pt; margin-bottom:0;">
+        <li><strong>Fixed Profit Rate:</strong> <strong>80% net payout</strong> (<code>180%</code> gross return = Stake + 80% profit on winning predictions).</li>
+        <li><strong>Push Tie Protection:</strong> Exact entry-price tie at expiry automatically refunds <strong>100% of stake</strong>.</li>
+        <li><strong>Expiry Durations:</strong> <strong>30s</strong>, <strong>60s</strong>, <strong>2m</strong> (120s), <strong>5m</strong> (300s), and <strong>10m</strong> (600s).</li>
+        <li><strong>IB Advantage:</strong> Generates real-time IB commission on turnover immediately upon placement, win or lose.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <span class="badge badge-emerald">Spot Market · Top 100 Pairs</span>
+      <h3 style="margin-top:5pt;">Live Crypto Spot &amp; Order Book</h3>
+      <ul style="font-size:8.1pt; margin-bottom:0;">
+        <li><strong>Market Coverage:</strong> Mirrors the <strong>Top 100 Binance USDT pairs</strong> with 24h change % and 24h volume telemetry.</li>
+        <li><strong>12-Level Order Book Depth:</strong> Live synthetic bid/ask spread ladder and multi-asset Spot Holdings valuation.</li>
+        <li><strong>Pro Order Controls:</strong> <strong>Limit</strong>, <strong>Market</strong>, and <strong>Stop</strong> orders, <strong>TP/SL</strong> &amp; <strong>Iceberg</strong> options, plus 25%/50%/75%/100% quick-fill balance sliders.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- PAGE 11: SECTION 06 (PART B) — COPY TRADING, MOBILE & SUMMARY  -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="section-break">
+  <div class="sec-header">
+    <div>
+      <span class="sec-num">Section 06 · Part B</span>
+      <h1 class="sec-title">Copy Trading, Mobile Platforms &amp; Product Matrix</h1>
+    </div>
+    <span class="sec-tag">Social &amp; Mobile</span>
+  </div>
+
+  <h2>6.4 Copy Trading &amp; Master Trader Portfolios</h2>
+  <p>
+    Copy Trading allows traders to allocate margin (starting from <strong>$10+</strong>) to verified Master Traders, monitor live ROI and portfolio P/L in real time, and stop copying anytime to return current value directly to their Available Balance.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Master Trader</th>
+        <th class="num">All-Time ROI</th>
+        <th class="ctr">Win Rate</th>
+        <th class="num">Followers</th>
+        <th class="ctr">Risk Score</th>
+        <th class="num">Assets Under Mgmt (AUM)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Alex Carter</strong></td>
+        <td class="num"><strong style="color:#059669;">+412.5%</strong></td>
+        <td class="ctr">92.4%</td>
+        <td class="num">15,420</td>
+        <td class="ctr"><span class="badge badge-emerald">4 / 10</span></td>
+        <td class="num">$2,540,000</td>
+      </tr>
+      <tr>
+        <td><strong>Sarah Chen</strong></td>
+        <td class="num"><strong style="color:#059669;">+305.2%</strong></td>
+        <td class="ctr">88.1%</td>
+        <td class="num">8,930</td>
+        <td class="ctr"><span class="badge badge-emerald">3 / 10</span></td>
+        <td class="num">$1,200,500</td>
+      </tr>
+      <tr>
+        <td><strong>CryptoNinja</strong></td>
+        <td class="num"><strong style="color:#059669;">+840.1%</strong></td>
+        <td class="ctr">74.5%</td>
+        <td class="num">34,200</td>
+        <td class="ctr"><span class="badge badge-amber">8 / 10</span></td>
+        <td class="num">$8,900,000</td>
+      </tr>
+      <tr>
+        <td><strong>Quantum Fund</strong></td>
+        <td class="num"><strong style="color:#059669;">+150.8%</strong></td>
+        <td class="ctr">95.0%</td>
+        <td class="num">4,500</td>
+        <td class="ctr"><span class="badge badge-sky">2 / 10</span></td>
+        <td class="num">$5,400,000</td>
+      </tr>
+      <tr>
+        <td><strong>Elena R.</strong></td>
+        <td class="num"><strong style="color:#059669;">+215.4%</strong></td>
+        <td class="ctr">85.2%</td>
+        <td class="num">6,210</td>
+        <td class="ctr"><span class="badge badge-sky">5 / 10</span></td>
+        <td class="num">$850,000</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>6.5 Cross-Platform &amp; Mobile Trading Architecture</h2>
+  <div class="grid-3">
+    <div class="card-muted">
+      <h3 style="margin-top:0; color:var(--brand-deep);">Installable Mobile PWA</h3>
+      <p style="margin:0; font-size:8pt;">One-tap Progressive Web App installation optimized for Android (Samsung, Xiaomi, Huawei, Vivo, Oppo) &amp; iOS Safari <em>Add to Home Screen</em>.</p>
+    </div>
+    <div class="card-muted">
+      <h3 style="margin-top:0; color:var(--sky);">Native Expo Mobile Client</h3>
+      <p style="margin:0; font-size:8pt;">Dedicated React Native Android &amp; iOS app with native Forex tickets, Binary Options panel, TradingView/Market charts, and camera KYC verification.</p>
+    </div>
+    <div class="card-muted">
+      <h3 style="margin-top:0; color:var(--violet);">MT4 / MT5 &amp; Web3 Roadmap</h3>
+      <p style="margin:0; font-size:8pt;">Institutional AvaTrade platforms (MT4, MT5, AvaTradeGO, AvaOptions, AvaSocial, DupliTrade) plus upcoming decentralized Web3 trading integration.</p>
+    </div>
+  </div>
+
+  <h2>Unified Trading Module Comparison</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Module</th>
+        <th>Instruments / Tiers</th>
+        <th>Execution / Cycle</th>
+        <th>IB Commission Stream</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Forex / CFD</strong></td>
+        <td>103 Core Pairs (Forex, Metals, Oil, Indices, Crypto)</td>
+        <td>1:100 Leverage, 0.01+ Lots, Instant Close + SL/TP</td>
+        <td>$2 – $8 / lot L1 (+$1 – $2 L2)</td>
+      </tr>
+      <tr>
+        <td><strong>Binary Options</strong></td>
+        <td>All Chart Symbols · 30s to 10m Expiries</td>
+        <td>Call / Put · 80% Fixed Payout · Push Tie Refund</td>
+        <td>1% – 3.5% Turnover L1 (+0.5% L2)</td>
+      </tr>
+      <tr>
+        <td><strong>Spot Market</strong></td>
+        <td>Top 100 Binance USDT Pairs</td>
+        <td>Limit / Market / Stop · 12-Level Order Book</td>
+        <td>Real-Time Spot Wallet Holdings</td>
+      </tr>
+      <tr>
+        <td><strong>Copy Trading</strong></td>
+        <td>5 Verified Master Traders ($10+ Min)</td>
+        <td>Live Margin Allocation · Stop Anytime</td>
+        <td>Portfolio Mirroring &amp; P/L Tracking</td>
+      </tr>
+      <tr>
+        <td><strong>Quantum AI Trade</strong></td>
+        <td>4 Slots ($10 – $10,000+)</td>
+        <td>60s Ticks · 24h Auto-Payout · Smart AI On</td>
+        <td>5% – 12% Daily Profit L1 (+2% – 5% L2)</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- PAGE 12: SECTION 07 — AI TRADE SCHEME ("QUANTUM AI ENGINE")    -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="section-break">
+  <div class="sec-header">
+    <div>
+      <span class="sec-num">Section 07</span>
+      <h1 class="sec-title">AI Trade Scheme ("Quantum AI Engine")</h1>
+    </div>
+    <span class="sec-tag">24h Auto-Payouts</span>
+  </div>
+
+  <p>
+    <strong>AI Trade</strong> is AvaPartner's automated algorithmic execution engine. Designed for users seeking structured, hands-free 24-hour yield generation across four progressive capital slots, Quantum AI accrues earnings every <strong>60 seconds</strong> (1,440 ticks/day) and credits net profits automatically to the user's Available Wallet Balance every <strong>24 hours</strong>.
+  </p>
+
+  <div class="grid-4">
+    <div class="slot-card s4">
+      <span class="badge badge-sky">Slot 1</span>
+      <h3 style="margin:5pt 0 2pt 0;">Starter</h3>
+      <div style="font-weight:900; font-size:11pt; color:var(--ink);">$10 – $100</div>
+      <div style="margin-top:6pt; font-size:8pt;">
+        <div>Daily Yield: <strong style="color:var(--brand-deep);">1.5% – 2.0%</strong></div>
+        <div>User Profit Split: <strong>60%</strong></div>
+        <div>Platform Split: 40%</div>
+      </div>
+      <div class="bar-track"><div class="bar-fill sky" style="width:60%;"></div></div>
+    </div>
+
+    <div class="slot-card s2">
+      <span class="badge badge-violet">Slot 2</span>
+      <h3 style="margin:5pt 0 2pt 0;">Booster</h3>
+      <div style="font-weight:900; font-size:11pt; color:var(--ink);">$101 – $1,000</div>
+      <div style="margin-top:6pt; font-size:8pt;">
+        <div>Daily Yield: <strong style="color:var(--brand-deep);">2.0% – 2.5%</strong></div>
+        <div>User Profit Split: <strong>70%</strong></div>
+        <div>Platform Split: 30%</div>
+      </div>
+      <div class="bar-track"><div class="bar-fill violet" style="width:70%;"></div></div>
+    </div>
+
+    <div class="slot-card s3">
+      <span class="badge badge-amber">Slot 3</span>
+      <h3 style="margin:5pt 0 2pt 0;">Premium</h3>
+      <div style="font-weight:900; font-size:11pt; color:var(--ink);">$1,001 – $5,000</div>
+      <div style="margin-top:6pt; font-size:8pt;">
+        <div>Daily Yield: <strong style="color:var(--brand-deep);">2.5% – 3.0%</strong></div>
+        <div>User Profit Split: <strong>75%</strong></div>
+        <div>Platform Split: 25%</div>
+      </div>
+      <div class="bar-track"><div class="bar-fill amber" style="width:75%;"></div></div>
+    </div>
+
+    <div class="slot-card">
+      <span class="badge badge-emerald">Slot 4</span>
+      <h3 style="margin:5pt 0 2pt 0;">Titan Mega</h3>
+      <div style="font-weight:900; font-size:11pt; color:var(--ink);">$5,001 – $10,000+</div>
+      <div style="margin-top:6pt; font-size:8pt;">
+        <div>Daily Yield: <strong style="color:var(--brand-deep);">3.0% – 3.5%</strong></div>
+        <div>User Profit Split: <strong>85%</strong></div>
+        <div>Platform Split: 15%</div>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:85%;"></div></div>
+    </div>
+  </div>
+
+  <h2>Operational Lifecycle &amp; Liquidity Rules</h2>
+  <div class="flow-strip">
+    <div class="flow-box">
+      <span class="flow-step">Phase 01 · Activation</span>
+      <h3 style="margin:2pt 0;">Principal Lock &amp; Start</h3>
+      <p style="margin:0; font-size:7.9pt;">Allocated funds move from Available to Locked Balance while active. Toggle <strong>Smart AI Trade (Always On)</strong> to auto-continue cycles after every 24h payout.</p>
+    </div>
+    <div class="flow-box">
+      <span class="flow-step">Phase 02 · 60s Ticks</span>
+      <h3 style="margin:2pt 0;">Real-Time Accrual</h3>
+      <p style="margin:0; font-size:7.9pt;">Every 60 seconds, pending earnings update live on your dashboard within your slot's per-minute rate band (1,440 ticks per 24h cycle).</p>
+    </div>
+    <div class="flow-box">
+      <span class="flow-step">Phase 03 · Settlement</span>
+      <h3 style="margin:2pt 0;">24h Payout &amp; Instant Stop</h3>
+      <p style="margin:0; font-size:7.9pt;">Every 24 hours, earnings credit directly to your Available Wallet and trigger L1/L2 IB commissions. Clicking <strong>Stop</strong> returns 100% principal + partial earnings immediately.</p>
+    </div>
+  </div>
+
+  <h2>AI Trade Illustrative Yield Projections (User Profit vs. IB Commission)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Slot &amp; Tier</th>
+        <th>Example Capital</th>
+        <th>Daily Rate Range (Midpoint)</th>
+        <th class="num">Est. User Daily Profit</th>
+        <th class="num">Est. User 30-Day Profit</th>
+        <th class="num">Gold IB L1 (12%) Daily / 30d</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Slot 1 · Starter</strong> (60% Split)</td>
+        <td>$100.00</td>
+        <td>1.5% – 2.0% (1.75%)</td>
+        <td class="num"><strong>$1.75 / day</strong></td>
+        <td class="num"><strong>$52.50</strong></td>
+        <td class="num">$0.21 / $6.30</td>
+      </tr>
+      <tr>
+        <td><strong>Slot 2 · Booster</strong> (70% Split)</td>
+        <td>$500.00</td>
+        <td>2.0% – 2.5% (2.25%)</td>
+        <td class="num"><strong>$11.25 / day</strong></td>
+        <td class="num"><strong>$337.50</strong></td>
+        <td class="num">$1.35 / $40.50</td>
+      </tr>
+      <tr>
+        <td><strong>Slot 3 · Premium</strong> (75% Split)</td>
+        <td>$2,000.00</td>
+        <td>2.5% – 3.0% (2.75%)</td>
+        <td class="num"><strong>$55.00 / day</strong></td>
+        <td class="num"><strong>$1,650.00</strong></td>
+        <td class="num">$6.60 / $198.00</td>
+      </tr>
+      <tr>
+        <td><strong>Slot 4 · Titan Mega</strong> (85% Split)</td>
+        <td>$10,000.00</td>
+        <td>3.0% – 3.5% (3.25%)</td>
+        <td class="num"><strong>$325.00 / day</strong></td>
+        <td class="num"><strong>$9,750.00</strong></td>
+        <td class="num">$39.00 / $1,170.00</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- PAGE 13: SECTION 08 (PART A) — AFFILIATE, CPA, REVSHARE & IB   -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="section-break">
+  <div class="sec-header">
+    <div>
+      <span class="sec-num">Section 08 · Part A</span>
+      <h1 class="sec-title">Affiliate Program: CPA, RevShare &amp; Master IB Tiers</h1>
+    </div>
+    <span class="sec-tag">Up to $1,000 CPA · 50% RevShare</span>
+  </div>
+
+  <p>
+    AvaPartner offers four flexible partnership monetization plans—<strong>CPA</strong>, <strong>Lifetime Revenue Share</strong>, <strong>Hybrid</strong>, and our real-time automated <strong>Multi-Stream 2-Tier IB Commission Engine</strong>. Joining is 100% free with zero setup fees, zero lockup on IB credits, and localized marketing support in 20+ languages.
+  </p>
+
+  <div class="grid-3">
+    <div class="card">
+      <span class="badge badge-emerald">CPA Model</span>
+      <h3 style="margin-top:5pt;">Up to $1,000 / FTD</h3>
+      <p style="font-size:7.9pt; margin-bottom:4pt;">One-time upfront payout for every qualified First-Time Depositor:</p>
+      <ul style="font-size:7.8pt; margin-bottom:0;">
+        <li><strong>Tier 1 (Up to $1,000):</strong> IE, UK, AU, UAE, JP, DE, CH, NL</li>
+        <li><strong>Tier 2 (Up to $650):</strong> IT, ES, PL, CY, ZA, SG, MY, MX</li>
+        <li><strong>Tier 3 (Up to $400):</strong> BR, CO, NG, VN, TH, IN &amp; 120+ more</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <span class="badge badge-sky">Revenue Share</span>
+      <h3 style="margin-top:5pt;">Up to 50% Lifetime Share</h3>
+      <p style="font-size:7.9pt; margin-bottom:4pt;">Compounding lifetime income tied to trader retention:</p>
+      <ul style="font-size:7.8pt; margin-bottom:0;">
+        <li>Up to <strong>50% net spread share</strong> across 1,250+ instruments</li>
+        <li>Ideal for trading academies, signal communities &amp; EA creators</li>
+        <li>Backed by multilingual retention desks &amp; AvaProtect™</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <span class="badge badge-amber">Hybrid &amp; Master IB</span>
+      <h3 style="margin-top:5pt;">2-Tier Network Overrides</h3>
+      <p style="font-size:7.9pt; margin-bottom:4pt;">Combine upfront CPA + ongoing rebates + Sub-IB depth:</p>
+      <ul style="font-size:7.8pt; margin-bottom:0;">
+        <li>Earn on <strong>Level 1 (Direct)</strong> &amp; <strong>Level 2 (Sub-IB)</strong> networks</li>
+        <li>Automatic monthly fixed USD salary bonuses ($50 – $250/mo)</li>
+        <li>Custom VIP deals &amp; seminar co-sponsorship for Master IBs</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Official Multi-Stream IB Tier &amp; Commission Profit Ratio Table</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>IB Rank</th>
+        <th>Monthly Team Volume</th>
+        <th class="ctr">AI Trade <em>(L1 / L2)</em></th>
+        <th class="ctr">Forex / Manual <em>(L1 / L2)</em></th>
+        <th class="ctr">Binary Options <em>(L1 / L2)</em></th>
+        <th class="num">Monthly Salary Bonus</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>🥉 <strong>Bronze Partner</strong></td>
+        <td>$0 <span class="small">(Default — Free)</span></td>
+        <td class="ctr"><strong>5%</strong> / —</td>
+        <td class="ctr"><strong>$2.00/lot</strong> / —</td>
+        <td class="ctr"><strong>1.0%</strong> / —</td>
+        <td class="num">—</td>
+      </tr>
+      <tr>
+        <td>🥈 <strong>Silver Leader</strong></td>
+        <td><strong>$5,000+ / mo</strong></td>
+        <td class="ctr"><strong>8%</strong> / <span style="color:#7c3aed; font-weight:700;">+2%</span></td>
+        <td class="ctr"><strong>$4.00/lot</strong> / <span style="color:#0284c7; font-weight:700;">+$1.00/lot</span></td>
+        <td class="ctr"><strong>2.0%</strong> / <span style="color:#e11d48; font-weight:700;">+0.5%</span></td>
+        <td class="num"><strong style="color:#059669;">$50 / month</strong></td>
+      </tr>
+      <tr style="background:#fffbeb;">
+        <td>🥇 <strong>Gold Master</strong></td>
+        <td><strong>$25,000+ / mo</strong></td>
+        <td class="ctr"><strong>12%</strong> / <span style="color:#7c3aed; font-weight:700;">+5%</span></td>
+        <td class="ctr"><strong>$8.00/lot</strong> / <span style="color:#0284c7; font-weight:700;">+$2.00/lot</span></td>
+        <td class="ctr"><strong>3.5%</strong> / —</td>
+        <td class="num"><strong style="color:#d97706;">$250 / month</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="flow-strip">
+    <div class="flow-box">
+      <span class="flow-step">Step 01 · Attribution</span>
+      <h3 style="margin:2pt 0;">Permanent Referral Tree</h3>
+      <p style="margin:0; font-size:7.9pt;">Share <code>?ref=CODE</code>. Direct invitees link permanently as Level 1; users they invite link automatically as your Level 2 Sub-IB team.</p>
+    </div>
+    <div class="flow-box">
+      <span class="flow-step">Step 02 · Real-Time Credit</span>
+      <h3 style="margin:2pt 0;">Zero-Lockup Wallet Payouts</h3>
+      <p style="margin:0; font-size:7.9pt;">Commissions credit straight to your Available Balance on AI 24h payouts, Forex trade closes, and Binary trade executions.</p>
+    </div>
+    <div class="flow-box">
+      <span class="flow-step">Step 03 · Hourly Upgrade</span>
+      <h3 style="margin:2pt 0;">Auto Rank &amp; Salary Bonus</h3>
+      <p style="margin:0; font-size:7.9pt;">The IB Scheduler checks team volume hourly, auto-promotes Bronze → Silver → Gold, and credits fixed $50 or $250 monthly bonuses.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- PAGE 14: SECTION 08 (PART B) — IB PROJECTIONS & VIP RULES      -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="section-break">
+  <div class="sec-header">
+    <div>
+      <span class="sec-num">Section 08 · Part B</span>
+      <h1 class="sec-title">IB Profit Projections, Lot Reference &amp; VIP Governance</h1>
+    </div>
+    <span class="sec-tag">Worked Examples</span>
+  </div>
+
+  <h2>Worked 30-Day Multi-Stream IB Earnings Projections</h2>
+  <p>
+    The table below reproduces exact 30-day revenue outputs from the platform's live <code>IBProfitCalculator</code> engine across three team scales combining AI Trade, Forex Lots, and Binary Options:
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Team Profile</th>
+        <th>Network Size</th>
+        <th>Assumed Daily Activity Per User</th>
+        <th class="num">Bronze (30d)</th>
+        <th class="num">Silver (30d + $50)</th>
+        <th class="num">Gold (30d + Bonus*)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Starter Team</strong></td>
+        <td>3 L1 + 5 L2</td>
+        <td>$250 Booster AI ($5.625/d) + 0.50 lots + $50 Binary</td>
+        <td class="num">$160.31</td>
+        <td class="num"><strong>$489.88</strong></td>
+        <td class="num"><strong>$770.44</strong>*</td>
+      </tr>
+      <tr>
+        <td><strong>Active Network</strong></td>
+        <td>10 L1 + 25 L2</td>
+        <td>$500 Booster AI ($11.25/d) + 1.00 lot + $100 Binary</td>
+        <td class="num">$1,068.75</td>
+        <td class="num"><strong>$3,413.75</strong></td>
+        <td class="num"><strong style="color:#059669;">$6,026.88</strong></td>
+      </tr>
+      <tr>
+        <td><strong>VIP Network</strong></td>
+        <td>25 L1 + 80 L2</td>
+        <td>$1,500 Premium AI ($41.25/d) + 2.50 lots + $250 Binary</td>
+        <td class="num">$4,158.75</td>
+        <td class="num"><strong>$14,292.50</strong></td>
+        <td class="num"><strong style="color:#059669;">$42,475.00</strong></td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="small">*Starter Team at Gold generates $13,471.88 monthly volume (&lt; $25,000 threshold, so the $250 monthly bonus unlocks once volume crosses $25,000 or when an Administrator locks Gold rank). Active and VIP Networks exceed $25,000/month and automatically include the $250 salary bonus.</p>
+
+  <h2>Forex Lot Size Rebate Quick Reference</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Lot Size Category</th>
+        <th>Order Ticket Step</th>
+        <th class="num">Bronze Direct ($2/lot)</th>
+        <th class="num">Silver Direct / Sub-IB</th>
+        <th class="num">Gold Direct / Sub-IB</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Micro Lot</strong></td>
+        <td><code>0.01</code> Lot</td>
+        <td class="num">$0.02</td>
+        <td class="num">$0.04 L1 / $0.01 L2</td>
+        <td class="num">$0.08 L1 / $0.02 L2</td>
+      </tr>
+      <tr>
+        <td><strong>Mini Lot</strong></td>
+        <td><code>0.10</code> Lot</td>
+        <td class="num">$0.20</td>
+        <td class="num">$0.40 L1 / $0.10 L2</td>
+        <td class="num">$0.80 L1 / $0.20 L2</td>
+      </tr>
+      <tr>
+        <td><strong>Standard Lot</strong></td>
+        <td><code>1.00</code> Lot</td>
+        <td class="num"><strong>$2.00</strong></td>
+        <td class="num"><strong>$4.00 L1</strong> / $1.00 L2</td>
+        <td class="num"><strong style="color:#059669;">$8.00 L1</strong> / $2.00 L2</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="grid-2">
+    <div class="card-muted">
+      <h3 style="margin-top:0; color:var(--brand-deep);">Official IB Holder &amp; Rank Protection</h3>
+      <p style="margin:0; font-size:8pt;">
+        Administrators can grant explicit <strong>Official IB Holder</strong> accreditation to partner accounts, manually assign Bronze, Silver, or Gold status, and lock that rank (<code>level_locked</code>) so temporary monthly volume fluctuations never cause a tier downgrade.
+      </p>
+    </div>
+    <div class="card-muted">
+      <h3 style="margin-top:0; color:var(--amber);">Custom VIP Rates &amp; Margin % Mode</h3>
+      <p style="margin:0; font-size:8pt;">
+        High-volume institutional IBs can receive bespoke overrides (<code>ib_user_rates</code>)—including higher AI Trade %, custom Forex <code>per_lot</code> or <code>% of margin</code> modes, elevated Binary %, and custom monthly salary bonuses, badged as <strong>★ Custom VIP Rates Active</strong>.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- PAGE 15: SECTION 09 & 10 — PROMOTIONS & QUICK-START GUIDE      -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="section-break">
+  <div class="sec-header">
+    <div>
+      <span class="sec-num">Section 09</span>
+      <h1 class="sec-title">Deposit Bonuses, Promotions &amp; Cashout Rules</h1>
+    </div>
+    <span class="sec-tag">Up to 100% Match</span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Promo Code</th>
+        <th>Offer Name</th>
+        <th>Category</th>
+        <th class="ctr">Bonus</th>
+        <th class="ctr">Max Cap</th>
+        <th class="ctr">Min Deposit</th>
+        <th class="ctr">Limit / User</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="code-pill">WELCOME100</span></td>
+        <td><strong>100% Deposit Welcome Bonus</strong> <span class="small">(Auto-Credit)</span></td>
+        <td>Deposit Bonus</td>
+        <td class="ctr"><strong style="color:#059669;">+100%</strong></td>
+        <td class="ctr"><strong>No Cap</strong></td>
+        <td class="ctr">$50</td>
+        <td class="ctr">2×</td>
+      </tr>
+      <tr>
+        <td><span class="code-pill">BOOST50</span></td>
+        <td><strong>50% Reload Deposit Boost</strong></td>
+        <td>Deposit Bonus</td>
+        <td class="ctr"><strong>+50%</strong></td>
+        <td class="ctr">$1,000</td>
+        <td class="ctr">$100</td>
+        <td class="ctr">3×</td>
+      </tr>
+      <tr>
+        <td><span class="code-pill">NEW25</span></td>
+        <td><strong>$25 New User Starter Bonus</strong></td>
+        <td>New User Bonus</td>
+        <td class="ctr"><strong>+$25 Fixed</strong></td>
+        <td class="ctr">$25</td>
+        <td class="ctr">$20</td>
+        <td class="ctr">1×</td>
+      </tr>
+      <tr>
+        <td><span class="code-pill">VIP15</span></td>
+        <td><strong>15% VIP Cashback &amp; Promo Offer</strong></td>
+        <td>Promo / Cashback</td>
+        <td class="ctr"><strong>+15%</strong></td>
+        <td class="ctr">$300</td>
+        <td class="ctr">$50</td>
+        <td class="ctr">2×</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout amber">
+    <div class="callout-title">How the Bonus Cashout Milestone Rule Works (2× Profit Target · 50% Cashout × 2 Milestones)</div>
+    <p style="font-size:8.2pt; margin-bottom:5pt;">
+      Qualifying trading profits earned across <strong>AI Trade, Forex, or Binary Options</strong> track automatically inside your live <strong>Active Bonus Cashout Tracker</strong>:
+    </p>
+    <div class="grid-3" style="margin-bottom:0;">
+      <div class="card" style="padding:7pt 8pt;">
+        <div style="font-weight:800; font-size:8pt; color:var(--amber);">1. Deposit + Bonus = 2× Target</div>
+        <div class="small" style="color:var(--ink-muted);">Example: $5,000 deposit + $5,000 bonus = <strong>$10,000</strong> capital. Trade to reach <strong>$20,000</strong> (2×).</div>
+      </div>
+      <div class="card" style="padding:7pt 8pt;">
+        <div style="font-weight:800; font-size:8pt; color:var(--brand-deep);">2. Withdraw 50% × 2 Times</div>
+        <div class="small" style="color:var(--ink-muted);">At $20,000, withdraw <strong>50% ($10,000)</strong>. Double remaining capital once more to withdraw 50% again.</div>
+      </div>
+      <div class="card" style="padding:7pt 8pt;">
+        <div style="font-weight:800; font-size:8pt; color:var(--sky);">3. 100% Normal Withdrawal</div>
+        <div class="small" style="color:var(--ink-muted);">After 2 completed milestones, all bonus locks clear and <strong>100% of remaining funds</strong> unlock permanently.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec-header" style="margin-top:10pt;">
+    <div>
+      <span class="sec-num">Section 10</span>
+      <h1 class="sec-title">Step-by-Step Quick-Start Guide (<span class="mono" style="font-size:11pt; color:var(--brand-deep);">avapartner.vercel.app</span>)</h1>
+    </div>
+    <span class="sec-tag">6-Step Lifecycle</span>
+  </div>
+
+  <div class="grid-2">
+    <div class="card-muted">
+      <h3 style="margin-top:0;">1. Register &amp; Attribution (<span class="mono">/signup</span>)</h3>
+      <p style="font-size:8pt; margin:0;">Sign up via email, password, and optional OTP verification. Any <code>?ref=CODE</code> link permanently binds you to your referrer's IB hierarchy and generates your own invite code plus permanent BEP-20 deposit wallet.</p>
+    </div>
+    <div class="card-muted">
+      <h3 style="margin-top:0;">2. Complete NID KYC (<span class="mono">/profile</span>)</h3>
+      <p style="font-size:8pt; margin:0;">Upload Front &amp; Back NID/Passport photos and complete residential address details to raise your Account Strength toward 100% and earn the <strong>Gold Verified Strong</strong> trust badge.</p>
+    </div>
+    <div class="card-muted">
+      <h3 style="margin-top:0;">3. Activate Google 2FA (<span class="mono">/security</span>)</h3>
+      <p style="font-size:8pt; margin:0;">Scan the 20-byte TOTP QR code with Google Authenticator so every future withdrawal requires a live 6-digit security confirmation code.</p>
+    </div>
+    <div class="card-muted">
+      <h3 style="margin-top:0;">4. Fund via USDT BEP-20 (<span class="mono">/wallet/deposit</span>)</h3>
+      <p style="font-size:8pt; margin:0;">Transfer USDT over <strong>BNB Smart Chain (BEP-20)</strong> to your permanent personal deposit address. Automated 20-second blockchain polling credits deposits and applies matched promo bonuses.</p>
+    </div>
+    <div class="card-muted">
+      <h3 style="margin-top:0;">5. Trade or Grow IB Network (<span class="mono">/dashboard</span>)</h3>
+      <p style="font-size:8pt; margin:0;">Trade Forex CFDs (1:100), Binary Options (80% payout), Top-100 Spot, Copy Trading, or AI Trade (Slots 1–4), while tracking L1/L2 IB commissions in <code>/ib-dashboard</code>.</p>
+    </div>
+    <div class="card-muted">
+      <h3 style="margin-top:0;">6. Withdraw Securely (<span class="mono">/wallet/withdraw</span>)</h3>
+      <p style="font-size:8pt; margin:0;">Enter amount (min $0.01) and destination address—validated instantaneously via EIP-55/Base58Check—confirm with 2FA, and receive settlement within <strong>3 to 24 hours</strong>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- PAGE 16: SECTION 11 — COMPREHENSIVE FAQ                        -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="section-break">
+  <div class="sec-header">
+    <div>
+      <span class="sec-num">Section 11</span>
+      <h1 class="sec-title">Frequently Asked Questions (A–Z Partner &amp; User Guide)</h1>
+    </div>
+    <span class="sec-tag">Knowledge Base</span>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-cat">IB &amp; Commissions</div>
+    <div class="faq-q">1. How does the IB &amp; Referral Program work step by step?</div>
+    <p style="margin:0; font-size:8pt;">Copy your invite link from <code>/ib-dashboard</code> or <code>/referral</code>. Users joining via your link become permanent Level 1 Direct Referrals. Whenever they receive AI Trade payouts, close Forex/Gold trades, or place Binary trades, your commission credits automatically to your Available Wallet Balance with zero lockup.</p>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-cat">IB &amp; Commissions</div>
+    <div class="faq-q">2. What is the difference between Direct (Level 1) and Sub-IB (Level 2)?</div>
+    <p style="margin:0; font-size:8pt;">Level 1 = traders you invite directly. Level 2 = traders invited by your Level 1 referrals. Bronze earns on Level 1 (<code>5% AI / $2 lot / 1% Binary</code>), whereas Silver Leader (<code>+2% AI / +$1 lot / +0.5% Binary</code>) and Gold Master (<code>+5% AI / +$2 lot</code>) earn simultaneously across both tiers.</p>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-cat">Lot Size &amp; Forex</div>
+    <div class="faq-q">3. What is Lot Size, how does 1:100 Margin work, and when do Forex IB rebates pay?</div>
+    <p style="margin:0; font-size:8pt;">Lots measure trade volume: <code>0.01</code> Micro, <code>0.10</code> Mini, <code>1.00</code> Standard. Required Margin = <code>(Lots × Market Price) ÷ 100</code>. Manual Forex/Gold IB commissions pay immediately upon trade close (including <em>Close All</em> across multiple positions).</p>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-cat">AI Trade</div>
+    <div class="faq-q">4. How does AI Trade pay out and how much IB commission do partners earn?</div>
+    <p style="margin:0; font-size:8pt;">AI Trade offers Starter ($10–$100, 1.5%–2.0%/d, 60% split), Booster ($101–$1,000, 2.0%–2.5%/d, 70% split), Premium ($1,001–$5,000, 2.5%–3.0%/d, 75% split), and Titan Mega ($5,001+, 3.0%–3.5%/d, 85% split). Earnings tick every 60s and pay out every 24h—triggering 5%/8%/12% Direct IB commissions immediately.</p>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-cat">Binary &amp; Payouts</div>
+    <div class="faq-q">5. Do partners earn Binary Options IB commission if a referral loses a trade?</div>
+    <p style="margin:0; font-size:8pt;"><strong>Yes.</strong> Binary Options IB commission (1% Bronze, 2% Silver, 3.5% Gold) is calculated on the Binary trade stake/turnover immediately when placed, regardless of win or loss. Winning trades return stake + 80% fixed payout to the trader.</p>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-cat">IB &amp; Commissions</div>
+    <div class="faq-q">6. How do Monthly Upgrades, Salary Bonuses, Official IB Holder &amp; Custom VIP Rates work?</div>
+    <p style="margin:0; font-size:8pt;">The hourly scheduler sums monthly team volume: $5,000+ unlocks Silver ($50/mo bonus) and $25,000+ unlocks Gold ($250/mo bonus). Admins can also grant Official IB Holder status, lock rank against dips, or assign Custom VIP Rates.</p>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-cat">Account &amp; Security</div>
+    <div class="faq-q">7. Why are timestamps standardized to Bangladesh Time (BDT) and how fast are withdrawals?</div>
+    <p style="margin:0; font-size:8pt;">All platform ledgers, deposits, withdrawals, and IB entries display <strong>Bangladesh Standard Time (Asia/Dhaka, BDT, UTC+6)</strong> for uniform auditing. Withdrawals require valid address checksum verification + Google Authenticator (2FA if enabled) and complete within <strong>3–24 hours</strong>.</p>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-cat">Account &amp; Cost</div>
+    <div class="faq-q">8. Is there any fee to join AvaPartner and promote multiple asset classes?</div>
+    <p style="margin:0; font-size:8pt;">No—registration is 100% free with zero setup fees or monthly charges, and a single referral link tracks across AI Trade, Forex/CFDs, Commodities, Cryptocurrencies, and Binary Options.</p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- PAGE 17: SECTION 12 (PART A) — OFFICIAL PRIVACY POLICY         -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="section-break legal-block">
+  <div class="sec-header">
+    <div>
+      <span class="sec-num">Section 12 · Part A</span>
+      <h1 class="sec-title">Official Privacy Policy (GDPR Compliant)</h1>
+    </div>
+    <span class="sec-tag">Data Protection</span>
+  </div>
+
+  <p>
+    <strong>AvaPartner</strong> ("we", "us", or "our"), operating as the official partner network of the AvaTrade Group (headquartered at Five Lamps Place, Amiens Street, Dublin 1, Ireland), respects your privacy and is committed to protecting your personal data in accordance with the <strong>EU General Data Protection Regulation (GDPR)</strong> and international data protection laws. This Privacy Policy governs data collected via <strong>avapartner.com</strong>, our official affiliate &amp; sub-company portal (<strong>https://avapartner.vercel.app/</strong>), and connected partner services.
+  </p>
+
+  <h3>1. Important Information and Who We Are</h3>
+  <p>This Privacy Policy informs you on how AvaPartner collects and processes personal data through your use of our website, trading terminal, and affiliate tracking network, including any data submitted when signing up to our affiliate or Introducing Broker program.</p>
+
+  <h3>2. The Data We Collect About You</h3>
+  <ul>
+    <li><strong>Identity Data:</strong> First name, last name, username or similar identifier, country of residence, and KYC verification documents (NID, Passport, Driving License &amp; selfie).</li>
+    <li><strong>Contact Data:</strong> Billing/residential address, email address, and telephone numbers.</li>
+    <li><strong>Financial Data:</strong> Bank account details, crypto wallet addresses, and payout configuration details required for commission settlements.</li>
+    <li><strong>Transaction Data:</strong> Details of deposits, withdrawals, commission payouts to you, and referral performance metrics.</li>
+    <li><strong>Technical Data:</strong> Internet protocol (IP) address, login telemetry, browser type and version, time zone setting and location.</li>
+    <li><strong>Tracking Data:</strong> Affiliate cookies and attribution parameters (<code>?ref=CODE</code>) used to track referred clients and calculate commissions.</li>
+  </ul>
+
+  <h3>3. How We Use Your Personal Data</h3>
+  <ul>
+    <li>Where we need to perform the contract we are about to enter into or have entered into with you (the AvaPartner Affiliate &amp; IB Agreement).</li>
+    <li>Where necessary for our legitimate business interests provided your fundamental rights do not override those interests.</li>
+    <li>Where we need to comply with legal or regulatory obligations under CBI, ASIC, FSA, ADGM, FSCA, or CySEC rules.</li>
+  </ul>
+
+  <h3>4. Data Security</h3>
+  <p>We have implemented institutional-grade security measures preventing your personal data from being accidentally lost, used, accessed without authorization, altered, or disclosed. Access to personal data is strictly limited to authorized employees, compliance officers, and bound contractors.</p>
+
+  <h3>5. Cookies and Tracking</h3>
+  <p>As an affiliate network, cookie and referral parameter tracking is fundamental to our attribution model. We use first-party cookies to attribute the referrals you send to our regulated brokerage platforms.</p>
+
+  <h3>6. Your Legal Rights</h3>
+  <p>Under GDPR and applicable international data protection laws, you hold the right to request access, correction, erasure, restriction, or transfer of your personal data, and the right to withdraw consent at any time.</p>
+
+  <div class="callout" style="margin-top:10pt;">
+    <div class="callout-title">Data Protection Officer (Dublin HQ)</div>
+    <p style="margin:0; font-size:8.2pt;">
+      For any privacy inquiries, GDPR data-subject requests, or to exercise your legal rights, contact our Dublin Data Protection Officer directly at <strong>privacy@avapartner.com</strong>.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- PAGE 18: SECTION 12 (PART B & C) — TERMS & RISK DISCLOSURE     -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="section-break legal-block">
+  <div class="sec-header">
+    <div>
+      <span class="sec-num">Section 12 · Part B &amp; C</span>
+      <h1 class="sec-title">Terms &amp; Conditions and Official Risk Disclosure</h1>
+    </div>
+    <span class="sec-tag">Partner Agreement</span>
+  </div>
+
+  <h3>1. Introduction and Acceptance</h3>
+  <p>These Terms and Conditions ("Agreement") govern participation in the <strong>AvaPartner Affiliate &amp; Introducing Broker Program</strong> operated by <strong>AvaPartner / AVA Trade EU Ltd</strong> ("Company"), Five Lamps Place, Amiens Street, Dublin 1, Ireland. By registering at <strong>avapartner.com</strong> or via the official digital affiliate &amp; sub-company portal (<strong>https://avapartner.vercel.app/</strong>), you ("Partner", "Affiliate", "IB") agree to be bound by this Agreement.</p>
+
+  <h3>2. Enrollment in the Affiliate Program</h3>
+  <p>To enroll, you must submit a complete partner application via our website. We evaluate all applications in good faith and reserve the right to reject any application at our sole discretion. Promotional methods must comply with financial promotions rules in your target jurisdictions.</p>
+
+  <h3>3. Partner Obligations and Regulatory Marketing Guidelines</h3>
+  <p>Partners agree to promote AvaPartner and AvaTrade ethically in strict compliance with <strong>CBI, ESMA, ASIC, FSA, ADGM, and FSCA</strong> rules, and must: (a) use only approved creatives or compliant educational content; (b) ensure profit/risk statements are accurate, balanced, and carry mandatory regulatory risk disclosures; (c) never send unsolicited commercial email (SPAM) or promise guaranteed trading returns; (d) never bid on restricted brand keywords (e.g., "AvaPartner", "AvaTrade") in PPC search campaigns without prior written authorization; and (e) clearly disclose affiliate/IB relationships where required by law.</p>
+
+  <h3>4. Commission Plans and Settlements</h3>
+  <ul>
+    <li><strong>CPA:</strong> Triggered when a referred client opens a verified account, deposits minimum required funds, and meets trading activity thresholds for their country tier.</li>
+    <li><strong>Revenue Share &amp; Multi-Stream IB:</strong> Calculated automatically on net spread, Forex/Gold lot volume, AI Trade performance, and Binary Options turnover, including eligible Level-2 Sub-IB overrides.</li>
+    <li><strong>Payments:</strong> Real-time IB rebates credit directly to your partner wallet; monthly CPA/bonus settlements process via Bank Wire, USDT/USDC crypto rails, or trading account transfer.</li>
+  </ul>
+
+  <h3>5. Intellectual Property &amp; 6. Tracking Attribution</h3>
+  <p>We grant a non-exclusive, non-transferable, revocable license to use approved trademarks and marketing assets solely under this Agreement; all IP remains owned by AvaPartner and AvaTrade Group. Partners are responsible for properly formatting tracking links and referral codes.</p>
+
+  <h3>7. Termination, 8. Limitation of Liability &amp; 9. Governing Law</h3>
+  <p>Either party may terminate upon written notice, whereupon tracking links and brand assets must be removed immediately. We reserve the right to withhold commissions generated through fraudulent traffic, self-referral abuse, or regulatory violations. AvaPartner shall not be liable for indirect, special, or consequential damages. Governed by the laws of <strong>Ireland</strong> and applicable local regulatory jurisdictions (CBI #C53877, ASIC #406684, FSA #1662, ADGM #190018, FSCA #45984, CySEC #347/17, BVI FSC #SIBA/L/13/1049). Compliance desk: <strong>compliance@avapartner.com</strong>.</p>
+
+  <div class="callout rose" style="margin-top:9pt;">
+    <div class="callout-title">⚠ OFFICIAL RISK WARNING &amp; AFFILIATE DISCLAIMER</div>
+    <p style="margin:0 0 4pt 0; font-weight:700; color:#881337; font-size:8.2pt;">
+      CFDs, Forex, and Options are complex instruments and come with a high risk of losing money rapidly due to leverage. Between 71% and 76% of retail investor accounts lose money when trading CFDs. You should consider whether you understand how CFDs work and whether you can afford to take the high risk of losing your money.
+    </p>
+    <p style="margin:0; font-size:7.8pt; color:#881337;">
+      Trading in Forex, Commodities, Cryptocurrencies, Binary Options, and CFDs is speculative and involves substantial risk of loss. Materials on AvaPartner portals are strictly for partnership and informational purposes—not financial advice. Authorized partners must display mandatory jurisdiction risk warnings on all promotional materials.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- PAGE 19: SECTION 13 — GLOBAL CONTACTS, PORTALS & 8 OFFICES     -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section class="section-break">
+  <div class="sec-header">
+    <div>
+      <span class="sec-num">Section 13</span>
+      <h1 class="sec-title">Global Contact Directory, Portals &amp; 8 Offices</h1>
+    </div>
+    <span class="sec-tag">24/5 Multilingual Desk</span>
+  </div>
+
+  <div class="grid-2" style="margin-bottom:7pt;">
+    <div class="card-dark" style="padding:9pt 11pt;">
+      <div style="font-size:7pt; text-transform:uppercase; letter-spacing:0.14em; color:#00df9a; font-weight:800; margin-bottom:3pt;">Official Global Headquarters &amp; Portals</div>
+      <h3 style="color:#ffffff; margin:0 0 4pt 0; font-size:11pt;">🇮🇪 AvaPartner Dublin HQ</h3>
+      <p style="font-size:7.9pt; margin:0 0 2pt 0;"><strong>AVA Trade EU Ltd / AvaPartner</strong></p>
+      <p style="font-size:7.9pt; margin:0 0 2pt 0;">Five Lamps Place, Amiens Street, Dublin 1, D01 E4X0, Ireland</p>
+      <p style="font-size:7.6pt; color:#34d399; margin:0 0 5pt 0;">Central Bank of Ireland License #C53877 · +353 1 513 7860</p>
+      <div style="border-top:0.5pt solid rgba(255,255,255,0.14); padding-top:4pt; font-size:7.5pt; line-height:1.45;">
+        <div><strong>Global Network:</strong> avapartner.com · avatrade.com</div>
+        <div><strong>Affiliate &amp; Sub-Company:</strong> <strong style="color:#00df9a;">https://avapartner.vercel.app/</strong></div>
+        <div><strong>General Partner Desk:</strong> partners@avapartner.com</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0;">Direct Department Contacts</h3>
+      <table style="margin:0; font-size:8pt;">
+        <tbody>
+          <tr><td style="padding:3.8pt 5pt;"><strong>CPA &amp; Media Buying</strong></td><td class="num mono" style="padding:3.8pt 5pt;">cpa@avapartner.com</td></tr>
+          <tr><td style="padding:3.8pt 5pt;"><strong>Master IB &amp; Institutional</strong></td><td class="num mono" style="padding:3.8pt 5pt;">ib@avapartner.com</td></tr>
+          <tr><td style="padding:3.8pt 5pt;"><strong>Payouts &amp; Finance</strong></td><td class="num mono" style="padding:3.8pt 5pt;">finance@avapartner.com</td></tr>
+          <tr><td style="padding:3.8pt 5pt;"><strong>Compliance &amp; Legal</strong></td><td class="num mono" style="padding:3.8pt 5pt;">compliance@avapartner.com</td></tr>
+          <tr><td style="padding:3.8pt 5pt;"><strong>Data Protection Officer</strong></td><td class="num mono" style="padding:3.8pt 5pt;">privacy@avapartner.com</td></tr>
+          <tr><td style="padding:3.8pt 5pt;"><strong>Careers &amp; HR Desk</strong></td><td class="num mono" style="padding:3.8pt 5pt;">careers@avapartner.com</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h2>Official Regional Offices Across 5 Continents</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Region</th>
+        <th>City</th>
+        <th>Office Street Address</th>
+        <th>Regulatory Reference</th>
+        <th>Regional Email</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>GLOBAL &amp; EU HQ</strong></td>
+        <td>🇮🇪 Dublin, Ireland</td>
+        <td>Five Lamps Place, Amiens Street, Dublin 1, D01 E4X0</td>
+        <td>CBI (No. C53877)</td>
+        <td class="mono">dublin@avapartner.com</td>
+      </tr>
+      <tr>
+        <td><strong>APAC HQ</strong></td>
+        <td>🇦🇺 Sydney, Australia</td>
+        <td>Level 13, 2 Park Street, Sydney NSW 2000</td>
+        <td>ASIC (AFSL 406684)</td>
+        <td class="mono">apac@avapartner.com</td>
+      </tr>
+      <tr>
+        <td><strong>EAST ASIA</strong></td>
+        <td>🇯🇵 Tokyo, Japan</td>
+        <td>Minato-ku, Roppongi Hills Mori Tower, Tokyo 106-6126</td>
+        <td>FSA #1662 / FFAJ #1574</td>
+        <td class="mono">tokyo@avapartner.com</td>
+      </tr>
+      <tr>
+        <td><strong>MENA &amp; GCC</strong></td>
+        <td>🇦🇪 Abu Dhabi, UAE</td>
+        <td>Al Maryah Island, Abu Dhabi Global Market Square</td>
+        <td>ADGM FSRA (No. 190018)</td>
+        <td class="mono">mena@avapartner.com</td>
+      </tr>
+      <tr>
+        <td><strong>WESTERN EUROPE</strong></td>
+        <td>🇮🇹 Milan, Italy</td>
+        <td>Via Mike Bongiorno 13, 20124 Milano MI</td>
+        <td>EU MiFID II Branch</td>
+        <td class="mono">eu@avapartner.com</td>
+      </tr>
+      <tr>
+        <td><strong>AFRICA</strong></td>
+        <td>🇿🇦 Johannesburg, ZA</td>
+        <td>Nelson Mandela Square, Sandton, Johannesburg 2196</td>
+        <td>FSCA (FSP 45984)</td>
+        <td class="mono">africa@avapartner.com</td>
+      </tr>
+      <tr>
+        <td><strong>EEA OPERATIONS</strong></td>
+        <td>🇨🇾 Limassol, Cyprus</td>
+        <td>Porto Bello Business Center, Limassol 3042</td>
+        <td>CySEC (No. 347/17)</td>
+        <td class="mono">cyprus@avapartner.com</td>
+      </tr>
+      <tr>
+        <td><strong>LATAM</strong></td>
+        <td>🇲🇽 Mexico City, MX</td>
+        <td>Paseo de la Reforma 296, Juárez, Cuauhtémoc, CDMX</td>
+        <td>LATAM Regional Hub</td>
+        <td class="mono">latam@avapartner.com</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="card-dark" style="text-align:center; padding:10.5pt; margin-top:8pt;">
+    <div style="font-size:11pt; font-weight:900; color:#00df9a; margin-bottom:3pt;">Ready to Partner with AvaPartner Globally?</div>
+    <p style="margin:0; font-size:8pt;">
+      Join 150,000+ international partners across 150+ countries. Register via <strong style="color:#00df9a;">https://avapartner.vercel.app/signup</strong> or <strong>avapartner.com/signup</strong>, or connect with our Dublin HQ Desk at <strong>partners@avapartner.com</strong> (+353 1 513 7860).
+    </p>
+  </div>
+</section>
+
+</body>
+</html>

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../store'
 import InstallAppButton from '../components/InstallAppButton'
+import CompanyProfileButton from '../components/CompanyProfileButton'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -29,6 +30,7 @@ export default function Login() {
   return (
     <div className="max-w-md mx-auto pt-2 sm:pt-4">
       <InstallAppButton variant="auth-top" />
+      <CompanyProfileButton variant="auth-top" />
       <div className="card">
         <h2 className="text-xl font-bold mb-4">Sign in</h2>
       {err && <div className="text-red-400 mb-2">{err}</div>}

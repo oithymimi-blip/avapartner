@@ -1,4 +1,14 @@
 {
+  "headers": [
+    {
+      "source": "/AvaPartner_Company_Profile.pdf",
+      "headers": [
+        { "key": "Content-Type", "value": "application/pdf" },
+        { "key": "Content-Disposition", "value": "inline; filename=\"AvaPartner_Company_Profile.pdf\"" },
+        { "key": "Cache-Control", "value": "public, max-age=3600" }
+      ]
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",

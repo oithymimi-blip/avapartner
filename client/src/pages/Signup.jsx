@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../store'
 import InstallAppButton from '../components/InstallAppButton'
+import CompanyProfileButton from '../components/CompanyProfileButton'
 
 export default function Signup() {
   const [qp] = useSearchParams()
@@ -57,6 +58,7 @@ export default function Signup() {
   return (
     <div className="max-w-md mx-auto pt-2 sm:pt-4">
       <InstallAppButton variant="auth-top" />
+      <CompanyProfileButton variant="auth-top" />
       <div className="card">
         <h2 className="text-xl font-bold mb-4">Create account</h2>
       {ref && <div className="text-xs text-white/60 mb-4 pb-2 border-b border-white/5">Referred by code: <span className="text-brand font-mono">{ref}</span></div>}

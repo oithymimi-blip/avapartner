@@ -1,4 +1,4 @@
-const CACHE_NAME = 'avapartner-cache-v2';
+const CACHE_NAME = 'avapartner-cache-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -33,6 +33,11 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) {
+    return;
+  }
+
+  const requestUrl = new URL(event.request.url);
+  if (requestUrl.pathname.toLowerCase().endsWith('.pdf')) {
     return;
   }
   

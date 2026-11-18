@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../store'
+import CompanyProfileButton from '../components/CompanyProfileButton'
 
 const OFFICIAL_REGULATIONS = [
   {
@@ -242,6 +243,7 @@ export default function Landing() {
               </svg>
               {isInstalled ? 'App Installed' : 'Install Mobile App'}
             </button>
+            <CompanyProfileButton variant="hero" />
           </div>
         </div>
 
@@ -325,6 +327,11 @@ export default function Landing() {
             <div className="text-[11px] text-white/45 mt-1">{stat.sub}</div>
           </div>
         ))}
+      </section>
+
+      {/* Official Company Profile PDF Dossier Showcase */}
+      <section>
+        <CompanyProfileButton variant="showcase" />
       </section>
 
       {/* Official Countries & Global Regulation Section */}

@@ -9,6 +9,7 @@ import AITradePanel from '../components/AITradePanel'
 import UnifiedHistoryView from '../components/UnifiedHistoryView'
 import ErrorBoundary from '../components/ErrorBoundary'
 import InstallAppButton from '../components/InstallAppButton'
+import CompanyProfileButton from '../components/CompanyProfileButton'
 import { api } from '../api'
 import { useAuth } from '../store'
 import { useAccount } from '../accountStore'
@@ -499,6 +500,7 @@ export default function UserDashboard() {
                 <Gift className="w-3.5 h-3.5 flex-shrink-0" />
                 <span>Deposit Bonus &amp; Offers</span>
               </Link>
+              <CompanyProfileButton variant="dashboard-pill" />
               <InstallAppButton variant="dashboard-pill" />
             </div>
           </div>
