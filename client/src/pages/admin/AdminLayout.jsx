@@ -13,6 +13,7 @@ const navItems = [
   { label: 'Spot Markets', icon: '📈', path: '/admin/spot-markets', permission: 'market' },
   { label: 'Users', icon: '👥', path: '/admin/users', permission: 'users' },
   { label: 'IB & Affiliates', icon: '🤝', path: '/admin/ib-affiliates', permission: 'users' },
+  { label: 'Promotions & Bonus', icon: '🎁', path: '/admin/promotions', permission: 'users' },
   { label: 'Deposits', icon: '💳', path: '/admin/deposits', permission: 'users' },
   { label: 'Withdrawals', icon: '💸', path: '/admin/withdrawals', permission: 'users' },
   { label: 'Verifications', icon: '📝', path: '/admin/verifications', permission: 'users' },

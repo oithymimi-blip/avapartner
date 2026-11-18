@@ -49,9 +49,27 @@ import AdminDepositsPage from './pages/admin/AdminDepositsPage'
 import AdminWithdrawalsPage from './pages/admin/AdminWithdrawalsPage'
 import AdminFeaturesPage from './pages/admin/AdminFeaturesPage'
 import AdminIBAffiliatesPage from './pages/admin/AdminIBAffiliatesPage'
+import AdminPromotionsPage from './pages/admin/AdminPromotionsPage'
 import AdminBackupPage from './pages/admin/AdminBackupPage'
+import Promotions from './pages/Promotions'
 import InstallAppButton from './components/InstallAppButton'
 import UserAvatar from './components/UserAvatar'
+import {
+  TrendingUp,
+  History as HistoryIcon,
+  User,
+  Share2,
+  Award,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  ShieldCheck,
+  Gift,
+  LogOut,
+  ChevronRight,
+  PlusCircle,
+  LogIn,
+  UserPlus
+} from 'lucide-react'
 
 const navCurrency = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -98,6 +116,7 @@ function Shell({ children }) {
   const markAllRead = useNotificationsStore(state => state.markAllRead)
   const [menuOpen, setMenuOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
+  const [activePromoCount, setActivePromoCount] = useState(0)
   const [balanceHidden, setBalanceHidden] = useState(() => localStorage.getItem('balance_hidden') === '1')
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark')
   const nav = useNavigate()
@@ -152,6 +171,19 @@ function Shell({ children }) {
       .then(res => setNotifications(res.data.notifications || [], res.data.unread || 0))
       .catch(err => console.error('Failed to load notifications', err))
   }, [token, setNotifications])
+
+  useEffect(() => {
+    if (!token) {
+      setActivePromoCount(0)
+      return
+    }
+    api(token).get('/api/promotions')
+      .then(res => {
+        const count = Number(res.data?.active_count ?? res.data?.promotions?.length ?? 0)
+        setActivePromoCount(count)
+      })
+      .catch(() => {})
+  }, [token, location.pathname])
 
   useEffect(() => {
     if (!token) return
@@ -242,17 +274,58 @@ function Shell({ children }) {
     setTheme(prev => (prev === 'light' ? 'dark' : 'light'))
   }
 
-  const menuItems = []
-  if (user) {
-    menuItems.push({ label: 'Trade', path: '/dashboard' })
-    menuItems.push({ label: 'History', path: '/history' })
-    menuItems.push({ label: 'Profile', path: '/profile' })
-    menuItems.push({ label: 'Affiliate Program', path: '/referral' })
-    menuItems.push({ label: 'IB Dashboard', path: '/ib-dashboard' })
-    menuItems.push({ label: 'Deposit', path: '/wallet/deposit' })
-    menuItems.push({ label: 'Withdraw', path: '/wallet/withdraw' })
-    menuItems.push({ label: 'Security', path: '/security' })
-  }
+  const menuItems = user
+    ? [
+        {
+          label: 'Trade',
+          path: '/dashboard',
+          icon: TrendingUp,
+          iconCls: 'bg-white text-emerald-600'
+        },
+        {
+          label: 'History',
+          path: '/history',
+          icon: HistoryIcon,
+          iconCls: 'bg-white text-indigo-600'
+        },
+        {
+          label: 'Profile',
+          path: '/profile',
+          icon: User,
+          iconCls: 'bg-white text-cyan-600'
+        },
+        {
+          label: 'Affiliate Program',
+          path: '/referral',
+          icon: Share2,
+          iconCls: 'bg-white text-violet-600'
+        },
+        {
+          label: 'IB Dashboard',
+          path: '/ib-dashboard',
+          icon: Award,
+          iconCls: 'bg-white text-amber-600'
+        },
+        {
+          label: 'Deposit',
+          path: '/wallet/deposit',
+          icon: ArrowDownToLine,
+          iconCls: 'bg-white text-teal-600'
+        },
+        {
+          label: 'Withdraw',
+          path: '/wallet/withdraw',
+          icon: ArrowUpFromLine,
+          iconCls: 'bg-white text-orange-600'
+        },
+        {
+          label: 'Security',
+          path: '/security',
+          icon: ShieldCheck,
+          iconCls: 'bg-white text-blue-600'
+        }
+      ]
+    : []
 
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden w-full max-w-full">
@@ -291,8 +364,9 @@ function Shell({ children }) {
           
           {user && (
             <div className="flex-1 flex justify-center px-1 overflow-hidden">
-              <Link to="/wallet/deposit" className="bg-brand text-black font-bold px-4 py-1.5 rounded-full text-[11px] sm:text-xs shadow-md shadow-brand/20 hover:bg-emerald-400 transition-colors whitespace-nowrap">
-                Add Funds
+              <Link to="/wallet/deposit" className="add-funds-btn inline-flex items-center gap-1.5 bg-brand text-black font-bold px-4 py-1.5 rounded-full text-[11px] sm:text-xs shadow-md shadow-brand/20 hover:bg-emerald-400 transition-colors whitespace-nowrap">
+                <PlusCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>Add Funds</span>
               </Link>
             </div>
           )}
@@ -308,8 +382,14 @@ function Shell({ children }) {
             )}
             {!user && (
               <div className="flex items-center gap-2 text-xs sm:text-sm">
-                <Link to="/login" className="btn px-3 py-1.5 sm:px-4 sm:py-2">Login</Link>
-                <Link to="/signup" className="btn bg-white text-black px-3 py-1.5 sm:px-4 sm:py-2">Sign up</Link>
+                <Link to="/login" className="btn px-3 py-1.5 sm:px-4 sm:py-2 inline-flex items-center gap-1.5">
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Login</span>
+                </Link>
+                <Link to="/signup" className="btn bg-white text-black px-3 py-1.5 sm:px-4 sm:py-2 inline-flex items-center gap-1.5">
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Sign up</span>
+                </Link>
               </div>
             )}
             {user && (
@@ -403,41 +483,97 @@ function Shell({ children }) {
                   <span className="hidden sm:block max-w-[120px] truncate">{user.name || user.email}</span>
                 </button>
                 {menuOpen && (
-                  <div className="absolute right-0 mt-2 w-64 rounded-xl border border-white/10 bg-[#0b0f13] shadow-soft p-2 space-y-1 text-sm">
+                  <div className="user-menu-panel absolute right-0 mt-2 w-72 max-w-[calc(100vw-1rem)] max-h-[85vh] overflow-y-auto rounded-2xl border border-white/15 bg-[#0b0f13]/95 backdrop-blur-xl shadow-2xl p-2.5 space-y-1.5 text-sm">
                     <button
                       type="button"
                       onClick={() => handleNavigate('/profile')}
-                      className="w-full flex items-center gap-2.5 p-2 rounded-lg hover:bg-white/10 transition text-left border-b border-white/10 pb-2.5 mb-1"
+                      className="user-menu-btn w-full flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.03] hover:bg-white/10 border border-white/10 transition text-left"
                     >
                       <UserAvatar user={user} size="md" />
                       <div className="min-w-0 flex-1">
                         <div className="font-semibold truncate text-xs">{user.name || 'Trader'}</div>
                         <div className="text-[11px] opacity-60 truncate">{user.email}</div>
                       </div>
+                      <ChevronRight className="w-4 h-4 opacity-40 flex-shrink-0" />
                     </button>
-                    <div className="pb-1 mb-1 border-b border-white/10">
+
+                    <div className="space-y-1.5 py-1.5 border-y border-white/10">
                       <InstallAppButton variant="menu" />
-                    </div>
-                    {menuItems.map(item => (
                       <button
-                        key={item.path}
-                        onClick={() => handleNavigate(item.path)}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10"
-                      >{item.label}</button>
-                    ))}
-                    <button
-                      onClick={toggleTheme}
-                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 flex items-center gap-2"
-                    >
-                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-white text-slate-900">
-                        {theme === 'light' ? <MoonIcon className="w-3.5 h-3.5" /> : <SunIcon className="w-3.5 h-3.5" />}
-                      </span>
-                      <span>{theme === 'light' ? 'Night mode' : 'Day mode'}</span>
-                    </button>
-                    <button
-                      onClick={() => { setMenuOpen(false); logout(); nav('/'); }}
-                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-rose-400"
-                    >Log out</button>
+                        type="button"
+                        onClick={() => handleNavigate('/promotions')}
+                        className="user-menu-card-btn user-menu-promo-btn w-full text-left px-2.5 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 via-orange-500/15 to-emerald-500/15 hover:from-amber-500/30 hover:to-emerald-500/25 border border-amber-400/35 text-amber-200 font-semibold flex items-center justify-between gap-2.5 transition-all duration-150 group"
+                      >
+                        <span className="flex items-center gap-2.5 min-w-0">
+                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-white text-amber-600 shadow-sm ring-1 ring-slate-900/10 flex-shrink-0">
+                            <Gift className="w-4 h-4" />
+                          </span>
+                          <span className="truncate text-[13px]">Deposit Bonus &amp; Offers</span>
+                        </span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-amber-400/20 text-amber-300 border border-amber-400/30 flex-shrink-0">
+                          {activePromoCount > 0 ? `${activePromoCount} New` : 'Bonus'}
+                        </span>
+                      </button>
+                    </div>
+
+                    <div className="space-y-1">
+                      {menuItems.map(item => {
+                        const Icon = item.icon
+                        const isActive = location.pathname === item.path
+                        return (
+                          <button
+                            key={item.path}
+                            type="button"
+                            onClick={() => handleNavigate(item.path)}
+                            className={`user-menu-btn w-full text-left px-2.5 py-1.5 rounded-xl border flex items-center justify-between gap-2.5 transition-all duration-150 group ${
+                              isActive
+                                ? 'user-menu-btn-active bg-brand/15 border-brand/40 text-white font-semibold'
+                                : 'bg-white/[0.03] hover:bg-white/[0.08] border-white/[0.07] hover:border-white/15'
+                            }`}
+                          >
+                            <span className="flex items-center gap-2.5 min-w-0">
+                              <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full shadow-sm ring-1 ring-slate-900/10 flex-shrink-0 ${item.iconCls}`}>
+                                <Icon className="w-4 h-4" />
+                              </span>
+                              <span className="truncate text-[13px] font-medium">{item.label}</span>
+                            </span>
+                            <ChevronRight className="w-3.5 h-3.5 opacity-35 group-hover:opacity-80 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    <div className="pt-1.5 border-t border-white/10 space-y-1.5">
+                      <button
+                        type="button"
+                        onClick={toggleTheme}
+                        className="user-menu-btn w-full text-left px-2.5 py-1.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.07] hover:border-white/15 flex items-center justify-between gap-2.5 transition-all duration-150 group"
+                      >
+                        <span className="flex items-center gap-2.5 min-w-0">
+                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-white text-slate-900 shadow-sm ring-1 ring-slate-900/10 flex-shrink-0">
+                            {theme === 'light' ? <MoonIcon className="w-4 h-4" /> : <SunIcon className="w-4 h-4" />}
+                          </span>
+                          <span className="truncate text-[13px] font-medium">{theme === 'light' ? 'Night mode' : 'Day mode'}</span>
+                        </span>
+                        <span className="text-[10px] uppercase tracking-wider opacity-55 font-semibold px-1.5 py-0.5 rounded bg-white/5">
+                          {theme === 'light' ? 'Dark' : 'Light'}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => { setMenuOpen(false); logout(); nav('/'); }}
+                        className="user-menu-card-btn user-menu-logout-btn w-full text-left px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 text-rose-400 flex items-center justify-between gap-2.5 transition-all duration-150 group"
+                      >
+                        <span className="flex items-center gap-2.5 min-w-0">
+                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-white text-rose-600 shadow-sm ring-1 ring-slate-900/10 flex-shrink-0">
+                            <LogOut className="w-4 h-4" />
+                          </span>
+                          <span className="truncate text-[13px] font-semibold">Log out</span>
+                        </span>
+                        <ChevronRight className="w-3.5 h-3.5 opacity-45 group-hover:opacity-90 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -561,6 +697,8 @@ export default function App() {
       <Route path="/history" element={<Shell><History /></Shell>} />
       <Route path="/referral" element={<Shell><Referral /></Shell>} />
       <Route path="/ib-dashboard" element={<Shell><IBDashboard /></Shell>} />
+      <Route path="/promotions" element={<Shell><Promotions /></Shell>} />
+      <Route path="/bonuses" element={<Navigate to="/promotions" replace />} />
       <Route path="/security" element={<Shell><Security /></Shell>} />
       <Route path="/wallet" element={<Navigate to="/wallet/deposit" replace />} />
       <Route path="/wallet/deposit" element={<Shell><WalletDeposit /></Shell>} />
@@ -579,6 +717,7 @@ export default function App() {
         <Route path="roles" element={<AdminRolesPage />} />
         <Route path="features" element={<AdminFeaturesPage />} />
         <Route path="ib-affiliates" element={<AdminIBAffiliatesPage />} />
+        <Route path="promotions" element={<AdminPromotionsPage />} />
         <Route path="backups" element={<AdminBackupPage />} />
       </Route>
     </Routes>

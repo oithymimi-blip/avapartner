@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../store';
 import { api } from '../api';
 import { useAccount } from '../accountStore';
 import QRCode from 'react-qr-code';
-import { Copy, CheckCircle2, AlertCircle, Loader2, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Copy, CheckCircle2, AlertCircle, Loader2, RefreshCw, ShieldCheck, Gift, ArrowRight } from 'lucide-react';
 import { socket } from '../socket';
 import { formatBdDateTime } from '../utils/bdTime';
 
@@ -26,6 +27,8 @@ export default function WalletDeposit() {
   const [copied, setCopied] = useState(false);
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [searchParams] = useSearchParams();
+  const [activePromoBanner, setActivePromoBanner] = useState(null);
 
   const balance = account?.balance?.total ?? account?.balance?.available ?? 0;
 
@@ -99,6 +102,36 @@ export default function WalletDeposit() {
 
   useEffect(() => {
     if (!token) return;
+    const requestedPromo = (searchParams.get('promo') || '').trim().toUpperCase();
+    api(token).get('/api/promotions')
+      .then(res => {
+        const promos = Array.isArray(res.data?.promotions) ? res.data.promotions : [];
+        const claims = Array.isArray(res.data?.claims) ? res.data.claims : [];
+        const activatedClaim = claims.find(c => c.status === 'activated');
+        if (requestedPromo) {
+          const matched = promos.find(p => String(p.promo_code || '').toUpperCase() === requestedPromo);
+          if (matched) {
+            setActivePromoBanner({ promo: matched, activated: activatedClaim?.promotion_id === matched.id });
+            return;
+          }
+        }
+        if (activatedClaim) {
+          const matched = promos.find(p => p.id === activatedClaim.promotion_id);
+          if (matched) {
+            setActivePromoBanner({ promo: matched, activated: true });
+            return;
+          }
+        }
+        const featured = promos.find(p => p.category === 'deposit_bonus') || promos[0];
+        if (featured) {
+          setActivePromoBanner({ promo: featured, activated: false });
+        }
+      })
+      .catch(() => {});
+  }, [token, searchParams]);
+
+  useEffect(() => {
+    if (!token) return;
     const interval = setInterval(() => {
       syncBalanceAndHistory();
     }, 15000);
@@ -162,6 +195,39 @@ export default function WalletDeposit() {
         <div className="rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-4 flex items-center gap-3 text-emerald-300">
           <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-400" />
           <p className="text-sm">{statusMessage}</p>
+        </div>
+      )}
+
+      {activePromoBanner?.promo && (
+        <div className="rounded-2xl border border-amber-400/30 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-emerald-500/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-400/35 text-amber-300 flex items-center justify-center shrink-0">
+              <Gift className="w-5 h-5" />
+            </span>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs sm:text-sm font-bold text-white">{activePromoBanner.promo.title}</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-400/20 text-amber-300 border border-amber-400/35">
+                  {activePromoBanner.activated ? 'Activated' : (activePromoBanner.promo.badge_text || 'Offer')}
+                </span>
+              </div>
+              <p className="text-xs text-white/70 mt-0.5">
+                {activePromoBanner.promo.bonus_type === 'fixed'
+                  ? `Get +$${Number(activePromoBanner.promo.bonus_value).toFixed(0)} bonus`
+                  : `Get +${Number(activePromoBanner.promo.bonus_value)}% bonus${Number(activePromoBanner.promo.max_bonus_amount) > 0 ? ` up to $${Number(activePromoBanner.promo.max_bonus_amount).toLocaleString()}` : ''}`}
+                {Number(activePromoBanner.promo.min_deposit) > 0
+                  ? ` on deposits of $${Number(activePromoBanner.promo.min_deposit).toFixed(0)}+ USDT.`
+                  : '.'}
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/promotions"
+            className="shrink-0 inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition"
+          >
+            <span>{activePromoBanner.activated ? 'View Offer' : 'Claim / Offers'}</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
       )}
 

@@ -130,13 +130,20 @@ export default function InstallAppButton({ variant = 'default', className = '' }
         <button
           type="button"
           onClick={handleInstallClick}
-          className={`w-full text-left px-3 py-2 rounded-lg bg-gradient-to-r from-sky-500/20 to-blue-600/20 hover:from-sky-500/30 hover:to-blue-600/30 border border-sky-500/30 text-sky-300 font-bold flex items-center gap-2 transition-colors ${className}`}
+          className={`user-menu-card-btn user-menu-install-btn w-full text-left px-2.5 py-2 rounded-xl bg-gradient-to-r from-sky-500/20 via-sky-500/15 to-blue-600/20 hover:from-sky-500/30 hover:to-blue-600/30 border border-sky-400/35 text-sky-200 font-semibold flex items-center justify-between gap-2.5 transition-all duration-150 group ${className}`}
         >
-          <svg className="w-4 h-4 text-sky-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
-            <line x1="12" y1="18" x2="12.01" y2="18" />
-          </svg>
-          <span>{isInstalled ? 'App Installed' : 'Install Mobile App'}</span>
+          <span className="flex items-center gap-2.5 min-w-0">
+            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-white text-sky-600 shadow-sm ring-1 ring-slate-900/10 flex-shrink-0">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+                <line x1="12" y1="18" x2="12.01" y2="18" />
+              </svg>
+            </span>
+            <span className="truncate text-[13px]">{isInstalled ? 'App Installed' : 'Install Mobile App'}</span>
+          </span>
+          <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-sky-400/20 text-sky-300 border border-sky-400/30 flex-shrink-0">
+            {isInstalled ? 'Ready' : 'App'}
+          </span>
         </button>
       ) : (
         <button

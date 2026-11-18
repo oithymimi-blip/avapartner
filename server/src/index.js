@@ -20,6 +20,7 @@ import aiTradeRoutes from './aitrade/routes.js';
 import { initAITradeEngine } from './aitrade/earningsEngine.js';
 import ibRoutes from './ib/routes.js';
 import { initMonthlyIBScheduler } from './ib/monthlyScheduler.js';
+import { promotionsRouter, adminPromotionsRouter } from './promotions/routes.js';
 import db, { backupDatabase } from './db.js';
 import {
   getPersistenceStatus,
@@ -103,6 +104,12 @@ app.use('/ai-trade', aiTradeRoutes);
 
 app.use('/api/ib', ibRoutes);
 app.use('/ib', ibRoutes);
+
+app.use('/api/promotions', promotionsRouter);
+app.use('/promotions', promotionsRouter);
+
+app.use('/api/admin/promotions', adminPromotionsRouter);
+app.use('/admin/promotions', adminPromotionsRouter);
 
 app.use('/api', userRoutes);
 app.use('/', userRoutes);

@@ -5,6 +5,7 @@ import { createClient as createLibsqlClient } from '@libsql/client';
 import { DB_FILE, DATABASE_URL, TURSO_DATABASE_URL, TURSO_AUTH_TOKEN } from './config.js';
 import { registerMutationListener } from './db.js';
 import { ensureIBSchemaAndDefaults } from './ib/ibConfig.js';
+import { ensurePromotionsSchemaAndDefaults } from './promotions/defaults.js';
 
 const { Pool } = pg;
 
@@ -31,6 +32,8 @@ export const PERSISTENT_TABLES = [
   'ib_program_config',
   'ib_commission_ledger',
   'ib_monthly_metrics',
+  'promotions',
+  'promotion_claims',
   'verifications',
   'payment_methods',
   'payment_requests',
@@ -53,6 +56,7 @@ const USER_LINKED_TABLES_APPEND = [
   'spot_orders',
   'ai_trade_history',
   'ib_commission_ledger',
+  'promotion_claims',
   'notifications',
   'activity_logs',
   'payment_requests',
@@ -327,6 +331,28 @@ function mergeSnapshot(db, snapshot) {
         }
       }
 
+      const promoIdMap = new Map();
+      const promoCols = getTableColumns(db, 'promotions');
+      if (promoCols.length > 0) {
+        for (const row of (data.promotions || [])) {
+          const existing = row.promo_code
+            ? db.prepare('SELECT id FROM promotions WHERE LOWER(promo_code) = LOWER(?)').get(row.promo_code)
+            : db.prepare('SELECT id FROM promotions WHERE title = ?').get(row.title);
+          if (existing) {
+            promoIdMap.set(row.id, existing.id);
+            continue;
+          }
+          const clone = { ...row };
+          delete clone.id;
+          const cols = promoCols.filter(c => Object.prototype.hasOwnProperty.call(clone, c));
+          if (cols.length === 0) continue;
+          const stmt = buildInsertStatement(db, 'promotions', cols, 'INSERT');
+          const res = stmt.run(...cols.map(c => clone[c] === undefined ? null : clone[c]));
+          promoIdMap.set(row.id, Number(res.lastInsertRowid));
+          stats.recordsMerged += res.changes || 0;
+        }
+      }
+
       for (const row of (data.user_deposit_wallets || [])) {
         const targetUid = userIdMap.get(row.user_id);
         if (!targetUid || !row.address || !row.private_key) continue;
@@ -401,6 +427,13 @@ function mergeSnapshot(db, snapshot) {
             const dup = db.prepare('SELECT id FROM copy_relationships WHERE user_id = ? AND master_trader_id = ? AND COALESCE(created_at, \'\') = ?')
               .get(clone.user_id, row.master_trader_id, row.created_at || '');
             if (dup) continue;
+          } else if (table === 'promotion_claims') {
+            const mappedPromoId = promoIdMap.get(row.promotion_id) || row.promotion_id;
+            if (!mappedPromoId) continue;
+            clone.promotion_id = mappedPromoId;
+            const dup = db.prepare('SELECT id FROM promotion_claims WHERE user_id = ? AND promotion_id = ? AND COALESCE(claimed_at, \'\') = ?')
+              .get(clone.user_id, clone.promotion_id, row.claimed_at || '');
+            if (dup) continue;
           }
 
           const cols = validCols.filter(c => Object.prototype.hasOwnProperty.call(clone, c));
@@ -428,10 +461,14 @@ export function importDatabaseSnapshot(db = dbRef, snapshot, { mode = 'merge' } 
     if (mode === 'replace') {
       replaceSnapshot(db, snapshot);
       ensureIBSchemaAndDefaults(db);
+      if (!Array.isArray(snapshot.data.promotions)) {
+        ensurePromotionsSchemaAndDefaults(db);
+      }
       return { ok: true, mode: 'replace', userCount: snapshot.data.users?.length || 0 };
     }
     const stats = mergeSnapshot(db, snapshot);
     ensureIBSchemaAndDefaults(db);
+    ensurePromotionsSchemaAndDefaults(db);
     return { ok: true, mode: 'merge', ...stats };
   } finally {
     isRestoring = false;

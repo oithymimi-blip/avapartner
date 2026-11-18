@@ -16,6 +16,7 @@ import { FACTORY_ABI, ERC20_ABI, FORWARDER_ABI } from './abis.js';
 import db from '../db.js';
 import { emitSocket } from '../market/engine.js';
 import { notifyAdmin } from '../notifications/adminNotifications.js';
+import { processQualifyingDepositForPromotions } from '../promotions/promoEngine.js';
 
 const BSC_RPC_LIST = Array.from(
   new Set([
@@ -333,7 +334,7 @@ async function inspectAndProcessDepositAddress(walletRow) {
           db.prepare('INSERT OR IGNORE INTO balances (user_id, available, locked) VALUES (?, 0, 0)').run(userId);
           db.prepare('UPDATE balances SET available = COALESCE(available, 0) + ? WHERE user_id = ?').run(amount, userId);
 
-          db.prepare(`
+          const payRes = db.prepare(`
             INSERT INTO payment_requests (user_id, type, amount, address, tx_ref, status)
             VALUES (?, 'deposit', ?, ?, ?, 'approved')
           `).run(userId, amount, address, txHash);
@@ -363,15 +364,16 @@ async function inspectAndProcessDepositAddress(walletRow) {
             VALUES (?, ?, ?)
           `).run(userId, 'Deposit Credited', `Your deposit of ${amount} USDT has been successfully credited.`);
 
-          return notifRes.lastInsertRowid;
+          return { notifId: notifRes.lastInsertRowid, depositReqId: Number(payRes.lastInsertRowid) };
         });
 
-        const notifId = tx();
+        const { notifId, depositReqId } = tx();
         creditedAmount = amount;
 
         const newNotification = db.prepare('SELECT * FROM notifications WHERE id = ?').get(notifId);
         emitSocket('notification', { notification: newNotification });
         emitSocket('user_data_update', { user_id: userId, type: 'deposit_credited' });
+        processQualifyingDepositForPromotions(userId, amount, depositReqId);
 
         notifyAdmin({
           type: 'deposit',

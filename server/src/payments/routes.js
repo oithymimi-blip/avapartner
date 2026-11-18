@@ -8,6 +8,7 @@ import { notifyAdmin } from '../notifications/adminNotifications.js';
 import { emitSocket } from '../market/engine.js';
 import { validateCryptoAddress } from '../utils/addressValidator.js';
 import { verifyTotpCode } from '../utils/totp.js';
+import { processQualifyingDepositForPromotions } from '../promotions/promoEngine.js';
 
 const router = express.Router();
 
@@ -564,6 +565,9 @@ function settleRequestStatus(id, status) {
     type: row.type === 'deposit' ? 'deposit_credited' : 'withdrawal_updated',
     status
   });
+  if (status === 'approved' && row.type === 'deposit') {
+    processQualifyingDepositForPromotions(row.user_id, row.amount, row.id);
+  }
   if (row.type === 'withdraw' && updatedRequest) {
     emitSocket('admin_withdrawal_update', { request: updatedRequest });
   }

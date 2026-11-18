@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { spotMarketsSeed } from './spot/marketsSeed.js';
 import { DEFAULT_MARKETS } from './market/defaultMarkets.js';
+import { ensurePromotionsSchemaAndDefaults } from './promotions/defaults.js';
 
 const db = new Database(DB_FILE);
 db.pragma('journal_mode = WAL');
@@ -624,6 +625,8 @@ INSERT OR IGNORE INTO ib_program_config (key, value) VALUES
   ('only_approved_ib_earn', '0'),
   ('auto_upgrade_enabled', '1');
 `);
+
+ensurePromotionsSchemaAndDefaults(db);
 
 const defaultChannels = [
   { channel: 'OTC', label: 'OTC Desk', base_price: 60000, volatility: 0.02, speed: 1, status: 'live', description: 'Primary OTC desk' },

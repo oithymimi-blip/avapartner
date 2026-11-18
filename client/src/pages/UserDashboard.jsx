@@ -14,6 +14,25 @@ import { useAuth } from '../store'
 import { useAccount } from '../accountStore'
 import { socket } from '../socket'
 import { formatBdDateTime, formatBdTime } from '../utils/bdTime'
+import {
+  TrendingUp,
+  Timer,
+  Coins,
+  Globe,
+  Users,
+  Bot,
+  History as HistoryIcon,
+  Gift
+} from 'lucide-react'
+
+const FEATURE_ICONS = {
+  forex: TrendingUp,
+  binary: Timer,
+  spot: Coins,
+  web3: Globe,
+  copytrading: Users,
+  ai_trade: Bot
+}
 
 const defaultBase = (() => {
   if (typeof window !== 'undefined') {
@@ -445,29 +464,43 @@ export default function UserDashboard() {
           <div className="sticky top-[52px] sm:top-[60px] z-40 bg-slate-950/95 backdrop-blur-md py-3 -mx-3 px-3 sm:bg-transparent sm:backdrop-blur-none sm:py-0 border-b border-white/10 sm:border-none flex flex-wrap items-center justify-between gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/50 mb-4 sm:mb-0 sm:mx-0 sm:px-0">
             <div className="flex flex-wrap items-center gap-1.5">
               {activeFeatures.length === 0 && <span>No features active</span>}
-              {activeFeatures.map(({ key, label }) => (
-                <button
-                  key={key}
-                  onClick={() => setMode(key)}
-                  className={`rounded-full border px-3 py-1.5 transition ${mode === key
-                      ? 'border-brand/80 bg-brand text-black shadow-[0_12px_24px_rgba(0,223,154,0.35)]'
-                      : 'border-white/15 bg-white/5 text-white/70 hover:bg-white/10'
-                    }`}
-                >
-                  {label}
-                </button>
-              ))}
+              {activeFeatures.map(({ key, label }) => {
+                const FeatureIcon = FEATURE_ICONS[key] || TrendingUp
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setMode(key)}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 transition ${mode === key
+                        ? 'border-brand/80 bg-brand text-black shadow-[0_12px_24px_rgba(0,223,154,0.35)]'
+                        : 'border-white/15 bg-white/5 text-white/70 hover:bg-white/10'
+                      }`}
+                  >
+                    <FeatureIcon className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>{label}</span>
+                  </button>
+                )
+              })}
               <button
                 onClick={() => setMode('all_history')}
-                className={`rounded-full border px-3 py-1.5 transition ${mode === 'all_history'
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 transition ${mode === 'all_history'
                     ? 'border-brand/80 bg-brand text-black shadow-[0_12px_24px_rgba(0,223,154,0.35)]'
                     : 'border-white/15 bg-white/5 text-white/70 hover:bg-white/10'
                   }`}
               >
-                All History
+                <HistoryIcon className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>All History</span>
               </button>
             </div>
-            <InstallAppButton variant="dashboard-pill" />
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                to="/promotions"
+                className="inline-flex items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-extrabold px-4 py-1.5 text-xs tracking-normal normal-case shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:shadow-[0_0_28px_rgba(245,158,11,0.5)] transition-all duration-200 whitespace-nowrap"
+              >
+                <Gift className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>Deposit Bonus &amp; Offers</span>
+              </Link>
+              <InstallAppButton variant="dashboard-pill" />
+            </div>
           </div>
           {mode === 'forex' && (
             <ErrorBoundary>

@@ -179,17 +179,67 @@ body.theme-light .text-white\/80 {
   background: transparent;
 }
 
-.theme-light header a,
-.theme-light header button {
+.theme-light header a:not(.add-funds-btn),
+.theme-light header button:not(.user-menu-btn):not(.user-menu-card-btn) {
   color: #0f172a !important;
 }
 
-.theme-light header button {
+.theme-light header button:not(.user-menu-btn):not(.user-menu-card-btn) {
   background-color: rgba(226, 232, 240, 0.6) !important;
 }
 
-.theme-light header button:hover {
+.theme-light header button:not(.user-menu-btn):not(.user-menu-card-btn):hover {
   background-color: rgba(203, 213, 225, 0.8) !important;
+}
+
+body.theme-light .user-menu-panel {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  border-color: rgba(148, 163, 184, 0.35) !important;
+  box-shadow: 0 22px 45px rgba(15, 23, 42, 0.16) !important;
+  color: #0f172a !important;
+}
+
+body.theme-light .user-menu-btn {
+  background-color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, 0.28) !important;
+  color: #0f172a !important;
+}
+
+body.theme-light .user-menu-btn:hover {
+  background-color: #f1f5f9 !important;
+  border-color: rgba(100, 116, 139, 0.4) !important;
+}
+
+body.theme-light .user-menu-btn-active {
+  background-color: #ecfdf5 !important;
+  border-color: rgba(16, 185, 129, 0.45) !important;
+  color: #065f46 !important;
+}
+
+body.theme-light .user-menu-install-btn {
+  background: linear-gradient(to right, rgba(14, 165, 233, 0.14), rgba(37, 99, 235, 0.14)) !important;
+  border-color: rgba(14, 165, 233, 0.35) !important;
+  color: #0369a1 !important;
+}
+
+body.theme-light .user-menu-promo-btn {
+  background: linear-gradient(to right, rgba(245, 158, 11, 0.16), rgba(16, 185, 129, 0.12)) !important;
+  border-color: rgba(245, 158, 11, 0.4) !important;
+  color: #92400e !important;
+}
+
+body.theme-light .user-menu-logout-btn {
+  background-color: #fff1f2 !important;
+  border-color: rgba(244, 63, 94, 0.3) !important;
+  color: #e11d48 !important;
+}
+
+body.theme-light .user-menu-logout-btn:hover {
+  background-color: #ffe4e6 !important;
+}
+
+body.theme-light .promo-page h2 {
+  color: #0f172a !important;
 }
 
 body.theme-light .balance-chip {
