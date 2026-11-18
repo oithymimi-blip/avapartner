@@ -9,16 +9,16 @@ const currency = (value = 0) => new Intl.NumberFormat(undefined, { style: 'curre
 const VERIFICATION_LABELS = {
   awaiting_approval: 'Awaiting approval',
   pending: 'Pending documentation',
-  approved: 'Approved',
+  approved: '★ Verified Strong (Gold)',
   rejected: 'Rejected',
   not_started: 'Not started'
 }
 const VERIFICATION_CLASSES = {
-  awaiting_approval: 'bg-amber-50 text-amber-600',
-  pending: 'bg-slate-50 text-slate-500',
-  approved: 'bg-emerald-50 text-emerald-600',
-  rejected: 'bg-rose-50 text-rose-600',
-  not_started: 'bg-slate-50 text-slate-500'
+  awaiting_approval: 'bg-amber-50 text-amber-600 border border-amber-200',
+  pending: 'bg-slate-50 text-slate-500 border border-slate-200',
+  approved: 'bg-gradient-to-r from-amber-300 via-yellow-300 to-amber-400 text-slate-950 border border-amber-400',
+  rejected: 'bg-rose-50 text-rose-600 border border-rose-200',
+  not_started: 'bg-slate-50 text-slate-500 border border-slate-200'
 }
 
 export default function AdminUsersPage() {

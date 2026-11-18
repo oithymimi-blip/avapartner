@@ -54,6 +54,7 @@ import AdminBackupPage from './pages/admin/AdminBackupPage'
 import Promotions from './pages/Promotions'
 import InstallAppButton from './components/InstallAppButton'
 import UserAvatar from './components/UserAvatar'
+import VerifiedBadge from './components/VerifiedBadge'
 import {
   TrendingUp,
   History as HistoryIcon,
@@ -225,6 +226,9 @@ function Shell({ children }) {
     }
 
     const handleDataUpdate = (payload) => {
+      if (payload?.user_id === user?.id && payload?.type === 'verification_updated') {
+        syncProfile()
+      }
       if (
         payload?.user_id === user?.id &&
         ['deposit_credited', 'withdrawal_submitted', 'withdrawal_updated', 'balance_updated'].includes(payload?.type)
@@ -476,11 +480,14 @@ function Shell({ children }) {
             {user && (
               <div className="relative" ref={menuRef}>
                 <button
-                  className="nav-icon flex items-center gap-2 bg-black/30 border border-white/10 rounded-full p-1 sm:pl-1.5 sm:pr-3 sm:py-1 text-sm"
+                  className={`nav-icon flex items-center gap-2 bg-black/30 rounded-full p-1 sm:pl-1.5 sm:pr-3 sm:py-1 text-sm border ${
+                    user?.gold_verified ? 'border-amber-400/60 shadow-[0_0_12px_rgba(251,191,36,0.25)]' : 'border-white/10'
+                  }`}
                   onClick={() => setMenuOpen(o => !o)}
                 >
                   <UserAvatar user={user} size="sm" />
                   <span className="hidden sm:block max-w-[120px] truncate">{user.name || user.email}</span>
+                  {user?.gold_verified && <Award className="hidden sm:block w-3.5 h-3.5 text-amber-400 flex-shrink-0" title="Gold Verified Strong" />}
                 </button>
                 {menuOpen && (
                   <div className="user-menu-panel absolute right-0 mt-2 w-72 max-w-[calc(100vw-1rem)] max-h-[85vh] overflow-y-auto rounded-2xl border border-white/15 bg-[#0b0f13]/95 backdrop-blur-xl shadow-2xl p-2.5 space-y-1.5 text-sm">
@@ -491,7 +498,15 @@ function Shell({ children }) {
                     >
                       <UserAvatar user={user} size="md" />
                       <div className="min-w-0 flex-1">
-                        <div className="font-semibold truncate text-xs">{user.name || 'Trader'}</div>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-semibold truncate text-xs">{user.name || 'Trader'}</span>
+                          <VerifiedBadge
+                            compact
+                            status={user.verification_status}
+                            goldVerified={Boolean(user.gold_verified)}
+                            label={user.verified_badge_label || 'Verified Strong'}
+                          />
+                        </div>
                         <div className="text-[11px] opacity-60 truncate">{user.email}</div>
                       </div>
                       <ChevronRight className="w-4 h-4 opacity-40 flex-shrink-0" />

@@ -6,6 +6,7 @@ import { DB_FILE, DATABASE_URL, TURSO_DATABASE_URL, TURSO_AUTH_TOKEN } from './c
 import { registerMutationListener } from './db.js';
 import { ensureIBSchemaAndDefaults } from './ib/ibConfig.js';
 import { ensurePromotionsSchemaAndDefaults } from './promotions/defaults.js';
+import { ensureVerificationSchemaAndDefaults } from './verifications/settings.js';
 
 const { Pool } = pg;
 
@@ -37,6 +38,7 @@ export const PERSISTENT_TABLES = [
   'promotion_claims',
   'bonus_locks',
   'verifications',
+  'verification_settings',
   'payment_methods',
   'payment_requests',
   'notifications',
@@ -321,7 +323,7 @@ function mergeSnapshot(db, snapshot) {
         stats.recordsMerged += res.changes || 0;
       }
 
-      for (const table of ['ib_settings', 'ib_program_config', 'bonus_system_settings']) {
+      for (const table of ['ib_settings', 'ib_program_config', 'bonus_system_settings', 'verification_settings']) {
         const rows = Array.isArray(data[table]) ? data[table] : [];
         const validCols = getTableColumns(db, table);
         if (validCols.length === 0) continue;
@@ -472,11 +474,13 @@ export function importDatabaseSnapshot(db = dbRef, snapshot, { mode = 'merge' } 
       replaceSnapshot(db, snapshot);
       ensureIBSchemaAndDefaults(db);
       ensurePromotionsSchemaAndDefaults(db, { skipPromoSeed: Array.isArray(snapshot.data.promotions) });
+      ensureVerificationSchemaAndDefaults(db);
       return { ok: true, mode: 'replace', userCount: snapshot.data.users?.length || 0 };
     }
     const stats = mergeSnapshot(db, snapshot);
     ensureIBSchemaAndDefaults(db);
     ensurePromotionsSchemaAndDefaults(db, { skipPromoSeed: Array.isArray(snapshot.data.promotions) });
+    ensureVerificationSchemaAndDefaults(db);
     return { ok: true, mode: 'merge', ...stats };
   } finally {
     isRestoring = false;

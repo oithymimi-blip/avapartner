@@ -6,6 +6,7 @@ import { setPrice, forcePump, resetEngine, clearTicks, emitSocket, currentPrice 
 import { getAdminNotifications, markAdminNotificationsRead } from '../notifications/adminNotifications.js';
 import { INITIAL_BALANCE } from '../config.js';
 import { settleExpiredTrades } from '../binary/routes.js';
+import { getVerificationSettings, saveVerificationSettings } from '../verifications/settings.js';
 import {
   exportDatabaseSnapshot,
   getPersistenceStatus,
@@ -86,6 +87,14 @@ const selectVerificationsForAdmin = db.prepare(`
     v.document_type,
     v.document_number,
     v.document_name,
+    v.first_name,
+    v.last_name,
+    v.phone_number,
+    v.father_or_spouse_name,
+    v.village_address,
+    v.city,
+    v.state_province,
+    v.postal_code,
     v.document_country,
     v.document_birthdate,
     v.document_expires_at,
@@ -93,6 +102,7 @@ const selectVerificationsForAdmin = db.prepare(`
     v.document_back,
     v.selfie,
     v.status,
+    v.gold_badge,
     v.notes,
     v.face_similarity,
     v.face_confidence,
@@ -105,24 +115,12 @@ const selectVerificationsForAdmin = db.prepare(`
     u.handle
   FROM verifications v
   JOIN users u ON u.id = v.user_id
-  ORDER BY v.submitted_at DESC
+  ORDER BY v.updated_at DESC, v.submitted_at DESC
   LIMIT 200
 `);
 const updateVerificationStatusStmt = db.prepare(`
   UPDATE verifications
-  SET status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
-  WHERE user_id = ?
-`);
-const updateVerificationFieldsStmt = db.prepare(`
-  UPDATE verifications
-  SET
-    document_name = COALESCE(?, document_name),
-    document_number = COALESCE(?, document_number),
-    document_country = COALESCE(?, document_country),
-    document_birthdate = COALESCE(?, document_birthdate),
-    document_expires_at = COALESCE(?, document_expires_at),
-    notes = COALESCE(?, notes),
-    updated_at = CURRENT_TIMESTAMP
+  SET status = ?, gold_badge = ?, notes = COALESCE(?, notes), updated_at = CURRENT_TIMESTAMP
   WHERE user_id = ?
 `);
 const deleteVerificationStmt = db.prepare('DELETE FROM verifications WHERE user_id = ?');
@@ -348,6 +346,7 @@ router.get('/users', requireAdminRole('users'), (req, res) => {
            SUM(CASE WHEN t.status = 'open' THEN 1 ELSE 0 END) AS open_trade_count,
            IFNULL(SUM(CASE WHEN t.status = 'closed' THEN t.pnl ELSE 0 END),0) AS realized_pnl,
            v.status AS verification_status,
+           COALESCE(v.gold_badge, CASE WHEN v.status = 'approved' THEN 1 ELSE 0 END) AS verification_gold_badge,
            v.submitted_at AS verification_submitted_at,
            v.updated_at AS verification_updated_at
     FROM users u
@@ -362,32 +361,66 @@ router.get('/users', requireAdminRole('users'), (req, res) => {
   res.json(rows);
 });
 
+router.get('/verifications/settings', requireAdminRole('users'), (req, res) => {
+  res.json({ settings: getVerificationSettings(db) });
+});
+
+router.put('/verifications/settings', requireAdminRole('users'), (req, res) => {
+  const settings = saveVerificationSettings(db, req.body || {});
+  res.json({ ok: true, settings });
+});
+
 router.get('/verifications', requireAdminRole('users'), (req, res) => {
   const rows = selectVerificationsForAdmin.all();
   res.json(rows);
 });
+
+function notifyUserVerificationChange(userId, nextStatus, notes) {
+  const settings = getVerificationSettings(db);
+  if (nextStatus === 'approved' || nextStatus === 'rejected') {
+    const title = nextStatus === 'approved'
+      ? `Identity Approved — ${settings.gold_badge_label} Badge Unlocked`
+      : 'Identity Verification Declined';
+    const message = nextStatus === 'approved'
+      ? `Your NID identity has been verified by Admin. Your Gold "${settings.gold_badge_label}" badge is now active on your profile!`
+      : `Your identity verification was declined${notes ? `: ${notes}` : '. Please update your NID details and resubmit.'}`;
+    const n = db.prepare('INSERT INTO notifications (user_id, title, message) VALUES (?, ?, ?)').run(userId, title, message);
+    const notifRow = db.prepare('SELECT * FROM notifications WHERE id = ?').get(Number(n.lastInsertRowid));
+    if (notifRow) emitSocket('notification', { notification: notifRow });
+  }
+  emitSocket('user_data_update', {
+    user_id: userId,
+    type: 'verification_updated',
+    status: nextStatus
+  });
+}
 
 router.patch('/verifications/:userId', requireAdminRole('users'), (req, res) => {
   const userId = Number(req.params.userId);
   if (!Number.isInteger(userId)) {
     return res.status(400).json({ error: 'Invalid user id' });
   }
-  const target = db.prepare('SELECT user_id FROM verifications WHERE user_id = ?').get(userId);
+  const target = db.prepare('SELECT user_id, gold_badge FROM verifications WHERE user_id = ?').get(userId);
   if (!target) {
     return res.status(404).json({ error: 'Verification not found' });
   }
-  const { status, notes } = req.body || {};
+  const { status, notes, gold_badge } = req.body || {};
   const normalizedStatus = (status || '').trim().toLowerCase();
   if (!ALLOWED_VERIFICATION_STATUSES.has(normalizedStatus)) {
     return res.status(400).json({ error: 'Invalid status' });
   }
   const notesValue = typeof notes === 'string' ? notes.trim() : null;
+  const nextGold = normalizedStatus === 'approved'
+    ? (gold_badge === false || gold_badge === 0 ? 0 : 1)
+    : (normalizedStatus === 'rejected' ? 0 : (gold_badge !== undefined ? (gold_badge ? 1 : 0) : Number(target.gold_badge || 0)));
   updateVerificationStatusStmt.run(
     normalizedStatus,
-    notesValue ? notesValue : null,
+    nextGold,
+    notesValue || null,
     userId
   );
-  res.json({ ok: true, status: normalizedStatus });
+  notifyUserVerificationChange(userId, normalizedStatus, notesValue);
+  res.json({ ok: true, status: normalizedStatus, gold_badge: nextGold });
 });
 
 router.put('/verifications/:userId', requireAdminRole('users'), (req, res) => {
@@ -395,29 +428,87 @@ router.put('/verifications/:userId', requireAdminRole('users'), (req, res) => {
   if (!Number.isInteger(userId)) {
     return res.status(400).json({ error: 'Invalid user id' });
   }
-  const target = db.prepare('SELECT * FROM verifications WHERE user_id = ?').get(userId);
-  if (!target) {
-    return res.status(404).json({ error: 'Verification not found' });
+  const userExists = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+  if (!userExists) {
+    return res.status(404).json({ error: 'User not found' });
   }
-  const {
-    document_name,
-    document_number,
-    document_country,
-    document_birthdate,
-    document_expires_at,
-    notes
-  } = req.body || {};
+  const existing = db.prepare('SELECT * FROM verifications WHERE user_id = ?').get(userId);
+  const body = req.body || {};
 
-  updateVerificationFieldsStmt.run(
-    typeof document_name === 'string' ? document_name.trim() || null : null,
-    typeof document_number === 'string' ? document_number.trim() || null : null,
-    typeof document_country === 'string' ? document_country.trim() || null : null,
-    typeof document_birthdate === 'string' ? document_birthdate.trim() || null : null,
-    typeof document_expires_at === 'string' ? document_expires_at.trim() || null : null,
-    typeof notes === 'string' ? (notes.trim() || null) : null,
-    userId
+  const firstName = typeof body.first_name === 'string' ? body.first_name.trim() : (existing?.first_name || '');
+  const lastName = typeof body.last_name === 'string' ? body.last_name.trim() : (existing?.last_name || '');
+  const docName = (typeof body.document_name === 'string' && body.document_name.trim())
+    ? body.document_name.trim()
+    : (`${firstName} ${lastName}`.trim() || existing?.document_name || null);
+
+  const nextStatusRaw = typeof body.status === 'string' ? body.status.trim().toLowerCase() : (existing?.status || 'pending');
+  const nextStatus = ALLOWED_VERIFICATION_STATUSES.has(nextStatusRaw) ? nextStatusRaw : (existing?.status || 'pending');
+  const nextGold = body.gold_badge !== undefined
+    ? (body.gold_badge ? 1 : 0)
+    : (nextStatus === 'approved' ? 1 : (nextStatus === 'rejected' ? 0 : Number(existing?.gold_badge || 0)));
+
+  const cleanStr = (val, prev) => typeof val === 'string' ? (val.trim() || null) : (prev ?? null);
+
+  db.prepare(`
+    INSERT INTO verifications (
+      user_id, document_type, document_number, document_name,
+      first_name, last_name, phone_number, father_or_spouse_name,
+      village_address, city, state_province, postal_code,
+      document_country, document_birthdate, document_expires_at,
+      status, gold_badge, notes, submitted_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ON CONFLICT(user_id) DO UPDATE SET
+      document_type = excluded.document_type,
+      document_number = excluded.document_number,
+      document_name = excluded.document_name,
+      first_name = excluded.first_name,
+      last_name = excluded.last_name,
+      phone_number = excluded.phone_number,
+      father_or_spouse_name = excluded.father_or_spouse_name,
+      village_address = excluded.village_address,
+      city = excluded.city,
+      state_province = excluded.state_province,
+      postal_code = excluded.postal_code,
+      document_country = excluded.document_country,
+      document_birthdate = excluded.document_birthdate,
+      document_expires_at = excluded.document_expires_at,
+      status = excluded.status,
+      gold_badge = excluded.gold_badge,
+      notes = excluded.notes,
+      updated_at = CURRENT_TIMESTAMP
+  `).run(
+    userId,
+    cleanStr(body.document_type, existing?.document_type || 'nid'),
+    cleanStr(body.document_number, existing?.document_number),
+    docName,
+    firstName || null,
+    lastName || null,
+    cleanStr(body.phone_number, existing?.phone_number),
+    cleanStr(body.father_or_spouse_name, existing?.father_or_spouse_name),
+    cleanStr(body.village_address, existing?.village_address),
+    cleanStr(body.city, existing?.city),
+    cleanStr(body.state_province, existing?.state_province),
+    cleanStr(body.postal_code, existing?.postal_code),
+    cleanStr(body.document_country, existing?.document_country),
+    cleanStr(body.document_birthdate, existing?.document_birthdate),
+    cleanStr(body.document_expires_at, existing?.document_expires_at),
+    nextStatus,
+    nextGold,
+    typeof body.notes === 'string' ? (body.notes.trim() || null) : (existing?.notes ?? null)
   );
-  const updated = db.prepare('SELECT * FROM verifications WHERE user_id = ?').get(userId);
+
+  if (nextStatus !== existing?.status) {
+    notifyUserVerificationChange(userId, nextStatus, typeof body.notes === 'string' ? body.notes.trim() : null);
+  } else {
+    emitSocket('user_data_update', { user_id: userId, type: 'verification_updated', status: nextStatus });
+  }
+
+  const updated = db.prepare(`
+    SELECT v.*, u.email, u.name, u.handle
+    FROM verifications v JOIN users u ON u.id = v.user_id
+    WHERE v.user_id = ?
+  `).get(userId);
   res.json(updated);
 });
 
@@ -474,10 +565,20 @@ router.put('/users/:id', requireAdminRole('users'), (req, res) => {
   }
 
   if (verification_status) {
+    const nextGold = verification_status === 'approved' ? 1 : (verification_status === 'rejected' ? 0 : 0);
     db.prepare(`
-      INSERT INTO verifications (user_id, status, notes) VALUES (?, ?, ?)
-      ON CONFLICT(user_id) DO UPDATE SET status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
-    `).run(userId, verification_status, typeof note === 'string' ? note : null, verification_status, typeof note === 'string' ? note : null);
+      INSERT INTO verifications (user_id, status, gold_badge, notes) VALUES (?, ?, ?, ?)
+      ON CONFLICT(user_id) DO UPDATE SET status = ?, gold_badge = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+    `).run(
+      userId,
+      verification_status,
+      nextGold,
+      typeof note === 'string' ? note : null,
+      verification_status,
+      nextGold,
+      typeof note === 'string' ? note : null
+    );
+    notifyUserVerificationChange(userId, verification_status, typeof note === 'string' ? note : null);
   } else if (typeof note === 'string') {
     db.prepare(`
       INSERT INTO verifications (user_id, status, notes) VALUES (?, 'not_started', ?)

@@ -5,6 +5,8 @@ import { api } from '../api'
 import ProfileForm from '../components/ProfileForm'
 import UserAvatar from '../components/UserAvatar'
 import AvatarCropModal from '../components/AvatarCropModal'
+import IdentityVerificationCard from '../components/IdentityVerificationCard'
+import VerifiedBadge from '../components/VerifiedBadge'
 import { formatBdDate } from '../utils/bdTime'
 import {
   Camera,
@@ -164,14 +166,18 @@ export default function Profile() {
               <UserAvatar
                 user={user}
                 size="xl"
-                className="ring-4 ring-brand/25 border-2 border-brand shadow-[0_0_28px_rgba(0,223,154,0.22)]"
+                className={
+                  user?.gold_verified
+                    ? 'ring-4 ring-amber-400/40 border-2 border-amber-400 shadow-[0_0_32px_rgba(251,191,36,0.32)]'
+                    : 'ring-4 ring-brand/25 border-2 border-brand shadow-[0_0_28px_rgba(0,223,154,0.22)]'
+                }
               />
               {uploadingAvatar && (
                 <div className="absolute inset-0 rounded-full bg-black/65 flex items-center justify-center">
                   <Loader2 className="w-7 h-7 text-brand animate-spin" />
                 </div>
               )}
-              <span className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-brand text-black shadow-lg border-2 border-[#0d1522] flex items-center justify-center group-hover:scale-105 transition">
+              <span className={`absolute bottom-0 right-0 w-9 h-9 rounded-full ${user?.gold_verified ? 'bg-amber-400' : 'bg-brand'} text-black shadow-lg border-2 border-[#0d1522] flex items-center justify-center group-hover:scale-105 transition`}>
                 <Camera className="w-4 h-4" />
               </span>
             </button>
@@ -183,10 +189,11 @@ export default function Profile() {
               <h1 className="text-xl sm:text-2xl font-bold text-white truncate">
                 {user?.name || 'AvaPartner Trader'}
               </h1>
-              <span className="inline-flex items-center gap-1 self-center sm:self-auto px-2.5 py-0.5 rounded-full bg-brand/15 border border-brand/30 text-brand text-[11px] font-semibold">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                Verified Partner
-              </span>
+              <VerifiedBadge
+                status={user?.verification_status || 'not_started'}
+                goldVerified={Boolean(user?.gold_verified)}
+                label={user?.verified_badge_label || 'Verified Strong'}
+              />
             </div>
 
             <p className="text-xs sm:text-sm text-white/60 break-all">{user?.email}</p>
@@ -293,6 +300,22 @@ export default function Profile() {
                 <span className="text-white/60 text-xs">Member Since</span>
                 <span className="text-white/70 text-xs sm:text-sm">{memberSince}</span>
               </div>
+
+              <div className="py-2.5 flex items-center justify-between gap-3">
+                <span className="text-white/60 text-xs">Identity &amp; Strength</span>
+                <div className="flex items-center gap-2">
+                  {user?.account_strength?.score != null && (
+                    <span className={`text-xs font-mono font-bold ${user?.gold_verified ? 'text-amber-300' : 'text-brand'}`}>
+                      {user.account_strength.score}%
+                    </span>
+                  )}
+                  <VerifiedBadge
+                    status={user?.verification_status || 'not_started'}
+                    goldVerified={Boolean(user?.gold_verified)}
+                    label={user?.verified_badge_label || 'Verified Strong'}
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -322,6 +345,9 @@ export default function Profile() {
           </div>
         </div>
       </div>
+
+      {/* NID Identity & Address Verification Card (Front & Back + Gold Verified Badge) */}
+      <IdentityVerificationCard />
 
       {/* Mobile-Friendly Touch Crop/Zoom/Rotate Modal */}
       <AvatarCropModal
