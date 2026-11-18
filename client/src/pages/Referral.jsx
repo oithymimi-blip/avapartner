@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import ReferralWidget from '../components/ReferralWidget'
+import IBProfitCalculator from '../components/IBProfitCalculator'
+import IBFaqSection from '../components/IBFaqSection'
 import { api } from '../api'
 
 const DEFAULT_TIERS = [
@@ -104,12 +106,14 @@ const steps = [
 
 export default function Referral() {
   const [tiers, setTiers] = useState(DEFAULT_TIERS)
+  const [rawTiers, setRawTiers] = useState([])
 
   useEffect(() => {
     api().get('/api/ib/config')
       .then(res => {
         const list = res.data?.tiers
         if (!Array.isArray(list) || list.length === 0) return
+        setRawTiers(list)
         const styleByLevel = {
           BRONZE: { level: '1', badge: '🥉', color: 'from-amber-700 via-amber-600 to-yellow-500', border: 'border-amber-500/30', glow: 'shadow-[0_0_30px_rgba(217,169,78,0.15)]', text: 'text-amber-400' },
           SILVER: { level: '2', badge: '🥈', color: 'from-slate-400 via-slate-300 to-white', border: 'border-slate-400/30', glow: 'shadow-[0_0_30px_rgba(203,213,225,0.15)]', text: 'text-slate-300' },
@@ -305,6 +309,15 @@ export default function Referral() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* ─── Detailed Calculator & FAQ ─── */}
+      <section>
+        <IBProfitCalculator tiers={rawTiers} />
+      </section>
+
+      <section className="rounded-3xl border border-white/10 bg-[#0e1218] p-5 sm:p-7">
+        <IBFaqSection tiers={rawTiers} />
       </section>
 
       {/* ─── Key Features ─── */}

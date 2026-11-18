@@ -2,6 +2,8 @@ import { useEffect, useState, useMemo } from 'react'
 import { api } from '../api'
 import { useAuth } from '../store'
 import { formatBdDate, formatBdDateTime } from '../utils/bdTime'
+import IBProfitCalculator from '../components/IBProfitCalculator'
+import IBFaqSection from '../components/IBFaqSection'
 
 const LEVEL_CONFIG = {
   BRONZE: {
@@ -94,11 +96,6 @@ export default function IBDashboard() {
   const [ledgerPage, setLedgerPage] = useState(0)
   const [tab, setTab] = useState('overview')
   const [copiedType, setCopiedType] = useState('')
-
-  // Interactive calculator state
-  const [calcAiProfit, setCalcAiProfit] = useState('100')
-  const [calcForexLots, setCalcForexLots] = useState('5')
-  const [calcBinaryStake, setCalcBinaryStake] = useState('500')
 
   useEffect(() => {
     if (!token) return
@@ -200,32 +197,6 @@ export default function IBDashboard() {
       },
     ]
   }, [data, rates, numRates])
-
-  const calcEstimate = useMemo(() => {
-    const aiVal = Math.max(0, Number(calcAiProfit) || 0)
-    const fxVal = Math.max(0, Number(calcForexLots) || 0)
-    const binVal = Math.max(0, Number(calcBinaryStake) || 0)
-    const manMode = numRates.manual_mode === 'percent' ? 'percent' : 'per_lot'
-
-    const directAi = aiVal * ((Number(numRates.ai_trade_direct_pct) || 0) / 100)
-    const subAi = aiVal * ((Number(numRates.ai_trade_sub_pct) || 0) / 100)
-    const directFx = manMode === 'percent'
-      ? fxVal * ((Number(numRates.manual_direct_rate) || 0) / 100)
-      : fxVal * (Number(numRates.manual_direct_rate) || 0)
-    const subFx = manMode === 'percent'
-      ? fxVal * ((Number(numRates.manual_sub_rate) || 0) / 100)
-      : fxVal * (Number(numRates.manual_sub_rate) || 0)
-    const directBin = binVal * ((Number(numRates.binary_direct_pct) || 0) / 100)
-    const subBin = binVal * ((Number(numRates.binary_sub_pct) || 0) / 100)
-
-    return {
-      directTotal: directAi + directFx + directBin,
-      subTotal: subAi + subFx + subBin,
-      directAi, directFx, directBin,
-      subAi, subFx, subBin,
-      manMode,
-    }
-  }, [calcAiProfit, calcForexLots, calcBinaryStake, numRates])
 
   if (loading) {
     return (
@@ -405,7 +376,8 @@ export default function IBDashboard() {
       <div className="flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.15em]">
         {[
           { key: 'overview', label: 'Overview & Rates' },
-          { key: 'guide', label: 'A–Z Guide & Calculator' },
+          { key: 'calculator', label: 'Profit Calculator' },
+          { key: 'guide', label: 'A–Z Guide & FAQ' },
           { key: 'ledger', label: `Profit History (${ledgerTotal})` },
           { key: 'team', label: `My Team (${team.length})` },
         ].map(t => (
@@ -587,88 +559,53 @@ export default function IBDashboard() {
         </div>
       )}
 
-      {/* ─── Tab 2: A-Z IB Guide & Live Profit Calculator ─── */}
-      {tab === 'guide' && (
+      {/* ─── Tab 2: Detailed IB Profit Calculator ─── */}
+      {tab === 'calculator' && (
         <div className="space-y-6">
-          {/* Interactive Profit Calculator */}
-          <div className="rounded-3xl border border-brand/25 bg-gradient-to-br from-[#0f1720] to-[#0b0f13] p-5 sm:p-6 space-y-5">
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.2em] text-brand font-bold">Live Commission Estimator</div>
-              <h2 className="text-lg sm:text-xl font-bold text-white mt-0.5">Calculate How Much IB Profit You Earn</h2>
-              <p className="text-xs text-white/50 mt-1">
-                Enter sample trading activity from your referrals below to see your exact dollar commission using your active rates ({cfg.label}{data.has_custom_rates ? ' + Custom VIP Rates' : ''}).
-              </p>
-            </div>
+          <IBProfitCalculator
+            tiers={data.tiers || []}
+            activeLevel={data.level}
+            effectiveNumeric={data.effective_numeric}
+            hasCustomRates={data.has_custom_rates}
+          />
 
-            <div className="grid sm:grid-cols-3 gap-4">
-              <label className="block space-y-1.5">
-                <span className="text-[11px] font-semibold text-white/60">1. Referral AI Trade Profit ($/day)</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={calcAiProfit}
-                  onChange={e => setCalcAiProfit(e.target.value)}
-                  className="w-full rounded-xl border border-white/15 bg-black/40 px-3.5 py-2.5 text-sm font-mono text-white focus:border-brand focus:outline-none"
-                />
-                <div className="text-[10px] text-violet-300">
-                  Your rate: {rates?.ai_trade?.direct || '0%'} Direct · {rates?.ai_trade?.sub || '—'} Sub-IB
-                </div>
-              </label>
-
-              <label className="block space-y-1.5">
-                <span className="text-[11px] font-semibold text-white/60">
-                  2. Referral Forex {calcEstimate.manMode === 'percent' ? 'Volume ($)' : 'Volume (Lots)'}
-                </span>
-                <input
-                  type="number"
-                  min="0"
-                  value={calcForexLots}
-                  onChange={e => setCalcForexLots(e.target.value)}
-                  className="w-full rounded-xl border border-white/15 bg-black/40 px-3.5 py-2.5 text-sm font-mono text-white focus:border-brand focus:outline-none"
-                />
-                <div className="text-[10px] text-sky-300">
-                  Your rate: {rates?.manual?.direct || '—'} Direct · {rates?.manual?.sub || '—'} Sub-IB
-                </div>
-              </label>
-
-              <label className="block space-y-1.5">
-                <span className="text-[11px] font-semibold text-white/60">3. Referral Binary Stake ($)</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={calcBinaryStake}
-                  onChange={e => setCalcBinaryStake(e.target.value)}
-                  className="w-full rounded-xl border border-white/15 bg-black/40 px-3.5 py-2.5 text-sm font-mono text-white focus:border-brand focus:outline-none"
-                />
-                <div className="text-[10px] text-rose-300">
-                  Your rate: {rates?.binary?.direct || '0%'} Direct · {rates?.binary?.sub || '—'} Sub-IB
-                </div>
-              </label>
-            </div>
-
-            <div className="grid sm:grid-cols-2 gap-4 pt-2">
-              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 space-y-1">
-                <div className="text-[10px] uppercase tracking-wider text-emerald-300/80 font-bold">If From Direct Referrals (Level 1)</div>
-                <div className="text-2xl font-black text-brand font-mono">+{formatMoney2(calcEstimate.directTotal)}</div>
-                <div className="text-[11px] text-white/65">
-                  AI Trade: {formatMoney2(calcEstimate.directAi)} · Forex: {formatMoney2(calcEstimate.directFx)} · Binary: {formatMoney2(calcEstimate.directBin)}
-                </div>
+          <div className="rounded-2xl border border-white/10 bg-[#0e1218] p-5 space-y-3">
+            <div className="text-xs font-bold uppercase tracking-wider text-brand">Quick Lot Size &amp; Commission Reference</div>
+            <div className="grid sm:grid-cols-3 gap-3 text-xs text-white/70">
+              <div className="rounded-xl bg-black/30 border border-white/8 p-3.5 space-y-1">
+                <div className="font-bold text-white">0.01 Lot (Micro Lot)</div>
+                <p className="text-white/55">Smallest manual order step. At {rates?.manual?.direct || '$2/lot'}, 0.01 lot pays {formatMoney((Number(numRates.manual_direct_rate) || 0) * 0.01)} upon trade close.</p>
               </div>
-              <div className="rounded-2xl border border-violet-500/30 bg-violet-500/10 p-4 space-y-1">
-                <div className="text-[10px] uppercase tracking-wider text-violet-300/80 font-bold">If From Sub-IB Network (Level 2)</div>
-                <div className="text-2xl font-black text-violet-300 font-mono">+{formatMoney2(calcEstimate.subTotal)}</div>
-                <div className="text-[11px] text-white/65">
-                  AI Trade: {formatMoney2(calcEstimate.subAi)} · Forex: {formatMoney2(calcEstimate.subFx)} · Binary: {formatMoney2(calcEstimate.subBin)}
-                </div>
+              <div className="rounded-xl bg-black/30 border border-white/8 p-3.5 space-y-1">
+                <div className="font-bold text-white">0.10 Lot (Mini Lot)</div>
+                <p className="text-white/55">10× micro volume. At {rates?.manual?.direct || '$2/lot'}, 0.10 lot pays {formatMoney((Number(numRates.manual_direct_rate) || 0) * 0.1)} upon trade close.</p>
+              </div>
+              <div className="rounded-xl bg-black/30 border border-white/8 p-3.5 space-y-1">
+                <div className="font-bold text-white">1.00 Lot (Standard Lot)</div>
+                <p className="text-white/55">Full standard unit. At {rates?.manual?.direct || '$2/lot'}, 1.00 lot pays {formatMoney(Number(numRates.manual_direct_rate) || 0)} upon trade close (1:100 leverage).</p>
               </div>
             </div>
           </div>
+        </div>
+      )}
 
+      {/* ─── Tab 3: A-Z IB Guide & Comprehensive FAQ ─── */}
+      {tab === 'guide' && (
+        <div className="space-y-6">
           {/* A-to-Z Complete Explanation */}
           <div className="rounded-3xl border border-white/10 bg-[#0e1218] p-5 sm:p-6 space-y-6">
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.2em] text-white/45 font-bold">A to Z Partner Manual</div>
-              <h2 className="text-xl font-bold text-white mt-0.5">Everything About Your IB Commission &amp; Profits</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-white/45 font-bold">A to Z Partner Manual</div>
+                <h2 className="text-xl font-bold text-white mt-0.5">Everything About Your IB Commission &amp; Profits</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTab('calculator')}
+                className="px-4 py-2 rounded-xl bg-brand/15 border border-brand/40 text-brand text-xs font-bold hover:bg-brand/25 transition"
+              >
+                Open Profit Calculator →
+              </button>
             </div>
 
             <div className="grid md:grid-cols-2 gap-4">
@@ -691,7 +628,7 @@ export default function IBDashboard() {
                 },
                 {
                   step: 'E · Exact Meaning of Each Stream',
-                  body: `• AI Trade: You earn ${rates?.ai_trade?.direct || '—'} of the daily profit paid to your referral every 24 hours.\n• Forex / Manual: You earn ${rates?.manual?.direct || '—'} whenever your referral closes a trade.\n• Binary Options: You earn ${rates?.binary?.direct || '—'} of every binary trade stake placed (win or lose).`,
+                  body: `• AI Trade: You earn ${rates?.ai_trade?.direct || '—'} of the daily profit paid to your referral every 24 hours across Starter (1.5–2%), Booster (2–2.5%), Premium (2.5–3%), and Titan Mega (3–3.5%).\n• Forex / Manual: You earn ${rates?.manual?.direct || '—'} whenever your referral closes a trade (supports 0.01 micro, 0.10 mini, and 1.00+ standard lots).\n• Binary Options: You earn ${rates?.binary?.direct || '—'} of every binary trade stake placed (win or lose).`,
                 },
                 {
                   step: 'F · Full Transparency & Custom VIP Tiers',
@@ -704,6 +641,11 @@ export default function IBDashboard() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Detailed Searchable FAQ Accordion */}
+          <div className="rounded-3xl border border-white/10 bg-[#0e1218] p-5 sm:p-6">
+            <IBFaqSection tiers={data.tiers || []} />
           </div>
         </div>
       )}
