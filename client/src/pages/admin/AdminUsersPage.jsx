@@ -3,11 +3,9 @@ import { api } from '../../api'
 import { useAdminAuth } from '../../adminStore'
 import { socket } from '../../socket'
 import { bdDatetimeLocalToIso, formatBdDate, formatBdDateTime, formatBdTime, parseTimestampMs, toBdDatetimeLocalValue } from '../../utils/bdTime'
+import AdminUserIBPanel, { IB_LEVEL_COLORS } from '../../components/AdminUserIBPanel'
 
 const currency = (value = 0) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(Number(value) || 0)
-const IB_LEVELS = ['BRONZE', 'SILVER', 'GOLD']
-const IB_LEVEL_COLORS = { BRONZE: 'bg-amber-100 text-amber-700', SILVER: 'bg-slate-200 text-slate-700', GOLD: 'bg-yellow-100 text-yellow-700' }
-const IB_ASSET_LABELS = { AI_TRADE: 'AI Trade', MANUAL_TRADING: 'Manual', BINARY_OPTIONS: 'Binary', MONTHLY_BONUS: 'Bonus', MANUAL_CREDIT: 'Manual Credit' }
 const VERIFICATION_LABELS = {
   awaiting_approval: 'Awaiting approval',
   pending: 'Pending documentation',
@@ -46,15 +44,8 @@ export default function AdminUsersPage() {
   const [editingTime, setEditingTime] = useState(null)
   const [editingPaymentId, setEditingPaymentId] = useState(null)
   const [editingPaymentAmount, setEditingPaymentAmount] = useState('')
-  // IB / Affiliate states
+  // IB / Affiliate summary badge state
   const [ibProfile, setIbProfile] = useState(null)
-  const [ibLedger, setIbLedger] = useState({ rows: [], total: 0 })
-  const [ibTeam, setIbTeam] = useState([])
-  const [ibSubTab, setIbSubTab] = useState('overview')
-  const [ibEditingLevel, setIbEditingLevel] = useState('BRONZE')
-  const [ibEditingEntry, setIbEditingEntry] = useState(null)
-  const [ibCreditForm, setIbCreditForm] = useState({ amount: '', asset_class: 'MANUAL_CREDIT', note: '' })
-  const [ibShowCreditModal, setIbShowCreditModal] = useState(false)
   // AI Trade states
   const [aiTradeSession, setAiTradeSession] = useState(null)
   const [aiTradeHistory, setAiTradeHistory] = useState({ sessions: [], totalEarned: 0, page: 1, totalPages: 1, totalSessions: 0 })
@@ -151,22 +142,17 @@ export default function AdminUsersPage() {
     setUserHistory([])
     setOpenTrades([])
     setIbProfile(null)
-    setIbLedger({ rows: [], total: 0 })
-    setIbTeam([])
-    setIbSubTab('overview')
     setAiTradeSession(null)
     setAiTradeHistory({ sessions: [], totalEarned: 0, page: 1, totalPages: 1, totalSessions: 0 })
     setAiTradePage(1)
     setBinaryTrades({ open: [], history: [], stats: { total: 0, win: 0, lose: 0, push: 0, netPnL: 0 } })
     try {
-      const [detailRes, activityRes, historyRes, openTradesRes, ibRes, ibLedgerRes, ibTeamRes, aiTradeRes, binaryRes] = await Promise.all([
+      const [detailRes, activityRes, historyRes, openTradesRes, ibRes, aiTradeRes, binaryRes] = await Promise.all([
         api(token).get(`/api/admin/users/${user.id}`).catch(() => ({ data: user })),
         api(token).get(`/api/admin/users/${user.id}/activity`).catch(() => ({ data: [] })),
         api(token).get(`/api/admin/users/${user.id}/history`).catch(() => ({ data: [] })),
         api(token).get(`/api/admin/users/${user.id}/open-trades`).catch(() => ({ data: [] })),
         api(token).get(`/api/ib/admin/user/${user.id}`).catch(() => ({ data: null })),
-        api(token).get(`/api/ib/admin/user/${user.id}/ledger`).catch(() => ({ data: { rows: [], total: 0 } })),
-        api(token).get(`/api/ib/admin/user/${user.id}/team`).catch(() => ({ data: [] })),
         api(token).get(`/api/admin/users/${user.id}/ai-trade`).catch(() => ({ data: null })),
         api(token).get(`/api/admin/users/${user.id}/binary-trades`).catch(() => ({ data: { open: [], history: [], stats: {} } }))
       ])
@@ -187,9 +173,7 @@ export default function AdminUsersPage() {
       setUserActivity(Array.isArray(activityRes?.data) ? activityRes.data : [])
       setUserHistory(Array.isArray(historyRes?.data) ? historyRes.data : [])
       setOpenTrades(Array.isArray(openTradesRes?.data) ? openTradesRes.data : [])
-      if (ibRes?.data) { setIbProfile(ibRes.data); setIbEditingLevel(ibRes.data.level || 'BRONZE') }
-      if (ibLedgerRes?.data) setIbLedger(ibLedgerRes.data)
-      if (ibTeamRes?.data) setIbTeam(Array.isArray(ibTeamRes.data) ? ibTeamRes.data : [])
+      if (ibRes?.data) setIbProfile(ibRes.data)
       if (aiTradeRes?.data) { setAiTradeSession(aiTradeRes.data.session); setAiTradeHistory(aiTradeRes.data.history || { sessions: [], totalEarned: 0, page: 1, totalPages: 1, totalSessions: 0 }) }
       if (binaryRes?.data) setBinaryTrades(binaryRes.data)
     } catch (err) {
@@ -1206,268 +1190,11 @@ export default function AdminUsersPage() {
 
         {/* IB / Affiliate Tab */}
         {activeTab === 'ib_affiliate' && (
-          <div className="space-y-5">
-            {/* IB Stat Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-soft">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">IB Level</div>
-                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${IB_LEVEL_COLORS[ibProfile?.level] || 'bg-slate-100 text-slate-500'}`}>{ibProfile?.level || 'NONE'}</span>
-              </div>
-              <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-soft">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Lifetime Earned</div>
-                <div className="text-lg font-semibold text-emerald-600">{currency(ibProfile?.stats?.lifetime_earned)}</div>
-              </div>
-              <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-soft">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Commissions</div>
-                <div className="text-lg font-semibold text-slate-900">{ibProfile?.stats?.total_commissions || 0}</div>
-              </div>
-              <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-soft">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Referrals</div>
-                <div className="text-lg font-semibold text-slate-900">{ibProfile?.referral_count || 0}</div>
-              </div>
-              <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-soft">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Month Volume</div>
-                <div className="text-lg font-semibold text-slate-900">{currency(ibProfile?.month_volume)}</div>
-              </div>
-            </div>
-
-            {/* Earnings Breakdown */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {[['AI Trade', ibProfile?.stats?.ai_trade_earned], ['Manual', ibProfile?.stats?.manual_earned], ['Binary', ibProfile?.stats?.binary_earned], ['Bonus', ibProfile?.stats?.bonus_earned]].map(([l, v]) => (
-                <div key={l} className="rounded-2xl border border-slate-100 bg-white p-4">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{l}</div>
-                  <div className="font-semibold text-slate-800">{currency(v)}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* IB Sub-tabs */}
-            <div className="flex gap-2 border-b border-slate-200">
-              {['overview', 'ledger', 'team'].map(t => (
-                <button key={t} className={`px-4 py-2 text-sm font-semibold border-b-2 transition capitalize ${ibSubTab === t ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`} onClick={() => setIbSubTab(t)}>{t}</button>
-              ))}
-            </div>
-
-            {/* IB Sub-tab: Overview — Admin Controls */}
-            {ibSubTab === 'overview' && (
-              <div className="grid lg:grid-cols-2 gap-5">
-                <div className="rounded-2xl bg-white border border-slate-100 shadow-soft p-5 space-y-4">
-                  <div className="text-sm font-bold text-slate-800 uppercase tracking-wider">Edit IB Level / Rank</div>
-                  <div className="flex items-center gap-3">
-                    <select value={ibEditingLevel} onChange={e => setIbEditingLevel(e.target.value)}
-                      className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 outline-none">
-                      {IB_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
-                    </select>
-                    <button disabled={detailLoading} onClick={async () => {
-                      setDetailLoading(true)
-                      try {
-                        await api(token).put(`/api/ib/admin/user/${selectedUser.id}/level`, { level: ibEditingLevel })
-                        setMessage('IB Level updated')
-                        openUserDetail(selectedUser)
-                      } catch (e) { setMessage(e?.response?.data?.error || 'Failed') }
-                      finally { setDetailLoading(false) }
-                    }} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-md disabled:opacity-50">
-                      {detailLoading ? 'Saving…' : 'Save Level'}
-                    </button>
-                  </div>
-                  {ibProfile?.referred_by && (
-                    <div className="text-xs text-slate-500">Referred by: <span className="font-semibold text-slate-700">{ibProfile.referred_by.name || ibProfile.referred_by.email}</span></div>
-                  )}
-                </div>
-                <div className="rounded-2xl bg-white border border-slate-100 shadow-soft p-5 space-y-4">
-                  <div className="text-sm font-bold text-slate-800 uppercase tracking-wider">Manual Commission Credit</div>
-                  <button onClick={() => setIbShowCreditModal(true)}
-                    className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold text-sm shadow-md">
-                    + Credit Commission
-                  </button>
-                  <p className="text-xs text-slate-400">Add funds directly to user's commission balance. Will appear in ledger.</p>
-                </div>
-              </div>
-            )}
-
-            {/* IB Sub-tab: Ledger */}
-            {ibSubTab === 'ledger' && (
-              <div className="rounded-2xl bg-white shadow-soft border border-slate-100 p-5">
-                <div className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4">Commission Ledger ({ibLedger.total} entries)</div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm">
-                    <thead className="text-slate-500">
-                      <tr>
-                        <th className="py-2 text-left text-[11px] font-semibold uppercase tracking-wider">Date</th>
-                        <th className="py-2 text-left text-[11px] font-semibold uppercase tracking-wider">Type</th>
-                        <th className="py-2 text-left text-[11px] font-semibold uppercase tracking-wider">Source</th>
-                        <th className="py-2 text-right text-[11px] font-semibold uppercase tracking-wider">Trade Amt</th>
-                        <th className="py-2 text-right text-[11px] font-semibold uppercase tracking-wider">Commission</th>
-                        <th className="py-2 text-left text-[11px] font-semibold uppercase tracking-wider">Tier</th>
-                        <th className="py-2 text-right text-[11px] font-semibold uppercase tracking-wider">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {ibLedger.rows.length === 0 ? (
-                        <tr><td colSpan={7} className="py-8 text-center text-slate-400">No commission entries.</td></tr>
-                      ) : ibLedger.rows.map(row => (
-                        <tr key={row.id} className="text-slate-700 hover:bg-slate-50 transition group">
-                          <td className="py-2.5 whitespace-nowrap text-slate-500 text-xs">{formatBdDateTime(row.created_at, { showZone: true }) || '—'}</td>
-                          <td className="py-2.5"><span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-600">{IB_ASSET_LABELS[row.asset_class] || row.asset_class}</span></td>
-                          <td className="py-2.5 text-xs">{row.source_name || row.source_email || '—'}</td>
-                          <td className="py-2.5 text-right font-mono text-xs">{currency(row.trade_amount)}</td>
-                          <td className="py-2.5 text-right font-mono font-semibold text-emerald-600">{currency(row.commission_amount)}</td>
-                          <td className="py-2.5 text-xs capitalize">{row.tier_level}</td>
-                          <td className="py-2.5 text-right">
-                            <div className="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition">
-                              <button onClick={() => setIbEditingEntry({ ...row })} className="text-[10px] text-indigo-600 font-bold uppercase hover:text-indigo-800">Edit</button>
-                              <button onClick={async () => {
-                                if (!window.confirm('Delete this entry? Balance will be reversed.')) return
-                                setDetailLoading(true)
-                                try {
-                                  await api(token).delete(`/api/ib/admin/ledger/${row.id}`)
-                                  setMessage('Entry deleted & balance reversed')
-                                  openUserDetail(selectedUser)
-                                } catch (e) { setMessage(e?.response?.data?.error || 'Failed') }
-                                finally { setDetailLoading(false) }
-                              }} className="text-[10px] text-rose-500 font-bold uppercase hover:text-rose-700">Delete</button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* IB Sub-tab: Team */}
-            {ibSubTab === 'team' && (
-              <div className="rounded-2xl bg-white shadow-soft border border-slate-100 p-5">
-                <div className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4">Referral Team ({ibTeam.length} members)</div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm">
-                    <thead className="text-slate-500">
-                      <tr>
-                        <th className="py-2 text-left text-[11px] font-semibold uppercase tracking-wider">Member</th>
-                        <th className="py-2 text-right text-[11px] font-semibold uppercase tracking-wider">Volume</th>
-                        <th className="py-2 text-right text-[11px] font-semibold uppercase tracking-wider">Commission</th>
-                        <th className="py-2 text-left text-[11px] font-semibold uppercase tracking-wider">Joined</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {ibTeam.length === 0 ? (
-                        <tr><td colSpan={4} className="py-8 text-center text-slate-400">No referrals.</td></tr>
-                      ) : ibTeam.map(m => (
-                        <tr key={m.id} className="text-slate-700 hover:bg-slate-50 transition">
-                          <td className="py-2.5"><div className="font-semibold">{m.name || m.email}</div><div className="text-xs text-slate-400 font-mono">{m.email}</div></td>
-                          <td className="py-2.5 text-right font-mono">{currency(m.generated_volume)}</td>
-                          <td className="py-2.5 text-right font-mono font-semibold text-emerald-600">{currency(m.generated_commission)}</td>
-                          <td className="py-2.5 text-xs text-slate-500">{formatBdDate(m.created_at) || '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* IB Edit Ledger Entry Modal */}
-        {ibEditingEntry && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-md overflow-hidden">
-              <div className="p-5 border-b border-slate-100">
-                <h3 className="text-lg font-bold text-slate-900">Edit Ledger Entry #{ibEditingEntry.id}</h3>
-              </div>
-              <div className="p-5 space-y-4">
-                <label className="block space-y-1.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Commission Amount</span>
-                  <input type="number" step="0.01" value={ibEditingEntry.commission_amount}
-                    onChange={e => setIbEditingEntry(p => ({ ...p, commission_amount: e.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20" />
-                </label>
-                <label className="block space-y-1.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Trade Amount</span>
-                  <input type="number" step="0.01" value={ibEditingEntry.trade_amount}
-                    onChange={e => setIbEditingEntry(p => ({ ...p, trade_amount: e.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20" />
-                </label>
-                <label className="block space-y-1.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Asset Class</span>
-                  <select value={ibEditingEntry.asset_class} onChange={e => setIbEditingEntry(p => ({ ...p, asset_class: e.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20">
-                    {Object.entries(IB_ASSET_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                </label>
-              </div>
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3 justify-end">
-                <button onClick={() => setIbEditingEntry(null)} className="px-4 py-2 text-sm font-semibold text-slate-600">Cancel</button>
-                <button disabled={detailLoading} onClick={async () => {
-                  setDetailLoading(true)
-                  try {
-                    await api(token).put(`/api/ib/admin/ledger/${ibEditingEntry.id}`, {
-                      commission_amount: Number(ibEditingEntry.commission_amount),
-                      trade_amount: Number(ibEditingEntry.trade_amount),
-                      asset_class: ibEditingEntry.asset_class,
-                    })
-                    setMessage('Entry updated')
-                    setIbEditingEntry(null)
-                    openUserDetail(selectedUser)
-                  } catch (e) { setMessage(e?.response?.data?.error || 'Failed') }
-                  finally { setDetailLoading(false) }
-                }} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-md disabled:opacity-50">
-                  {detailLoading ? 'Saving…' : 'Save Changes'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* IB Credit Commission Modal */}
-        {ibShowCreditModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-md overflow-hidden">
-              <div className="p-5 border-b border-slate-100">
-                <h3 className="text-lg font-bold text-slate-900">Credit Commission to {selectedUser.name || selectedUser.email}</h3>
-              </div>
-              <div className="p-5 space-y-4">
-                <label className="block space-y-1.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Amount ($)</span>
-                  <input type="number" step="0.01" value={ibCreditForm.amount}
-                    onChange={e => setIbCreditForm(p => ({ ...p, amount: e.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20" />
-                </label>
-                <label className="block space-y-1.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Category</span>
-                  <select value={ibCreditForm.asset_class} onChange={e => setIbCreditForm(p => ({ ...p, asset_class: e.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20">
-                    {Object.entries(IB_ASSET_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                </label>
-                <label className="block space-y-1.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Note (optional)</span>
-                  <input type="text" value={ibCreditForm.note}
-                    onChange={e => setIbCreditForm(p => ({ ...p, note: e.target.value }))}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20" />
-                </label>
-              </div>
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3 justify-end">
-                <button onClick={() => setIbShowCreditModal(false)} className="px-4 py-2 text-sm font-semibold text-slate-600">Cancel</button>
-                <button disabled={detailLoading} onClick={async () => {
-                  const amt = Number(ibCreditForm.amount)
-                  if (!amt || amt <= 0) return setMessage('Enter valid amount')
-                  setDetailLoading(true)
-                  try {
-                    await api(token).post(`/api/ib/admin/user/${selectedUser.id}/credit`, ibCreditForm)
-                    setMessage(`Credited ${currency(amt)}`)
-                    setIbShowCreditModal(false)
-                    setIbCreditForm({ amount: '', asset_class: 'MANUAL_CREDIT', note: '' })
-                    openUserDetail(selectedUser)
-                  } catch (e) { setMessage(e?.response?.data?.error || 'Failed') }
-                  finally { setDetailLoading(false) }
-                }} className="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-md disabled:opacity-50">
-                  {detailLoading ? 'Crediting…' : 'Credit Funds'}
-                </button>
-              </div>
-            </div>
-          </div>
+          <AdminUserIBPanel
+            token={token}
+            userId={selectedUser.id}
+            onUpdated={() => openUserDetail(selectedUser)}
+          />
         )}
 
         {/* Timestamp Editor Modal */}

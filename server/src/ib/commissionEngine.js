@@ -3,45 +3,21 @@
  * ─────────────────────────────────────────────────────────────────────────
  * Three commission streams:
  *   1. AI Trade  — % of daily profit distributed to referrer chain
- *   2. Manual    — fixed $ per lot traded
+ *   2. Manual    — $ per lot traded (or % if configured)
  *   3. Binary    — % of stake/turnover
  *
+ * Uses live global tier rates (ib_settings) + per-user custom overrides
+ * (ib_user_rates) + IB holder eligibility rules (ib_levels & ib_program_config).
  * All writes are ACID: ledger row inserted BEFORE balance credited.
- * Referral chain resolved via 2-step JOIN (max depth 2, no recursion).
  * ─────────────────────────────────────────────────────────────────────────
  */
 import db from '../db.js';
-
-// ── Tier rates ────────────────────────────────────────────────────────────
-
-const AI_TRADE_RATES = {
-  BRONZE: { direct: 0.05, sub: 0 },
-  SILVER: { direct: 0.08, sub: 0.02 },
-  GOLD:   { direct: 0.12, sub: 0.05 },
-};
-
-const MANUAL_RATES = {
-  BRONZE: { direct: 2,  sub: 0 },
-  SILVER: { direct: 4,  sub: 1 },
-  GOLD:   { direct: 8,  sub: 2 },
-};
-
-const BINARY_RATES = {
-  BRONZE: { direct: 0.01,  sub: 0 },
-  SILVER: { direct: 0.02,  sub: 0.005 },
-  GOLD:   { direct: 0.035, sub: 0 },
-};
-
-// ── Prepared statements ───────────────────────────────────────────────────
-
-const getLevel = db.prepare(`
-  SELECT level FROM ib_levels WHERE user_id = ?
-`);
+import { getEffectiveIBProfile } from './ibConfig.js';
 
 const insertLedger = db.prepare(`
   INSERT INTO ib_commission_ledger
-    (ib_user_id, source_user_id, asset_class, trade_amount, commission_amount, tier_level)
-  VALUES (?, ?, ?, ?, ?, ?)
+    (ib_user_id, source_user_id, asset_class, trade_amount, commission_amount, tier_level, rate_label, note)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const creditBalance = db.prepare(`
@@ -56,23 +32,13 @@ const updateMonthlyVolume = db.prepare(`
     updated_at  = CURRENT_TIMESTAMP
 `);
 
-// Referral chain: returns [direct_referrer_id, sub_ib_id]
-// direct = who referred sourceUser
-// sub_ib = who referred the direct referrer
 const getDirectReferrer = db.prepare(`
   SELECT referrer_id FROM referrals WHERE referee_id = ?
 `);
 
-// ── Helpers ───────────────────────────────────────────────────────────────
-
 function currentMonthKey() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function getUserLevel(userId) {
-  const row = getLevel.get(userId);
-  return row?.level || 'BRONZE';
 }
 
 function getReferrerChain(sourceUserId) {
@@ -82,111 +48,127 @@ function getReferrerChain(sourceUserId) {
   return [direct.referrer_id, sub?.referrer_id || null];
 }
 
-/**
- * Atomic: write ledger entry → credit balance → update monthly volume
- * Returns the commission amount credited.
- */
-const creditCommission = db.transaction((ibUserId, sourceUserId, assetClass, tradeAmount, commissionAmount, tierLevel) => {
-  if (commissionAmount <= 0) return 0;
-  insertLedger.run(ibUserId, sourceUserId, assetClass, tradeAmount, commissionAmount, tierLevel);
+const creditCommission = db.transaction((ibUserId, sourceUserId, assetClass, tradeAmount, commissionAmount, tierLevel, rateLabel, note) => {
+  if (!Number.isFinite(commissionAmount) || commissionAmount <= 0) return 0;
+  insertLedger.run(ibUserId, sourceUserId, assetClass, tradeAmount, commissionAmount, tierLevel, rateLabel || null, note || null);
   creditBalance.run(commissionAmount, ibUserId);
   updateMonthlyVolume.run(ibUserId, currentMonthKey(), tradeAmount);
   return commissionAmount;
 });
 
-// ── Engine ────────────────────────────────────────────────────────────────
-
 class IBCommissionEngine {
   /**
-   * Stream 1: AI Trade
-   * Called after each daily AI payout is credited to a user.
-   * @param {number} userId   — the user who received the AI payout
-   * @param {number} dailyProfit — the payout amount
+   * Shared helper to credit direct (L1) and sub-IB (L2) referrers based on resolved rates.
    */
+  _distribute(sourceUserId, assetClass, computeTier) {
+    const [directId, subId] = getReferrerChain(sourceUserId);
+    if (!directId) return;
+
+    const directProfile = getEffectiveIBProfile(directId);
+    if (directProfile.eligible) {
+      const payout = computeTier(directProfile.effective_numeric, 'direct');
+      if (payout && payout.amount > 0) {
+        creditCommission(
+          directId,
+          sourceUserId,
+          assetClass,
+          payout.volumeBase,
+          payout.amount,
+          'direct',
+          payout.rateLabel,
+          payout.note
+        );
+        console.log(`[IB] ${assetClass} direct: ib=${directId} source=${sourceUserId} +$${payout.amount.toFixed(4)} (${payout.rateLabel})`);
+      }
+    }
+
+    if (subId && subId !== directId) {
+      const subProfile = getEffectiveIBProfile(subId);
+      if (subProfile.eligible) {
+        const subPayout = computeTier(subProfile.effective_numeric, 'sub_ib');
+        if (subPayout && subPayout.amount > 0) {
+          creditCommission(
+            subId,
+            sourceUserId,
+            assetClass,
+            subPayout.volumeBase,
+            subPayout.amount,
+            'sub_ib',
+            subPayout.rateLabel,
+            subPayout.note
+          );
+          console.log(`[IB] ${assetClass} sub_ib: ib=${subId} source=${sourceUserId} +$${subPayout.amount.toFixed(4)} (${subPayout.rateLabel})`);
+        }
+      }
+    }
+  }
+
   processAITradeCommission(userId, dailyProfit) {
     try {
-      if (!dailyProfit || dailyProfit <= 0) return;
-      const [directId, subId] = getReferrerChain(userId);
-      if (!directId) return;
+      const profit = Number(dailyProfit);
+      if (!Number.isFinite(profit) || profit <= 0) return;
 
-      const level = getUserLevel(directId);
-      const rates = AI_TRADE_RATES[level] || AI_TRADE_RATES.BRONZE;
-
-      // Direct commission
-      const directAmt = dailyProfit * rates.direct;
-      creditCommission(directId, userId, 'AI_TRADE', dailyProfit, directAmt, 'direct');
-      console.log(`[IB] AI_TRADE direct: ib=${directId} source=${userId} +$${directAmt.toFixed(4)}`);
-
-      // Sub-IB commission (Level 2)
-      if (subId && rates.sub > 0) {
-        const subLevel = getUserLevel(subId);
-        const subRates = AI_TRADE_RATES[subLevel] || AI_TRADE_RATES.BRONZE;
-        const subAmt = dailyProfit * subRates.sub;
-        creditCommission(subId, userId, 'AI_TRADE', dailyProfit, subAmt, 'sub_ib');
-        console.log(`[IB] AI_TRADE sub_ib: ib=${subId} source=${userId} +$${subAmt.toFixed(4)}`);
-      }
+      this._distribute(userId, 'AI_TRADE', (rates, tier) => {
+        const pct = tier === 'direct' ? rates.ai_trade_direct_pct : rates.ai_trade_sub_pct;
+        if (!pct || pct <= 0) return null;
+        return {
+          volumeBase: profit,
+          amount: profit * (pct / 100),
+          rateLabel: `${pct}%`,
+          note: `${tier === 'direct' ? 'Direct' : 'Sub-IB (L2)'} AI Trade profit $${profit.toFixed(2)} × ${pct}%`,
+        };
+      });
     } catch (err) {
       console.error('[IB] processAITradeCommission error:', err);
     }
   }
 
-  /**
-   * Stream 2: Manual Forex/Gold/Crypto trade
-   * Called when a manual trade closes.
-   * @param {number} userId — the trader
-   * @param {number} lots   — qty / lots traded
-   */
-  processManualTradeCommission(userId, lots) {
+  processManualTradeCommission(userId, lots, stakeAmount = 0) {
     try {
-      if (!lots || lots <= 0) return;
-      const [directId, subId] = getReferrerChain(userId);
-      if (!directId) return;
+      const lotQty = Number(lots);
+      const stake = Number(stakeAmount || 0);
+      if ((!Number.isFinite(lotQty) || lotQty <= 0) && (!Number.isFinite(stake) || stake <= 0)) return;
 
-      const level = getUserLevel(directId);
-      const rates = MANUAL_RATES[level] || MANUAL_RATES.BRONZE;
-
-      const directAmt = lots * rates.direct;
-      creditCommission(directId, userId, 'MANUAL_TRADING', lots, directAmt, 'direct');
-      console.log(`[IB] MANUAL_TRADING direct: ib=${directId} source=${userId} +$${directAmt.toFixed(4)}`);
-
-      if (subId && rates.sub > 0) {
-        const subLevel = getUserLevel(subId);
-        const subRates = MANUAL_RATES[subLevel] || MANUAL_RATES.BRONZE;
-        const subAmt = lots * subRates.sub;
-        creditCommission(subId, userId, 'MANUAL_TRADING', lots, subAmt, 'sub_ib');
-        console.log(`[IB] MANUAL_TRADING sub_ib: ib=${subId} source=${userId} +$${subAmt.toFixed(4)}`);
-      }
+      this._distribute(userId, 'MANUAL_TRADING', (rates, tier) => {
+        const rate = tier === 'direct' ? rates.manual_direct_rate : rates.manual_sub_rate;
+        if (!rate || rate <= 0) return null;
+        const prefix = tier === 'direct' ? 'Direct' : 'Sub-IB (L2)';
+        if (rates.manual_mode === 'percent') {
+          const base = stake > 0 ? stake : lotQty;
+          return {
+            volumeBase: base,
+            amount: base * (rate / 100),
+            rateLabel: `${rate}%`,
+            note: `${prefix} Forex volume $${base.toFixed(2)} × ${rate}%`,
+          };
+        }
+        return {
+          volumeBase: lotQty,
+          amount: lotQty * rate,
+          rateLabel: `$${rate}/lot`,
+          note: `${prefix} Forex ${lotQty.toFixed(4)} lot(s) × $${rate}/lot`,
+        };
+      });
     } catch (err) {
       console.error('[IB] processManualTradeCommission error:', err);
     }
   }
 
-  /**
-   * Stream 3: Binary options trade
-   * Called on every binary trade execution (win or lose).
-   * @param {number} userId   — the trader
-   * @param {number} turnover — stake amount
-   */
   processBinaryTradeCommission(userId, turnover) {
     try {
-      if (!turnover || turnover <= 0) return;
-      const [directId, subId] = getReferrerChain(userId);
-      if (!directId) return;
+      const stake = Number(turnover);
+      if (!Number.isFinite(stake) || stake <= 0) return;
 
-      const level = getUserLevel(directId);
-      const rates = BINARY_RATES[level] || BINARY_RATES.BRONZE;
-
-      const directAmt = turnover * rates.direct;
-      creditCommission(directId, userId, 'BINARY_OPTIONS', turnover, directAmt, 'direct');
-      console.log(`[IB] BINARY_OPTIONS direct: ib=${directId} source=${userId} +$${directAmt.toFixed(4)}`);
-
-      if (subId && rates.sub > 0) {
-        const subLevel = getUserLevel(subId);
-        const subRates = BINARY_RATES[subLevel] || BINARY_RATES.BRONZE;
-        const subAmt = turnover * subRates.sub;
-        creditCommission(subId, userId, 'BINARY_OPTIONS', turnover, subAmt, 'sub_ib');
-        console.log(`[IB] BINARY_OPTIONS sub_ib: ib=${subId} source=${userId} +$${subAmt.toFixed(4)}`);
-      }
+      this._distribute(userId, 'BINARY_OPTIONS', (rates, tier) => {
+        const pct = tier === 'direct' ? rates.binary_direct_pct : rates.binary_sub_pct;
+        if (!pct || pct <= 0) return null;
+        return {
+          volumeBase: stake,
+          amount: stake * (pct / 100),
+          rateLabel: `${pct}%`,
+          note: `${tier === 'direct' ? 'Direct' : 'Sub-IB (L2)'} Binary stake $${stake.toFixed(2)} × ${pct}%`,
+        };
+      });
     } catch (err) {
       console.error('[IB] processBinaryTradeCommission error:', err);
     }

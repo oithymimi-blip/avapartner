@@ -1,28 +1,19 @@
 /**
  * IB Monthly Bonus & Level Upgrade Scheduler
  * ─────────────────────────────────────────────────────────────────────────
- * Runs every hour.  For each IB user:
+ * Runs every hour. For each active IB user:
  *   1. Sums their team volume for the current calendar month
- *   2. Pays a fixed monthly bonus if eligible (Silver=$50, Gold=$250)
- *   3. Auto-upgrades or downgrades their IB level based on volume targets
+ *   2. Auto-upgrades or downgrades unlocked IB levels based on live ib_settings targets
+ *   3. Pays fixed monthly bonus if eligible (reading global tier / per-user custom bonus)
  *
  * All credits are ACID: ledger row + balance update in one transaction.
  * ─────────────────────────────────────────────────────────────────────────
  */
 import db from '../db.js';
-
-// ── Thresholds (USD team volume per month) ───────────────────────────────
-const THRESHOLDS = {
-  SILVER_MIN:  5_000,   // Bronze → Silver at $5,000/month
-  GOLD_MIN:   25_000,   // Silver → Gold   at $25,000/month
-  SILVER_BONUS:    50,  // Fixed monthly salary for Silver
-  GOLD_BONUS:     250,  // Fixed monthly salary for Gold
-};
-
-// ── Prepared statements ───────────────────────────────────────────────────
+import { getAllTierSettings, getEffectiveIBProfile, getProgramConfig } from './ibConfig.js';
 
 const getAllIBUsers = db.prepare(`
-  SELECT user_id, level FROM ib_levels
+  SELECT user_id, level, is_ib_holder, level_locked FROM ib_levels
 `);
 
 const getMonthVolume = db.prepare(`
@@ -51,37 +42,35 @@ const creditBalance = db.prepare(`
 
 const insertBonusLedger = db.prepare(`
   INSERT INTO ib_commission_ledger
-    (ib_user_id, source_user_id, asset_class, trade_amount, commission_amount, tier_level)
-  VALUES (?, 0, 'MONTHLY_BONUS', 0, ?, 'bonus')
+    (ib_user_id, source_user_id, asset_class, trade_amount, commission_amount, tier_level, rate_label, note)
+  VALUES (?, 0, 'MONTHLY_BONUS', 0, ?, 'bonus', 'Monthly Bonus', ?)
 `);
 
 const setLevel = db.prepare(`
-  INSERT INTO ib_levels (user_id, level)
-  VALUES (?, ?)
+  INSERT INTO ib_levels (user_id, level, is_ib_holder, assigned_at, upgraded_at)
+  VALUES (?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
   ON CONFLICT(user_id) DO UPDATE SET level = excluded.level, upgraded_at = CURRENT_TIMESTAMP
 `);
-
-// ── Helpers ───────────────────────────────────────────────────────────────
 
 function currentMonthKey() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function computeNewLevel(volume) {
-  if (volume >= THRESHOLDS.GOLD_MIN)   return 'GOLD';
-  if (volume >= THRESHOLDS.SILVER_MIN) return 'SILVER';
+function computeNewLevel(volume, tierMap) {
+  const goldMin = Number(tierMap?.GOLD?.min_monthly_volume ?? 25000);
+  const silverMin = Number(tierMap?.SILVER?.min_monthly_volume ?? 5000);
+  if (volume >= goldMin) return 'GOLD';
+  if (volume >= silverMin) return 'SILVER';
   return 'BRONZE';
 }
 
-const payBonus = db.transaction((userId, bonusAmount, monthKey, volume) => {
-  insertBonusLedger.run(userId, bonusAmount);
+const payBonus = db.transaction((userId, bonusAmount, monthKey, volume, effectiveLevel) => {
+  insertBonusLedger.run(userId, bonusAmount, `${effectiveLevel} monthly salary bonus (${monthKey})`);
   creditBalance.run(bonusAmount, userId);
   upsertMetrics.run(userId, monthKey, volume, 1, bonusAmount);
   console.log(`[IB Scheduler] Monthly bonus paid: user=${userId} +$${bonusAmount} (${monthKey})`);
 });
-
-// ── Main check ────────────────────────────────────────────────────────────
 
 export function checkMonthlyIBBonuses() {
   try {
@@ -89,29 +78,40 @@ export function checkMonthlyIBBonuses() {
     const ibUsers = getAllIBUsers.all();
     if (!ibUsers.length) return;
 
-    for (const { user_id, level } of ibUsers) {
+    const tierMap = getAllTierSettings(db);
+    const programConfig = getProgramConfig(db);
+
+    for (const row of ibUsers) {
+      const { user_id, level, is_ib_holder, level_locked } = row;
       try {
-        // 1. Sum team volume for current month
+        if (Number(is_ib_holder ?? 1) === 0) continue;
+
         const volume = Number(getMonthVolume.get(user_id, monthKey)?.total || 0);
 
-        // 2. Auto-upgrade / downgrade level
-        const newLevel = computeNewLevel(volume);
-        if (newLevel !== level) {
-          setLevel.run(user_id, newLevel);
-          console.log(`[IB Scheduler] Level change: user=${user_id} ${level} → ${newLevel} (vol=$${volume})`);
+        let effectiveLevel = level;
+        if (programConfig.auto_upgrade_enabled && Number(level_locked || 0) !== 1) {
+          const newLevel = computeNewLevel(volume, tierMap);
+          if (newLevel !== level) {
+            setLevel.run(user_id, newLevel);
+            effectiveLevel = newLevel;
+            console.log(`[IB Scheduler] Level change: user=${user_id} ${level} → ${newLevel} (vol=$${volume})`);
+          }
         }
 
-        // 3. Update metrics row (no bonus yet)
         upsertMetrics.run(user_id, monthKey, volume, 0, 0);
 
-        // 4. Pay bonus if eligible and not already paid this month
         const alreadyPaid = wasBonusPaid.get(user_id, monthKey)?.bonus_paid === 1;
         if (!alreadyPaid) {
-          const effectiveLevel = newLevel;
-          if (effectiveLevel === 'GOLD' && volume >= THRESHOLDS.GOLD_MIN) {
-            payBonus(user_id, THRESHOLDS.GOLD_BONUS, monthKey, volume);
-          } else if (effectiveLevel === 'SILVER' && volume >= THRESHOLDS.SILVER_MIN) {
-            payBonus(user_id, THRESHOLDS.SILVER_BONUS, monthKey, volume);
+          const profile = getEffectiveIBProfile(user_id, db);
+          const bonusAmount = Number(profile.effective_numeric?.monthly_bonus || 0);
+          const minVol = Number(tierMap?.[effectiveLevel]?.min_monthly_volume || 0);
+
+          // Pay bonus if user qualifies by monthly volume OR has a custom admin-set bonus for their assigned tier
+          const hasCustomBonus = profile.custom_rates?.monthly_bonus != null;
+          if (bonusAmount > 0 && (volume >= minVol || hasCustomBonus || Number(level_locked || 0) === 1)) {
+            if (effectiveLevel !== 'BRONZE' || hasCustomBonus) {
+              payBonus(user_id, bonusAmount, monthKey, volume, effectiveLevel);
+            }
           }
         }
       } catch (innerErr) {
@@ -123,12 +123,8 @@ export function checkMonthlyIBBonuses() {
   }
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────
-
 export function initMonthlyIBScheduler() {
   console.log('[IB Scheduler] Started — bonus check every 60 minutes');
-  // Run after 10s on startup (catch any restart-missed payouts)
   setTimeout(checkMonthlyIBBonuses, 10_000);
-  // Then every hour
   setInterval(checkMonthlyIBBonuses, 60 * 60 * 1000);
 }

@@ -568,6 +568,61 @@ CREATE TABLE IF NOT EXISTS ib_monthly_metrics (
   PRIMARY KEY(ib_user_id, month_key),
   FOREIGN KEY(ib_user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS ib_settings (
+  level TEXT PRIMARY KEY,
+  display_name TEXT NOT NULL,
+  ai_trade_direct_pct REAL NOT NULL DEFAULT 5,
+  ai_trade_sub_pct REAL NOT NULL DEFAULT 0,
+  manual_mode TEXT NOT NULL DEFAULT 'per_lot',
+  manual_direct_rate REAL NOT NULL DEFAULT 2,
+  manual_sub_rate REAL NOT NULL DEFAULT 0,
+  binary_direct_pct REAL NOT NULL DEFAULT 1,
+  binary_sub_pct REAL NOT NULL DEFAULT 0,
+  min_monthly_volume REAL NOT NULL DEFAULT 0,
+  monthly_bonus REAL NOT NULL DEFAULT 0,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS ib_user_rates (
+  user_id INTEGER PRIMARY KEY,
+  ai_trade_direct_pct REAL,
+  ai_trade_sub_pct REAL,
+  manual_mode TEXT,
+  manual_direct_rate REAL,
+  manual_sub_rate REAL,
+  binary_direct_pct REAL,
+  binary_sub_pct REAL,
+  monthly_bonus REAL,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS ib_program_config (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+`);
+
+ensureColumn('ib_levels', 'is_ib_holder', 'is_ib_holder INTEGER NOT NULL DEFAULT 1');
+ensureColumn('ib_levels', 'level_locked', 'level_locked INTEGER NOT NULL DEFAULT 0');
+ensureColumn('ib_levels', 'assigned_at', 'assigned_at DATETIME');
+ensureColumn('ib_levels', 'notes', 'notes TEXT');
+db.prepare(`UPDATE ib_levels SET assigned_at = COALESCE(assigned_at, upgraded_at, CURRENT_TIMESTAMP)`).run();
+
+ensureColumn('ib_commission_ledger', 'rate_label', 'rate_label TEXT');
+ensureColumn('ib_commission_ledger', 'note', 'note TEXT');
+
+db.exec(`
+INSERT OR IGNORE INTO ib_settings (level, display_name, ai_trade_direct_pct, ai_trade_sub_pct, manual_mode, manual_direct_rate, manual_sub_rate, binary_direct_pct, binary_sub_pct, min_monthly_volume, monthly_bonus) VALUES
+  ('BRONZE', 'Bronze Partner', 5, 0, 'per_lot', 2, 0, 1, 0, 0, 0),
+  ('SILVER', 'Silver Leader', 8, 2, 'per_lot', 4, 1, 2, 0.5, 5000, 50),
+  ('GOLD',   'Gold Master',   12, 5, 'per_lot', 8, 2, 3.5, 0, 25000, 250);
+
+INSERT OR IGNORE INTO ib_program_config (key, value) VALUES
+  ('only_approved_ib_earn', '0'),
+  ('auto_upgrade_enabled', '1');
 `);
 
 const defaultChannels = [

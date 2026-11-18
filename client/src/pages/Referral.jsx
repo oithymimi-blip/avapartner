@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import ReferralWidget from '../components/ReferralWidget'
+import { api } from '../api'
 
-const tiers = [
+const DEFAULT_TIERS = [
   {
     level: '1',
     name: 'Bronze Partner',
@@ -101,6 +103,39 @@ const steps = [
 ]
 
 export default function Referral() {
+  const [tiers, setTiers] = useState(DEFAULT_TIERS)
+
+  useEffect(() => {
+    api().get('/api/ib/config')
+      .then(res => {
+        const list = res.data?.tiers
+        if (!Array.isArray(list) || list.length === 0) return
+        const styleByLevel = {
+          BRONZE: { level: '1', badge: '🥉', color: 'from-amber-700 via-amber-600 to-yellow-500', border: 'border-amber-500/30', glow: 'shadow-[0_0_30px_rgba(217,169,78,0.15)]', text: 'text-amber-400' },
+          SILVER: { level: '2', badge: '🥈', color: 'from-slate-400 via-slate-300 to-white', border: 'border-slate-400/30', glow: 'shadow-[0_0_30px_rgba(203,213,225,0.15)]', text: 'text-slate-300' },
+          GOLD:   { level: '3', badge: '🥇', color: 'from-yellow-500 via-amber-400 to-orange-400', border: 'border-yellow-400/40', glow: 'shadow-[0_0_35px_rgba(250,204,21,0.2)]', text: 'text-yellow-400' },
+        }
+        setTiers(list.map(t => {
+          const st = styleByLevel[t.level] || styleByLevel.BRONZE
+          const f = t.formatted || {}
+          const manSub = f.manual?.sub && f.manual.sub !== '—' ? `+${f.manual.sub} Sub-IB` : '—'
+          return {
+            ...st,
+            name: t.display_name || t.level,
+            ai: f.ai_trade?.direct || '—',
+            aiSub: f.ai_trade?.sub && f.ai_trade.sub !== '—' ? `+${f.ai_trade.sub} Sub-IB` : '—',
+            manual: (f.manual?.direct || '—').replace('/lot', ''),
+            manualSub: manSub.replace('/lot', ''),
+            binary: f.binary?.direct || '—',
+            binarySub: f.binary?.sub && f.binary.sub !== '—' ? `+${f.binary.sub} Sub-IB` : '—',
+            bonus: Number(t.monthly_bonus) > 0 ? `$${Number(t.monthly_bonus)} / month` : '—',
+            requirement: Number(t.min_monthly_volume) > 0 ? `$${Number(t.min_monthly_volume).toLocaleString()}+ monthly team volume` : 'Default — all new affiliates',
+          }
+        }))
+      })
+      .catch(() => {})
+  }, [])
+
   return (
     <div className="max-w-5xl mx-auto py-8 space-y-10 px-1">
       {/* ─── Hero ─── */}

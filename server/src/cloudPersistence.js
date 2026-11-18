@@ -4,6 +4,7 @@ import pg from 'pg';
 import { createClient as createLibsqlClient } from '@libsql/client';
 import { DB_FILE, DATABASE_URL, TURSO_DATABASE_URL, TURSO_AUTH_TOKEN } from './config.js';
 import { registerMutationListener } from './db.js';
+import { ensureIBSchemaAndDefaults } from './ib/ibConfig.js';
 
 const { Pool } = pg;
 
@@ -25,6 +26,9 @@ export const PERSISTENT_TABLES = [
   'ai_trade_sessions',
   'ai_trade_history',
   'ib_levels',
+  'ib_user_rates',
+  'ib_settings',
+  'ib_program_config',
   'ib_commission_ledger',
   'ib_monthly_metrics',
   'verifications',
@@ -260,7 +264,7 @@ function mergeSnapshot(db, snapshot) {
       }
 
       // 2. Merge single-row-per-user tables
-      for (const table of ['balances', 'user_security', 'admin_permissions', 'ai_trade_sessions', 'ib_levels', 'verifications']) {
+      for (const table of ['balances', 'user_security', 'admin_permissions', 'ai_trade_sessions', 'ib_levels', 'ib_user_rates', 'verifications']) {
         const rows = Array.isArray(data[table]) ? data[table] : [];
         const validCols = getTableColumns(db, table);
         if (validCols.length === 0) continue;
@@ -308,6 +312,19 @@ function mergeSnapshot(db, snapshot) {
           VALUES (?, ?, ?, ?, ?, ?)
         `).run(targetUid, row.month_key, row.team_volume ?? 0, row.bonus_paid ?? 0, row.bonus_amount ?? 0, row.updated_at || null);
         stats.recordsMerged += res.changes || 0;
+      }
+
+      for (const table of ['ib_settings', 'ib_program_config']) {
+        const rows = Array.isArray(data[table]) ? data[table] : [];
+        const validCols = getTableColumns(db, table);
+        if (validCols.length === 0) continue;
+        for (const row of rows) {
+          const cols = validCols.filter(c => Object.prototype.hasOwnProperty.call(row, c));
+          if (cols.length === 0) continue;
+          const stmt = buildInsertStatement(db, table, cols, 'INSERT OR IGNORE');
+          const res = stmt.run(...cols.map(c => row[c] === undefined ? null : row[c]));
+          stats.recordsMerged += res.changes || 0;
+        }
       }
 
       for (const row of (data.user_deposit_wallets || [])) {
@@ -410,9 +427,11 @@ export function importDatabaseSnapshot(db = dbRef, snapshot, { mode = 'merge' } 
   try {
     if (mode === 'replace') {
       replaceSnapshot(db, snapshot);
+      ensureIBSchemaAndDefaults(db);
       return { ok: true, mode: 'replace', userCount: snapshot.data.users?.length || 0 };
     }
     const stats = mergeSnapshot(db, snapshot);
+    ensureIBSchemaAndDefaults(db);
     return { ok: true, mode: 'merge', ...stats };
   } finally {
     isRestoring = false;

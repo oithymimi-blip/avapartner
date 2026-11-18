@@ -259,7 +259,7 @@ router.post('/:id/close', requireAuth, (req, res) => {
     emitSocket('admin_trade_update', { userId: req.user.id });
 
     // IB commission: fired outside trade-close transaction
-    ibEngine.processManualTradeCommission(req.user.id, Number(trade.qty || 0));
+    ibEngine.processManualTradeCommission(req.user.id, Number(trade.qty || 0), stakeAmount);
 
     res.json({ ok: true, realizedPnl: pnl, realizedPips: pips, price: marketPrice, ...overview });
   } catch (err) {
@@ -331,7 +331,8 @@ router.post('/close-all', requireAuth, (req, res) => {
 
     // IB commission for total lots closed
     const totalLots = openTrades.reduce((sum, t) => sum + Number(t.qty || 0), 0);
-    ibEngine.processManualTradeCommission(req.user.id, totalLots);
+    const totalStake = openTrades.reduce((sum, t) => sum + Number(t.stake_amount || 0), 0);
+    ibEngine.processManualTradeCommission(req.user.id, totalLots, totalStake);
 
     res.json({ ok: true, realizedPnl: totalPnl, realizedPips: totalPips, price: summaryPrice, ...overview });
   } catch (err) {
