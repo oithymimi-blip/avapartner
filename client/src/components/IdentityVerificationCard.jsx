@@ -3,6 +3,7 @@ import { api } from '../api'
 import { useAuth } from '../store'
 import { socket } from '../socket'
 import VerifiedBadge from './VerifiedBadge'
+import CountryStateCitySelects from './CountryStateCitySelects'
 import {
   Award,
   Camera,
@@ -449,36 +450,23 @@ export default function IdentityVerificationCard({ onUpdated }) {
               className={inputCls}
             />
           </div>
-          <div>
-            <label className={labelCls}>City / Upazila / District {settings.require_address ? '*' : ''}</label>
-            <input
-              type="text"
-              value={form.city}
-              onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
-              placeholder="e.g. Dhaka / Chattogram"
-              className={inputCls}
-            />
-          </div>
-          <div>
-            <label className={labelCls}>State / Division / Province {settings.require_address ? '*' : ''}</label>
-            <input
-              type="text"
-              value={form.state_province}
-              onChange={e => setForm(f => ({ ...f, state_province: e.target.value }))}
-              placeholder="e.g. Dhaka Division / Dubai"
-              className={inputCls}
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Country {settings.require_address ? '*' : ''}</label>
-            <input
-              type="text"
-              value={form.document_country}
-              onChange={e => setForm(f => ({ ...f, document_country: e.target.value }))}
-              placeholder="e.g. Bangladesh / UAE / UK"
-              className={inputCls}
-            />
-          </div>
+          <CountryStateCitySelects
+            country={form.document_country}
+            state={form.state_province}
+            city={form.city}
+            onChange={({ country, state, city }) =>
+              setForm(f => ({
+                ...f,
+                document_country: country,
+                state_province: state,
+                city
+              }))
+            }
+            required={Boolean(settings.require_address)}
+            dark
+            inputClassName={inputCls}
+            labelClassName={labelCls}
+          />
         </div>
       </div>
 

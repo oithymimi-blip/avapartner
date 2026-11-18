@@ -21,6 +21,7 @@ import { initAITradeEngine } from './aitrade/earningsEngine.js';
 import ibRoutes from './ib/routes.js';
 import { initMonthlyIBScheduler } from './ib/monthlyScheduler.js';
 import { promotionsRouter, adminPromotionsRouter } from './promotions/routes.js';
+import locationsRoutes from './locations/routes.js';
 import db, { backupDatabase } from './db.js';
 import {
   getPersistenceStatus,
@@ -110,6 +111,9 @@ app.use('/promotions', promotionsRouter);
 
 app.use('/api/admin/promotions', adminPromotionsRouter);
 app.use('/admin/promotions', adminPromotionsRouter);
+
+app.use('/api/locations', locationsRoutes);
+app.use('/locations', locationsRoutes);
 
 app.use('/api', userRoutes);
 app.use('/', userRoutes);

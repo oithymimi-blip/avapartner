@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from '../../api'
 import { useAdminAuth } from '../../adminStore'
 import { formatBdDateTime } from '../../utils/bdTime'
+import CountryStateCitySelects from '../../components/CountryStateCitySelects'
 import {
   Award,
   CheckCircle2,
@@ -710,18 +711,22 @@ export default function AdminVerificationsPage() {
                 <label className={ADMIN_LABEL_CLS}>Village / House / Road / Street (NID Back)</label>
                 <input type="text" value={editForm.village_address} onChange={e => setEditForm(f => ({ ...f, village_address: e.target.value }))} className={ADMIN_INPUT_CLS} />
               </div>
-              <div>
-                <label className={ADMIN_LABEL_CLS}>City / District</label>
-                <input type="text" value={editForm.city} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))} className={ADMIN_INPUT_CLS} />
-              </div>
-              <div>
-                <label className={ADMIN_LABEL_CLS}>State / Division</label>
-                <input type="text" value={editForm.state_province} onChange={e => setEditForm(f => ({ ...f, state_province: e.target.value }))} className={ADMIN_INPUT_CLS} />
-              </div>
-              <div>
-                <label className={ADMIN_LABEL_CLS}>Country</label>
-                <input type="text" value={editForm.document_country} onChange={e => setEditForm(f => ({ ...f, document_country: e.target.value }))} className={ADMIN_INPUT_CLS} />
-              </div>
+              <CountryStateCitySelects
+                country={editForm.document_country || ''}
+                state={editForm.state_province || ''}
+                city={editForm.city || ''}
+                onChange={({ country, state, city }) =>
+                  setEditForm(f => ({
+                    ...f,
+                    document_country: country,
+                    state_province: state,
+                    city
+                  }))
+                }
+                dark={false}
+                inputClassName={ADMIN_INPUT_CLS}
+                labelClassName={ADMIN_LABEL_CLS}
+              />
             </div>
 
             <div className="grid sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
