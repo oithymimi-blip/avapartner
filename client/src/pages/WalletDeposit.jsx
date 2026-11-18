@@ -104,27 +104,30 @@ export default function WalletDeposit() {
     if (!token) return;
     const requestedPromo = (searchParams.get('promo') || '').trim().toUpperCase();
     api(token).get('/api/promotions')
-      .then(res => {
+      .then(async (res) => {
         const promos = Array.isArray(res.data?.promotions) ? res.data.promotions : [];
-        const claims = Array.isArray(res.data?.claims) ? res.data.claims : [];
-        const activatedClaim = claims.find(c => c.status === 'activated');
+        const preferred = String(res.data?.preferred_promo_code || '').toUpperCase();
+        const payoutMode = res.data?.settings?.bonus_payout_mode || 'automatic';
         if (requestedPromo) {
           const matched = promos.find(p => String(p.promo_code || '').toUpperCase() === requestedPromo);
           if (matched) {
-            setActivePromoBanner({ promo: matched, activated: activatedClaim?.promotion_id === matched.id });
+            if (preferred !== requestedPromo) {
+              await api(token).post('/api/promotions/select-for-deposit', { code: matched.promo_code }).catch(() => {});
+            }
+            setActivePromoBanner({ promo: matched, activated: true, payoutMode });
             return;
           }
         }
-        if (activatedClaim) {
-          const matched = promos.find(p => p.id === activatedClaim.promotion_id);
+        if (preferred) {
+          const matched = promos.find(p => String(p.promo_code || '').toUpperCase() === preferred);
           if (matched) {
-            setActivePromoBanner({ promo: matched, activated: true });
+            setActivePromoBanner({ promo: matched, activated: true, payoutMode });
             return;
           }
         }
         const featured = promos.find(p => p.category === 'deposit_bonus') || promos[0];
         if (featured) {
-          setActivePromoBanner({ promo: featured, activated: false });
+          setActivePromoBanner({ promo: featured, activated: false, payoutMode });
         }
       })
       .catch(() => {});
@@ -208,7 +211,7 @@ export default function WalletDeposit() {
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs sm:text-sm font-bold text-white">{activePromoBanner.promo.title}</span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-400/20 text-amber-300 border border-amber-400/35">
-                  {activePromoBanner.activated ? 'Activated' : (activePromoBanner.promo.badge_text || 'Offer')}
+                  {activePromoBanner.activated ? 'Selected for Deposit' : (activePromoBanner.promo.badge_text || 'Offer')}
                 </span>
               </div>
               <p className="text-xs text-white/70 mt-0.5">
@@ -217,7 +220,10 @@ export default function WalletDeposit() {
                   : `Get +${Number(activePromoBanner.promo.bonus_value)}% bonus${Number(activePromoBanner.promo.max_bonus_amount) > 0 ? ` up to $${Number(activePromoBanner.promo.max_bonus_amount).toLocaleString()}` : ''}`}
                 {Number(activePromoBanner.promo.min_deposit) > 0
                   ? ` on deposits of $${Number(activePromoBanner.promo.min_deposit).toFixed(0)}+ USDT.`
-                  : '.'}
+                  : '.'}{' '}
+                <span className="text-emerald-300 font-semibold">
+                  ({activePromoBanner.payoutMode === 'manual' ? 'Manual Admin Approval' : 'Automatic Instant Credit'})
+                </span>
               </p>
             </div>
           </div>

@@ -13,14 +13,24 @@ export function isPromoExpired(promo) {
   return Number.isFinite(ts) && ts <= Date.now();
 }
 
+export function shouldAutoCreditPromo(promo, settings = getBonusSystemSettings()) {
+  const mode = settings?.bonus_payout_mode || 'automatic';
+  if (mode === 'automatic') return true;
+  if (mode === 'manual') return false;
+  return Number(promo?.auto_credit) === 1;
+}
+
 export function getBonusSystemSettings() {
   const rows = db.prepare('SELECT key, value FROM bonus_system_settings').all();
   const map = { ...DEFAULT_BONUS_SETTINGS };
   for (const r of rows) {
     if (r && r.key) map[r.key] = String(r.value ?? '');
   }
+  const allowedModes = ['automatic', 'manual', 'per_offer'];
+  const bonus_payout_mode = allowedModes.includes(map.bonus_payout_mode) ? map.bonus_payout_mode : 'automatic';
   return {
     system_enabled: map.system_enabled === '1',
+    bonus_payout_mode,
     default_double_multiplier: Math.max(1.01, Number(map.default_double_multiplier || 2)),
     default_cashout_pct: Math.min(100, Math.max(1, Number(map.default_cashout_pct || 50))),
     default_required_milestones: Math.max(1, parseInt(map.default_required_milestones, 10) || 2),
@@ -48,6 +58,11 @@ export function saveBonusSystemSettings(updates = {}) {
   const pairs = [];
   if (updates.system_enabled !== undefined) {
     pairs.push(['system_enabled', updates.system_enabled ? '1' : '0']);
+  }
+  if (updates.bonus_payout_mode !== undefined) {
+    const allowedModes = ['automatic', 'manual', 'per_offer'];
+    const mode = allowedModes.includes(updates.bonus_payout_mode) ? updates.bonus_payout_mode : 'automatic';
+    pairs.push(['bonus_payout_mode', mode]);
   }
   if (updates.default_double_multiplier !== undefined) {
     const val = Math.max(1.01, Number(updates.default_double_multiplier) || 2);
@@ -592,9 +607,64 @@ export function restoreBonusLockOnDeclineTx(lockSnapshotJson) {
   }
 }
 
+function isOfferEligibleForUserDeposit(promo, userId, depositAmount) {
+  if (!promo || promo.active !== 1 || isPromoExpired(promo)) return false;
+  if (depositAmount < Number(promo.min_deposit || 0)) return false;
+  if (Number(promo.total_global_limit || 0) > 0) {
+    const totalUsed = db.prepare(`
+      SELECT COUNT(*) AS c FROM promotion_claims
+      WHERE promotion_id = ? AND status != 'rejected'
+    `).get(promo.id)?.c || 0;
+    if (totalUsed >= Number(promo.total_global_limit)) return false;
+  }
+  const userCount = db.prepare(`
+    SELECT COUNT(*) AS c FROM promotion_claims
+    WHERE promotion_id = ? AND user_id = ? AND status != 'rejected'
+  `).get(promo.id, userId)?.c || 0;
+  const maxPerUser = Math.max(1, Number(promo.max_claims_per_user || 1));
+  return userCount < maxPerUser;
+}
+
+function applyMatchedPromoToDeposit({ promo, userId, dep, depositRequestId, settings, sourceNote }) {
+  const bonusAmount = calculateBonusAmount(promo, dep);
+  if (bonusAmount <= 0) return false;
+
+  const info = db.prepare(`
+    INSERT INTO promotion_claims (promotion_id, user_id, deposit_request_id, promo_code, deposit_amount, bonus_amount, status)
+    VALUES (?, ?, ?, ?, ?, ?, 'pending')
+  `).run(promo.id, userId, depositRequestId, promo.promo_code || null, dep, bonusAmount);
+
+  const claimId = Number(info.lastInsertRowid);
+  if (shouldAutoCreditPromo(promo, settings)) {
+    creditBonusToUserTx({
+      claimId,
+      userId,
+      bonusAmount,
+      depositAmount: dep,
+      promo,
+      promoTitle: promo.title,
+      promoCode: promo.promo_code,
+      adminNote: `${sourceNote} on $${dep.toFixed(2)} deposit`,
+      actorRole: 'system'
+    });
+  } else {
+    createAndEmitUserNotification(
+      userId,
+      'Deposit Bonus Claim Submitted',
+      `Your $${dep.toFixed(2)} deposit qualified for "${promo.title}" (+$${bonusAmount.toFixed(2)} bonus). Pending admin approval.`
+    );
+    notifyAdmin({
+      type: 'promotion',
+      title: '🎁 Deposit Bonus Claim Ready for Approval',
+      message: `User #${userId} deposited $${dep.toFixed(2)} — qualified for "${promo.title}" (+$${bonusAmount.toFixed(2)}).`,
+      link: '/admin/promotions'
+    });
+  }
+  return true;
+}
+
 /**
- * Automatically upgrades any 'activated' (awaiting deposit) bonus claim when a deposit is approved/credited,
- * or auto-matches the best eligible deposit bonus if auto_match_deposit_bonus is enabled.
+ * Applies user's selected promo code or auto-matches best eligible deposit bonus when a real deposit is approved/credited.
  */
 export function processQualifyingDepositForPromotions(userId, depositAmount, depositRequestId = null) {
   try {
@@ -612,64 +682,20 @@ export function processQualifyingDepositForPromotions(userId, depositAmount, dep
       if (alreadyBound) return;
     }
 
-    const activatedClaims = db.prepare(`
-      SELECT pc.*, p.title, p.promo_code, p.bonus_type, p.bonus_value, p.max_bonus_amount,
-             p.min_deposit, p.auto_credit, p.active, p.expires_at,
-             p.apply_withdrawal_condition, p.profit_multiplier, p.cashout_pct_per_milestone,
-             p.required_milestones, p.allowed_sources
-      FROM promotion_claims pc
-      JOIN promotions p ON p.id = pc.promotion_id
-      WHERE pc.user_id = ? AND pc.status = 'activated'
-      ORDER BY pc.id ASC
-    `).all(userId);
-
-    for (const claim of activatedClaims) {
-      if (claim.active !== 1 || isPromoExpired(claim)) continue;
-      if (dep < Number(claim.min_deposit || 0)) continue;
-
-      const bonusAmount = calculateBonusAmount(claim, dep);
-      if (bonusAmount <= 0) continue;
-
-      if (claim.auto_credit === 1) {
-        db.prepare(`UPDATE promotion_claims SET deposit_amount = ?, deposit_request_id = ? WHERE id = ?`)
-          .run(dep, depositRequestId, claim.id);
-        creditBonusToUserTx({
-          claimId: claim.id,
-          userId,
-          bonusAmount,
-          depositAmount: dep,
-          promo: claim,
-          promoTitle: claim.title,
-          promoCode: claim.promo_code,
-          adminNote: `Auto-credited on $${dep.toFixed(2)} deposit`,
-          actorRole: 'system'
-        });
-      } else {
-        db.prepare(`
-          UPDATE promotion_claims
-          SET status = 'pending',
-              deposit_amount = ?,
-              deposit_request_id = ?,
-              bonus_amount = ?
-          WHERE id = ?
-        `).run(dep, depositRequestId, bonusAmount, claim.id);
-
-        createAndEmitUserNotification(
-          userId,
-          'Bonus Offer Qualified!',
-          `Your $${dep.toFixed(2)} deposit unlocked "${claim.title}" (+$${bonusAmount.toFixed(2)} bonus). Pending quick review.`
-        );
-        notifyAdmin({
-          type: 'promotion',
-          title: '🎁 Deposit Bonus Claim Ready',
-          message: `User #${userId} deposited $${dep.toFixed(2)} and qualified for +$${bonusAmount.toFixed(2)} (${claim.title}).`,
-          link: '/admin/promotions'
-        });
+    // 1. Check user's explicitly selected promo code for their deposit
+    const userPref = db.prepare('SELECT preferred_promo_code FROM users WHERE id = ?').get(userId);
+    const prefCode = String(userPref?.preferred_promo_code || '').trim().toUpperCase();
+    if (prefCode) {
+      const prefPromo = db.prepare('SELECT * FROM promotions WHERE UPPER(promo_code) = ?').get(prefCode);
+      if (isOfferEligibleForUserDeposit(prefPromo, userId, dep)) {
+        db.prepare('UPDATE users SET preferred_promo_code = NULL WHERE id = ?').run(userId);
+        if (applyMatchedPromoToDeposit({ promo: prefPromo, userId, dep, depositRequestId, settings, sourceNote: 'Auto-credited selected promo' })) {
+          return;
+        }
       }
-      return;
     }
 
-    // Auto-match best eligible deposit bonus if enabled by admin
+    // 2. Auto-match best eligible deposit bonus if enabled by admin
     if (settings.auto_match_deposit_bonus) {
       const candidates = db.prepare(`
         SELECT * FROM promotions
@@ -678,57 +704,10 @@ export function processQualifyingDepositForPromotions(userId, depositAmount, dep
       `).all(dep);
 
       for (const promo of candidates) {
-        if (isPromoExpired(promo)) continue;
-        if (Number(promo.total_global_limit || 0) > 0) {
-          const totalUsed = db.prepare(`
-            SELECT COUNT(*) AS c FROM promotion_claims
-            WHERE promotion_id = ? AND status != 'rejected'
-          `).get(promo.id)?.c || 0;
-          if (totalUsed >= Number(promo.total_global_limit)) continue;
+        if (!isOfferEligibleForUserDeposit(promo, userId, dep)) continue;
+        if (applyMatchedPromoToDeposit({ promo, userId, dep, depositRequestId, settings, sourceNote: 'Auto-matched & credited' })) {
+          return;
         }
-
-        const userCount = db.prepare(`
-          SELECT COUNT(*) AS c FROM promotion_claims
-          WHERE promotion_id = ? AND user_id = ? AND status != 'rejected'
-        `).get(promo.id, userId)?.c || 0;
-        const maxPerUser = Math.max(1, Number(promo.max_claims_per_user || 1));
-        if (userCount >= maxPerUser) continue;
-
-        const bonusAmount = calculateBonusAmount(promo, dep);
-        if (bonusAmount <= 0) continue;
-
-        const info = db.prepare(`
-          INSERT INTO promotion_claims (promotion_id, user_id, deposit_request_id, promo_code, deposit_amount, bonus_amount, status)
-          VALUES (?, ?, ?, ?, ?, ?, 'pending')
-        `).run(promo.id, userId, depositRequestId, promo.promo_code || null, dep, bonusAmount);
-
-        const claimId = Number(info.lastInsertRowid);
-        if (promo.auto_credit === 1) {
-          creditBonusToUserTx({
-            claimId,
-            userId,
-            bonusAmount,
-            depositAmount: dep,
-            promo,
-            promoTitle: promo.title,
-            promoCode: promo.promo_code,
-            adminNote: `Auto-matched & credited on $${dep.toFixed(2)} deposit`,
-            actorRole: 'system'
-          });
-        } else {
-          createAndEmitUserNotification(
-            userId,
-            'Deposit Bonus Applied!',
-            `Your $${dep.toFixed(2)} deposit qualified for "${promo.title}" (+$${bonusAmount.toFixed(2)} bonus). Pending quick approval.`
-          );
-          notifyAdmin({
-            type: 'promotion',
-            title: '🎁 Auto-Matched Deposit Bonus Ready',
-            message: `User #${userId} deposited $${dep.toFixed(2)} — auto-matched "${promo.title}" (+$${bonusAmount.toFixed(2)}).`,
-            link: '/admin/promotions'
-          });
-        }
-        return;
       }
     }
   } catch (err) {

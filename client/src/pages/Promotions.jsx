@@ -229,21 +229,30 @@ export default function Promotions() {
       nav('/login')
       return
     }
+    if (!promo.has_qualifying_deposit && Number(promo.min_deposit || 0) > 0) {
+      if (promo.promo_code) {
+        await api(token).post('/api/promotions/select-for-deposit', { code: promo.promo_code }).catch(() => {})
+      }
+      nav(`/wallet/deposit${promo.promo_code ? `?promo=${encodeURIComponent(promo.promo_code)}` : ''}`)
+      return
+    }
     setClaimingId(promo.id)
     setFeedback(null)
     try {
       const res = await api(token).post(`/api/promotions/${promo.id}/claim`)
       const data = res.data || {}
       setFeedback({
-        type: data.needsDeposit ? 'info' : 'success',
-        text: data.message || 'Offer updated!'
+        type: 'success',
+        text: data.message || 'Bonus claimed!'
       })
       await loadPromotions()
     } catch (err) {
+      const errData = err?.response?.data
       setFeedback({
-        type: 'error',
-        text: err?.response?.data?.error || 'Could not claim this offer.'
+        type: errData?.needsDeposit ? 'info' : 'error',
+        text: errData?.error || 'Could not claim this offer.'
       })
+      if (errData?.needsDeposit) loadPromotions()
     } finally {
       setClaimingId(null)
     }
@@ -266,16 +275,18 @@ export default function Promotions() {
       const res = await api(token).post('/api/promotions/redeem', { code: clean })
       const data = res.data || {}
       setFeedback({
-        type: data.needsDeposit ? 'info' : 'success',
+        type: 'success',
         text: data.message || `Promo code ${clean} applied!`
       })
       setPromoCodeInput('')
       await loadPromotions()
     } catch (err) {
+      const errData = err?.response?.data
       setFeedback({
-        type: 'error',
-        text: err?.response?.data?.error || 'Invalid or unavailable promo code.'
+        type: errData?.needsDeposit ? 'info' : 'error',
+        text: errData?.error || 'Invalid or unavailable promo code.'
       })
+      if (errData?.needsDeposit) loadPromotions()
     } finally {
       setRedeeming(false)
     }
@@ -819,19 +830,37 @@ export default function Promotions() {
                           <span>Claim Pending Review</span>
                         </button>
                       ) : promo.can_claim ? (
-                        <button
-                          type="button"
-                          disabled={claimingId === promo.id}
-                          onClick={() => handleClaim(promo)}
-                          className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-emerald-400 text-black font-extrabold text-xs transition disabled:opacity-60"
-                        >
-                          {claimingId === promo.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Gift className="w-4 h-4" />
-                          )}
-                          <span>{claimingId === promo.id ? 'Activating...' : 'Activate & Claim Bonus'}</span>
-                        </button>
+                        promo.has_qualifying_deposit || Number(promo.min_deposit || 0) === 0 ? (
+                          <button
+                            type="button"
+                            disabled={claimingId === promo.id}
+                            onClick={() => handleClaim(promo)}
+                            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-emerald-400 text-black font-extrabold text-xs transition disabled:opacity-60"
+                          >
+                            {claimingId === promo.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Gift className="w-4 h-4" />
+                            )}
+                            <span>
+                              {claimingId === promo.id
+                                ? 'Claiming...'
+                                : promo.qualifying_deposit_amount > 0
+                                ? `Claim +$${fmtUsd(promo.preview_bonus_for_deposit)} Bonus ($${fmtUsd(promo.qualifying_deposit_amount)} Deposit)`
+                                : 'Claim Bonus Now'}
+                            </span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleClaim(promo)}
+                            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-extrabold text-xs transition"
+                          >
+                            <Wallet className="w-4 h-4" />
+                            <span>Deposit ${Number(promo.min_deposit || 0).toFixed(0)}+ to Unlock &amp; Claim</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </button>
+                        )
                       ) : (
                         <div className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/50 font-semibold text-xs">
                           <CheckCircle2 className="w-4 h-4 text-emerald-400" />

@@ -10,7 +10,8 @@ import {
   creditBonusToUserTx,
   getBonusSystemSettings,
   saveBonusSystemSettings,
-  evaluateUserBonusWithdrawalStatus
+  evaluateUserBonusWithdrawalStatus,
+  shouldAutoCreditPromo
 } from './promoEngine.js';
 
 const router = express.Router();
@@ -26,6 +27,20 @@ function optionalAuth(req, res, next) {
 
 router.get('/withdrawal-status', requireAuth, (req, res) => {
   res.json(evaluateUserBonusWithdrawalStatus(req.user.id));
+});
+
+router.post('/select-for-deposit', requireAuth, (req, res) => {
+  const raw = String(req.body?.code || '').trim().toUpperCase();
+  if (!raw) {
+    db.prepare('UPDATE users SET preferred_promo_code = NULL WHERE id = ?').run(req.user.id);
+    return res.json({ ok: true, preferred_promo_code: null });
+  }
+  const promo = db.prepare('SELECT * FROM promotions WHERE UPPER(promo_code) = ? AND active = 1').get(raw);
+  if (!promo || isPromoExpired(promo)) {
+    return res.status(404).json({ error: `Active promo code "${raw}" not found.` });
+  }
+  db.prepare('UPDATE users SET preferred_promo_code = ? WHERE id = ?').run(promo.promo_code, req.user.id);
+  return res.json({ ok: true, preferred_promo_code: promo.promo_code, promotion: promo });
 });
 
 router.get('/', optionalAuth, (req, res) => {
@@ -44,10 +59,18 @@ router.get('/', optionalAuth, (req, res) => {
         ...p,
         user_claim_count: 0,
         latest_claim_status: null,
-        can_claim: true
+        has_qualifying_deposit: false,
+        can_claim: false
       })),
       claims: [],
-      deposit_stats: { approved_count: 0, total_deposited: 0, latest_deposit_amount: 0 },
+      preferred_promo_code: null,
+      deposit_stats: {
+        approved_count: 0,
+        total_deposited: 0,
+        latest_deposit_amount: 0,
+        available_unused_deposit_amount: 0,
+        available_unused_deposit_count: 0
+      },
       active_count: allPromos.length,
       settings,
       withdrawal_status: null
@@ -55,6 +78,7 @@ router.get('/', optionalAuth, (req, res) => {
   }
 
   const userId = req.user.id;
+  const userRow = db.prepare('SELECT preferred_promo_code FROM users WHERE id = ?').get(userId);
   const claims = db.prepare(`
     SELECT pc.*, p.title AS promo_title, p.category AS promo_category, p.badge_text AS promo_badge,
            p.bonus_type, p.bonus_value, p.max_bonus_amount, p.min_deposit
@@ -76,6 +100,20 @@ router.get('/', optionalAuth, (req, res) => {
     FROM payment_requests
     WHERE user_id = ? AND type = 'deposit' AND status = 'approved'
   `).get(userId, userId);
+
+  const unusedDeposits = db.prepare(`
+    SELECT pr.id, pr.amount
+    FROM payment_requests pr
+    WHERE pr.user_id = ?
+      AND pr.type = 'deposit'
+      AND pr.status = 'approved'
+      AND NOT EXISTS (
+        SELECT 1 FROM promotion_claims pc
+        WHERE pc.deposit_request_id = pr.id
+          AND pc.status != 'rejected'
+      )
+    ORDER BY pr.id DESC
+  `).all(userId);
 
   const claimsByPromo = new Map();
   for (const c of claims) {
@@ -99,6 +137,11 @@ router.get('/', optionalAuth, (req, res) => {
     const globalLimit = Number(p.total_global_limit || 0);
     const totalUsed = globalCounts.get(p.id) || 0;
     const withinGlobal = globalLimit === 0 || totalUsed < globalLimit;
+    const minDep = Math.max(0, Number(p.min_deposit || 0));
+    const matchingUnused = minDep > 0
+      ? unusedDeposits.find(d => Number(d.amount || 0) >= minDep)
+      : { id: null, amount: 0 };
+    const hasQualifyingDeposit = Boolean(matchingUnused);
 
     return {
       ...p,
@@ -106,7 +149,10 @@ router.get('/', optionalAuth, (req, res) => {
       user_claim_count: activeNonRejected.length,
       latest_claim_status: latestClaim?.status || null,
       latest_claim_id: latestClaim?.id || null,
-      can_claim: withinGlobal && activeNonRejected.length < maxClaims && !['activated', 'pending'].includes(latestClaim?.status)
+      has_qualifying_deposit: hasQualifyingDeposit,
+      qualifying_deposit_amount: matchingUnused ? Number(matchingUnused.amount || 0) : 0,
+      preview_bonus_for_deposit: matchingUnused ? calculateBonusAmount(p, Number(matchingUnused.amount || 0)) : 0,
+      can_claim: withinGlobal && activeNonRejected.length < maxClaims && latestClaim?.status !== 'pending'
     };
   });
 
@@ -115,10 +161,13 @@ router.get('/', optionalAuth, (req, res) => {
   res.json({
     promotions: enrichedPromos,
     claims,
+    preferred_promo_code: userRow?.preferred_promo_code || null,
     deposit_stats: {
       approved_count: Number(depStats?.approved_count || 0),
       total_deposited: Number(depStats?.total_deposited || 0),
-      latest_deposit_amount: Number(depStats?.latest_deposit_amount || 0)
+      latest_deposit_amount: Number(depStats?.latest_deposit_amount || 0),
+      available_unused_deposit_amount: unusedDeposits[0] ? Number(unusedDeposits[0].amount || 0) : 0,
+      available_unused_deposit_count: unusedDeposits.length
     },
     active_count: enrichedPromos.length,
     settings,
@@ -152,17 +201,14 @@ function handleClaimPromotion(userId, userEmail, promo) {
     ORDER BY id DESC
   `).all(promo.id, userId);
 
-  const inProgress = existingClaims.find(c => c.status === 'activated' || c.status === 'pending');
-  if (inProgress) {
+  const pendingClaim = existingClaims.find(c => c.status === 'pending');
+  if (pendingClaim) {
     return {
       status: 200,
       ok: true,
       alreadyActive: true,
-      claim: inProgress,
-      needsDeposit: inProgress.status === 'activated',
-      message: inProgress.status === 'activated'
-        ? `Offer "${promo.title}" is already activated! Deposit $${Number(promo.min_deposit).toFixed(2)}+ USDT to unlock your bonus.`
-        : `Your claim for "${promo.title}" is already pending review.`
+      claim: pendingClaim,
+      message: `Your claim for "${promo.title}" is already pending admin review.`
     };
   }
 
@@ -174,7 +220,7 @@ function handleClaimPromotion(userId, userEmail, promo) {
 
   const minDeposit = Math.max(0, Number(promo.min_deposit || 0));
 
-  // Look for latest qualifying approved deposit not already bound to another bonus claim
+  // Strict enforcement: without an unused qualifying approved deposit, user CANNOT claim a deposit offer
   const qualifyingDeposit = minDeposit > 0
     ? db.prepare(`
         SELECT pr.id, pr.amount
@@ -194,26 +240,14 @@ function handleClaimPromotion(userId, userEmail, promo) {
     : null;
 
   if (minDeposit > 0 && !qualifyingDeposit) {
-    const previewBonus = calculateBonusAmount(promo, minDeposit);
-
-    const info = db.prepare(`
-      INSERT INTO promotion_claims (promotion_id, user_id, promo_code, deposit_amount, bonus_amount, status)
-      VALUES (?, ?, ?, 0, ?, 'activated')
-    `).run(promo.id, userId, promo.promo_code || null, previewBonus);
-
-    const claim = db.prepare('SELECT * FROM promotion_claims WHERE id = ?').get(Number(info.lastInsertRowid));
-    createAndEmitUserNotification(
-      userId,
-      'Bonus Offer Activated',
-      `You activated "${promo.title}". Deposit at least $${minDeposit.toFixed(2)} USDT to unlock your bonus.`
-    );
-
+    if (promo.promo_code) {
+      db.prepare('UPDATE users SET preferred_promo_code = ? WHERE id = ?').run(promo.promo_code, userId);
+    }
     return {
-      status: 200,
-      ok: true,
+      status: 400,
       needsDeposit: true,
-      claim,
-      message: `Offer activated! Make a qualifying deposit of $${minDeposit.toFixed(2)}+ USDT to unlock your bonus.`
+      savedPreferredPromo: promo.promo_code || null,
+      error: `Deposit required! You must deposit at least $${minDeposit.toFixed(2)} USDT first to claim "${promo.title}" — your bonus is calculated strictly from your real deposit amount.${promo.promo_code ? ` (${promo.promo_code} has been selected for your next deposit.)` : ''}`
     };
   }
 
@@ -221,7 +255,11 @@ function handleClaimPromotion(userId, userEmail, promo) {
   const depAmt = qualifyingDeposit ? Number(qualifyingDeposit.amount) : 0;
   const bonusAmt = calculateBonusAmount(promo, depAmt);
 
-  if (promo.auto_credit === 1 && bonusAmt > 0) {
+  if (bonusAmt <= 0) {
+    return { status: 400, error: 'Calculated bonus amount is $0.00 for this deposit.' };
+  }
+
+  if (shouldAutoCreditPromo(promo, settings)) {
     const info = db.prepare(`
       INSERT INTO promotion_claims (promotion_id, user_id, deposit_request_id, promo_code, deposit_amount, bonus_amount, status)
       VALUES (?, ?, ?, ?, ?, ?, 'pending')
@@ -236,7 +274,7 @@ function handleClaimPromotion(userId, userEmail, promo) {
       promo,
       promoTitle: promo.title,
       promoCode: promo.promo_code,
-      adminNote: 'Instant auto-credited bonus',
+      adminNote: `Auto-credited from $${depAmt.toFixed(2)} deposit`,
       actorRole: 'system'
     });
     const claim = db.prepare('SELECT * FROM promotion_claims WHERE id = ?').get(claimId);
@@ -245,7 +283,7 @@ function handleClaimPromotion(userId, userEmail, promo) {
       ok: true,
       credited: true,
       claim,
-      message: `+$${bonusAmt.toFixed(2)} bonus from "${promo.title}" has been credited to your balance!`
+      message: `+$${bonusAmt.toFixed(2)} bonus from "${promo.title}" (on $${depAmt.toFixed(2)} deposit) has been credited to your balance!`
     };
   }
 
@@ -259,12 +297,12 @@ function handleClaimPromotion(userId, userEmail, promo) {
   createAndEmitUserNotification(
     userId,
     'Bonus Claim Submitted',
-    `Your claim for "${promo.title}" (+$${bonusAmt.toFixed(2)}) has been submitted for approval.`
+    `Your claim for "${promo.title}" (+$${bonusAmt.toFixed(2)} on $${depAmt.toFixed(2)} deposit) has been submitted for approval.`
   );
   notifyAdmin({
     type: 'promotion',
     title: '🎁 New Bonus Claim Submitted',
-    message: `${userEmail || `User #${userId}`} claimed "${promo.title}" (+$${bonusAmt.toFixed(2)}).`,
+    message: `${userEmail || `User #${userId}`} claimed "${promo.title}" (+$${bonusAmt.toFixed(2)} on $${depAmt.toFixed(2)} deposit).`,
     user_email: userEmail || '',
     link: '/admin/promotions'
   });
@@ -274,7 +312,7 @@ function handleClaimPromotion(userId, userEmail, promo) {
     ok: true,
     pending: true,
     claim,
-    message: `Claim submitted for +$${bonusAmt.toFixed(2)}! Our team will credit your bonus shortly.`
+    message: `Claim submitted for +$${bonusAmt.toFixed(2)} (from your $${depAmt.toFixed(2)} deposit)! Pending admin approval.`
   };
 }
 
@@ -286,7 +324,13 @@ router.post('/redeem', requireAuth, (req, res) => {
   if (!promo) return res.status(404).json({ error: `Promo code "${code}" was not found.` });
 
   const result = handleClaimPromotion(req.user.id, req.user.email, promo);
-  if (result.error) return res.status(result.status || 400).json({ error: result.error });
+  if (result.error) {
+    return res.status(result.status || 400).json({
+      error: result.error,
+      needsDeposit: Boolean(result.needsDeposit),
+      savedPreferredPromo: result.savedPreferredPromo || null
+    });
+  }
   return res.json(result);
 });
 
@@ -296,7 +340,13 @@ router.post('/:id/claim', requireAuth, (req, res) => {
 
   const promo = db.prepare('SELECT * FROM promotions WHERE id = ?').get(promoId);
   const result = handleClaimPromotion(req.user.id, req.user.email, promo);
-  if (result.error) return res.status(result.status || 400).json({ error: result.error });
+  if (result.error) {
+    return res.status(result.status || 400).json({
+      error: result.error,
+      needsDeposit: Boolean(result.needsDeposit),
+      savedPreferredPromo: result.savedPreferredPromo || null
+    });
+  }
   return res.json(result);
 });
 
@@ -323,7 +373,20 @@ adminRouter.get('/', (req, res) => {
            p.min_deposit,
            u.email AS user_email,
            u.name AS user_name,
-           u.handle AS user_handle
+           u.handle AS user_handle,
+           COALESCE((
+             SELECT SUM(pr.amount) FROM payment_requests pr
+             WHERE pr.user_id = pc.user_id AND pr.type = 'deposit' AND pr.status = 'approved'
+           ), 0) AS user_total_deposited,
+           COALESCE((
+             SELECT COUNT(*) FROM payment_requests pr
+             WHERE pr.user_id = pc.user_id AND pr.type = 'deposit' AND pr.status = 'approved'
+           ), 0) AS user_deposit_count,
+           COALESCE((
+             SELECT pr.amount FROM payment_requests pr
+             WHERE pr.user_id = pc.user_id AND pr.type = 'deposit' AND pr.status = 'approved'
+             ORDER BY pr.id DESC LIMIT 1
+           ), 0) AS user_latest_deposit
     FROM promotion_claims pc
     LEFT JOIN promotions p ON p.id = pc.promotion_id
     LEFT JOIN users u ON u.id = pc.user_id
@@ -332,6 +395,33 @@ adminRouter.get('/', (req, res) => {
       pc.claimed_at DESC,
       pc.id DESC
     LIMIT 250
+  `).all();
+
+  const usersSummary = db.prepare(`
+    SELECT u.id, u.email, u.name, u.handle,
+           COALESCE(b.available, 0) AS available_balance,
+           COALESCE((
+             SELECT SUM(pr.amount) FROM payment_requests pr
+             WHERE pr.user_id = u.id AND pr.type = 'deposit' AND pr.status = 'approved'
+           ), 0) AS total_deposited,
+           COALESCE((
+             SELECT COUNT(*) FROM payment_requests pr
+             WHERE pr.user_id = u.id AND pr.type = 'deposit' AND pr.status = 'approved'
+           ), 0) AS deposit_count,
+           COALESCE((
+             SELECT pr.amount FROM payment_requests pr
+             WHERE pr.user_id = u.id AND pr.type = 'deposit' AND pr.status = 'approved'
+               AND NOT EXISTS (
+                 SELECT 1 FROM promotion_claims pc
+                 WHERE pc.deposit_request_id = pr.id AND pc.status != 'rejected'
+               )
+             ORDER BY pr.id DESC LIMIT 1
+           ), 0) AS unused_deposit_amount
+    FROM users u
+    LEFT JOIN balances b ON b.user_id = u.id
+    WHERE u.role != 'admin'
+    ORDER BY total_deposited DESC, u.id DESC
+    LIMIT 200
   `).all();
 
   const rawLocks = db.prepare(`
@@ -365,6 +455,7 @@ adminRouter.get('/', (req, res) => {
     promotions,
     claims,
     locks,
+    users_summary: usersSummary,
     summary: {
       total_offers: Number(statsRow?.total_offers || 0),
       active_offers: Number(statsRow?.active_offers || 0),
@@ -380,19 +471,38 @@ adminRouter.put('/settings', (req, res) => {
   const body = req.body || {};
   const updated = saveBonusSystemSettings(body);
   if (body.sync_to_offers) {
-    db.prepare(`
-      UPDATE promotions
-      SET profit_multiplier = ?,
-          cashout_pct_per_milestone = ?,
-          required_milestones = ?,
-          allowed_sources = ?,
-          updated_at = CURRENT_TIMESTAMP
-    `).run(
-      updated.default_double_multiplier,
-      updated.default_cashout_pct,
-      updated.default_required_milestones,
-      updated.allowed_profit_sources.join(',')
-    );
+    const autoCreditVal = updated.bonus_payout_mode === 'manual' ? 0 : (updated.bonus_payout_mode === 'automatic' ? 1 : null);
+    if (autoCreditVal !== null) {
+      db.prepare(`
+        UPDATE promotions
+        SET profit_multiplier = ?,
+            cashout_pct_per_milestone = ?,
+            required_milestones = ?,
+            allowed_sources = ?,
+            auto_credit = ?,
+            updated_at = CURRENT_TIMESTAMP
+      `).run(
+        updated.default_double_multiplier,
+        updated.default_cashout_pct,
+        updated.default_required_milestones,
+        updated.allowed_profit_sources.join(','),
+        autoCreditVal
+      );
+    } else {
+      db.prepare(`
+        UPDATE promotions
+        SET profit_multiplier = ?,
+            cashout_pct_per_milestone = ?,
+            required_milestones = ?,
+            allowed_sources = ?,
+            updated_at = CURRENT_TIMESTAMP
+      `).run(
+        updated.default_double_multiplier,
+        updated.default_cashout_pct,
+        updated.default_required_milestones,
+        updated.allowed_profit_sources.join(',')
+      );
+    }
   }
   emitSocket('promotions_updated', { ts: Date.now() });
   res.json({ ok: true, settings: updated });
@@ -555,7 +665,7 @@ adminRouter.delete('/:id', (req, res) => {
 adminRouter.post('/claims/:claimId/approve', (req, res) => {
   const claimId = Number(req.params.claimId);
   const claim = db.prepare(`
-    SELECT pc.*, p.id AS p_id, p.title AS promo_title, p.promo_code AS p_code,
+    SELECT pc.*, p.id AS p_id, p.title AS promo_title, p.promo_code AS p_code, p.min_deposit,
            p.apply_withdrawal_condition, p.profit_multiplier, p.cashout_pct_per_milestone,
            p.required_milestones, p.allowed_sources
     FROM promotion_claims pc
@@ -566,6 +676,14 @@ adminRouter.post('/claims/:claimId/approve', (req, res) => {
   if (!claim) return res.status(404).json({ error: 'Claim not found.' });
   if (claim.status === 'credited') return res.status(400).json({ error: 'Bonus already credited.' });
   if (claim.status === 'rejected') return res.status(400).json({ error: 'Cannot approve a rejected claim.' });
+
+  const minDeposit = Math.max(0, Number(claim.min_deposit || 0));
+  let depositAmount = Number(claim.deposit_amount || 0);
+  if (minDeposit > 0 && depositAmount < minDeposit) {
+    return res.status(400).json({
+      error: `Cannot approve: qualifying deposit is $${depositAmount.toFixed(2)} (minimum required: $${minDeposit.toFixed(2)}). User must deposit first.`
+    });
+  }
 
   const requestedAmount = req.body?.bonus_amount !== undefined && req.body?.bonus_amount !== ''
     ? Number(req.body.bonus_amount)
@@ -581,7 +699,7 @@ adminRouter.post('/claims/:claimId/approve', (req, res) => {
     claimId: claim.id,
     userId: claim.user_id,
     bonusAmount: Math.round(requestedAmount * 100) / 100,
-    depositAmount: Number(claim.deposit_amount || 0),
+    depositAmount,
     promo: {
       id: claim.p_id || claim.promotion_id,
       title: claim.promo_title || 'Promotion Bonus',
@@ -600,6 +718,62 @@ adminRouter.post('/claims/:claimId/approve', (req, res) => {
 
   const updated = db.prepare('SELECT * FROM promotion_claims WHERE id = ?').get(claimId);
   res.json({ ok: true, claim: updated });
+});
+
+adminRouter.post('/grant-manual', (req, res) => {
+  const { user_id, promotion_id, deposit_amount, bonus_amount, apply_withdrawal_condition, admin_note } = req.body || {};
+  const userId = Number(user_id);
+  const user = Number.isInteger(userId) ? db.prepare('SELECT id, email FROM users WHERE id = ?').get(userId) : null;
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+
+  const bonusAmt = Math.round((Number(bonus_amount) || 0) * 100) / 100;
+  if (!Number.isFinite(bonusAmt) || bonusAmt <= 0) {
+    return res.status(400).json({ error: 'Bonus amount must be greater than $0.00.' });
+  }
+
+  const promoId = Number(promotion_id);
+  const promo = Number.isInteger(promoId) ? db.prepare('SELECT * FROM promotions WHERE id = ?').get(promoId) : null;
+  const depAmt = Math.max(0, Math.round((Number(deposit_amount) || 0) * 100) / 100);
+  const settings = getBonusSystemSettings();
+  const applyCond = apply_withdrawal_condition !== undefined ? (apply_withdrawal_condition ? 1 : 0) : (promo ? promo.apply_withdrawal_condition : 1);
+
+  const info = db.prepare(`
+    INSERT INTO promotion_claims (promotion_id, user_id, promo_code, deposit_amount, bonus_amount, status, admin_note)
+    VALUES (?, ?, ?, ?, ?, 'pending', ?)
+  `).run(
+    promo?.id || (db.prepare('SELECT id FROM promotions ORDER BY id ASC LIMIT 1').get()?.id || 1),
+    user.id,
+    promo?.promo_code || 'ADMIN_BONUS',
+    depAmt,
+    bonusAmt,
+    admin_note || 'Manual bonus credited by Admin'
+  );
+
+  const claimId = Number(info.lastInsertRowid);
+  creditBonusToUserTx({
+    claimId,
+    userId: user.id,
+    bonusAmount: bonusAmt,
+    depositAmount: depAmt,
+    promo: {
+      id: promo?.id || null,
+      title: promo?.title || 'Admin Deposit Bonus',
+      promo_code: promo?.promo_code || 'ADMIN_BONUS',
+      apply_withdrawal_condition: applyCond,
+      profit_multiplier: promo?.profit_multiplier || settings.default_double_multiplier,
+      cashout_pct_per_milestone: promo?.cashout_pct_per_milestone || settings.default_cashout_pct,
+      required_milestones: promo?.required_milestones || settings.default_required_milestones,
+      allowed_sources: promo?.allowed_sources || settings.allowed_profit_sources.join(',')
+    },
+    promoTitle: promo?.title || 'Admin Deposit Bonus',
+    promoCode: promo?.promo_code || 'ADMIN_BONUS',
+    adminNote: admin_note || 'Manual bonus credited by Admin',
+    actorRole: 'admin'
+  });
+
+  const claim = db.prepare('SELECT * FROM promotion_claims WHERE id = ?').get(claimId);
+  emitSocket('promotions_updated', { ts: Date.now() });
+  res.json({ ok: true, claim });
 });
 
 adminRouter.post('/claims/:claimId/reject', (req, res) => {

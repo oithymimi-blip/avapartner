@@ -82,11 +82,13 @@ export default function AdminPromotionsPage() {
     allowed_profit_sources: ['ai_trade', 'forex', 'binary'],
     enforce_withdrawal_conditions: true,
     auto_match_deposit_bonus: true,
+    bonus_payout_mode: 'automatic',
     page_headline: '',
     page_subheadline: '',
     withdrawal_rule_summary: ''
   })
   const [summary, setSummary] = useState({})
+  const [usersSummary, setUsersSummary] = useState([])
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
@@ -103,6 +105,17 @@ export default function AdminPromotionsPage() {
   const [approveNote, setApproveNote] = useState('')
   const [processingClaimId, setProcessingClaimId] = useState(null)
 
+  const [showGrantModal, setShowGrantModal] = useState(false)
+  const [granting, setGranting] = useState(false)
+  const [grantForm, setGrantForm] = useState({
+    user_id: '',
+    promotion_id: '',
+    deposit_amount: '',
+    bonus_amount: '',
+    apply_withdrawal_condition: true,
+    admin_note: ''
+  })
+
   const [editingLock, setEditingLock] = useState(null)
   const [lockForm, setLockForm] = useState({})
   const [savingLock, setSavingLock] = useState(false)
@@ -115,7 +128,8 @@ export default function AdminPromotionsPage() {
       setPromotions(Array.isArray(res.data?.promotions) ? res.data.promotions : [])
       setClaims(Array.isArray(res.data?.claims) ? res.data.claims : [])
       setLocks(Array.isArray(res.data?.locks) ? res.data.locks : [])
-      if (res.data?.settings) setSettings(res.data.settings)
+      setUsersSummary(Array.isArray(res.data?.users_summary) ? res.data.users_summary : [])
+      if (res.data?.settings) setSettings(s => ({ ...s, ...res.data.settings }))
       setSummary(res.data?.summary || {})
     } catch (e) {
       setErr(e?.response?.data?.error || 'Failed to load promotions.')
@@ -313,6 +327,63 @@ export default function AdminPromotionsPage() {
     }
   }
 
+  const getSuggestedDepositForUser = (user) => {
+    if (!user) return 0
+    const unused = Number(user.unused_deposit_amount || 0)
+    if (unused > 0) return unused
+    return Number(user.total_deposited || 0)
+  }
+
+  const openGrantModal = () => {
+    const firstUser = usersSummary.find(u => Number(u.unused_deposit_amount || 0) > 0) || usersSummary[0]
+    const defaultOffer = promotions.find(p => p.active === 1 && p.category === 'deposit_bonus') || promotions[0]
+    const dep = getSuggestedDepositForUser(firstUser)
+    setGrantForm({
+      user_id: firstUser ? String(firstUser.id) : '',
+      promotion_id: defaultOffer ? String(defaultOffer.id) : '',
+      deposit_amount: dep > 0 ? String(Number(dep.toFixed(2))) : '0',
+      bonus_amount: dep > 0 ? String(Number(dep.toFixed(2))) : '',
+      apply_withdrawal_condition: true,
+      admin_note: ''
+    })
+    setShowGrantModal(true)
+  }
+
+  const handleSelectGrantUser = (userId) => {
+    const u = usersSummary.find(item => String(item.id) === String(userId))
+    const dep = getSuggestedDepositForUser(u)
+    setGrantForm(f => ({
+      ...f,
+      user_id: userId,
+      deposit_amount: dep > 0 ? String(Number(dep.toFixed(2))) : '0',
+      bonus_amount: dep > 0 ? String(Number(dep.toFixed(2))) : f.bonus_amount
+    }))
+  }
+
+  const handleGrantManual = async (e) => {
+    e.preventDefault()
+    if (!grantForm.user_id) return notify('Select a user first.', true)
+    if (!(Number(grantForm.bonus_amount) > 0)) return notify('Enter a bonus amount greater than $0.', true)
+    setGranting(true)
+    try {
+      await api(token).post('/api/admin/promotions/grant-manual', {
+        user_id: Number(grantForm.user_id),
+        promotion_id: grantForm.promotion_id ? Number(grantForm.promotion_id) : undefined,
+        deposit_amount: Number(grantForm.deposit_amount || 0),
+        bonus_amount: Number(grantForm.bonus_amount),
+        apply_withdrawal_condition: Boolean(grantForm.apply_withdrawal_condition),
+        admin_note: grantForm.admin_note || undefined
+      })
+      notify(`Manually credited +$${Number(grantForm.bonus_amount).toFixed(2)} to user's main balance!`)
+      setShowGrantModal(false)
+      await loadData()
+    } catch (errRes) {
+      notify(errRes?.response?.data?.error || 'Failed to credit manual bonus.', true)
+    } finally {
+      setGranting(false)
+    }
+  }
+
   const handleRejectClaim = async (claim) => {
     const reason = window.prompt('Reason for declining this claim (optional):', 'Does not meet deposit or offer requirements.')
     if (reason === null) return
@@ -394,14 +465,24 @@ export default function AdminPromotionsPage() {
             Configure bonus ratios, profit-double cashout conditions, marketing promo codes, and automated bonus locks.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={openCreateForm}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-sm transition"
-        >
-          <Plus className="w-4 h-4" />
-          <span>New Bonus / Promo Code</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={openGrantModal}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm transition"
+          >
+            <Coins className="w-4 h-4" />
+            <span>Grant 2x / Manual Bonus</span>
+          </button>
+          <button
+            type="button"
+            onClick={openCreateForm}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-sm transition"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Bonus / Promo Code</span>
+          </button>
+        </div>
       </div>
 
       {msg && <div className="rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700 font-medium">{msg}</div>}
@@ -776,7 +857,14 @@ export default function AdminPromotionsPage() {
                   <tr>
                     <td colSpan="7" className="px-4 py-8 text-center text-slate-400">No promotion claims yet.</td>
                   </tr>
-                ) : claims.map(c => (
+                ) : claims.map(c => {
+                  const claimDeposit = Number(c.deposit_amount || 0)
+                  const minDepositReq = Number(c.min_deposit || 0)
+                  const missingDeposit = minDepositReq > 0 && claimDeposit < minDepositReq
+                  const totalDeposited = Number(c.user_total_deposited || 0)
+                  const depositCount = Number(c.user_deposit_count || 0)
+                  const latestDeposit = Number(c.user_latest_deposit || 0)
+                  return (
                   <tr key={c.id} className="hover:bg-slate-50/70">
                     <td className="px-4 py-3">
                       <div className="font-semibold text-slate-900">{c.user_name || `User #${c.user_id}`}</div>
@@ -786,7 +874,19 @@ export default function AdminPromotionsPage() {
                       <div className="font-medium text-slate-900">{c.promo_title || `Offer #${c.promotion_id}`}</div>
                       {c.promo_code && <span className="text-[11px] font-mono text-indigo-600">{c.promo_code}</span>}
                     </td>
-                    <td className="px-4 py-3 font-mono text-slate-700">${Number(c.deposit_amount || 0).toFixed(2)}</td>
+                    <td className="px-4 py-3">
+                      <div className={`font-mono font-semibold ${missingDeposit ? 'text-rose-600' : 'text-slate-800'}`}>
+                        ${claimDeposit.toFixed(2)}
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-mono">
+                        Total Dep: ${totalDeposited.toFixed(2)} ({depositCount})
+                      </div>
+                      {latestDeposit > 0 && (
+                        <div className="text-[11px] text-slate-400 font-mono">
+                          Latest: ${latestDeposit.toFixed(2)}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-3 font-mono font-bold text-emerald-600">+${Number(c.bonus_amount || 0).toFixed(2)}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase ${
@@ -804,19 +904,25 @@ export default function AdminPromotionsPage() {
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       {(c.status === 'pending' || c.status === 'activated') && (
                         <div className="inline-flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            disabled={processingClaimId === c.id}
-                            onClick={() => {
-                              setReviewingClaim(c)
-                              setApproveAmount(String(c.bonus_amount || (c.bonus_type === 'fixed' ? c.bonus_value : 25)))
-                              setApproveNote(c.admin_note || '')
-                            }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>Approve &amp; Credit</span>
-                          </button>
+                          {missingDeposit ? (
+                            <span className="px-2 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 text-[11px] font-semibold">
+                              No Qualifying Deposit (${minDepositReq.toFixed(0)}+)
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={processingClaimId === c.id}
+                              onClick={() => {
+                                setReviewingClaim(c)
+                                setApproveAmount(String(c.bonus_amount || 0))
+                                setApproveNote(c.admin_note || '')
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Approve &amp; Credit</span>
+                            </button>
+                          )}
                           <button
                             type="button"
                             disabled={processingClaimId === c.id}
@@ -830,7 +936,8 @@ export default function AdminPromotionsPage() {
                       )}
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -1077,6 +1184,60 @@ export default function AdminPromotionsPage() {
             </label>
           </div>
 
+          {/* Deposit Bonus Payout Mode (Automatic vs Manual) */}
+          <div className="rounded-2xl border border-indigo-200/80 bg-indigo-50/50 p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-bold text-slate-900">Deposit Bonus Payout Mode</div>
+                <div className="text-xs text-slate-600">
+                  Choose whether qualifying deposit bonuses credit instantly &amp; automatically into user main balance, or wait for manual Admin approval.
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full bg-white border border-indigo-200 text-indigo-700 text-xs font-semibold uppercase">
+                Current: {settings.bonus_payout_mode || 'automatic'}
+              </span>
+            </div>
+            <div className="grid md:grid-cols-3 gap-3">
+              {[
+                {
+                  key: 'automatic',
+                  title: 'Automatic Instant Credit',
+                  desc: 'Instantly credits calculated bonus (e.g. 100% / 2x total) into main balance right after deposit approval.'
+                },
+                {
+                  key: 'manual',
+                  title: 'Manual Admin Approval',
+                  desc: 'Deposit creates a Pending claim showing the user deposit amount; Admin reviews and credits manually.'
+                },
+                {
+                  key: 'per_offer',
+                  title: 'Per-Offer Setting',
+                  desc: 'Follows each individual offer Auto-Credit toggle.'
+                }
+              ].map(mode => {
+                const active = (settings.bonus_payout_mode || 'automatic') === mode.key
+                return (
+                  <button
+                    key={mode.key}
+                    type="button"
+                    onClick={() => setSettings(s => ({ ...s, bonus_payout_mode: mode.key }))}
+                    className={`text-left rounded-2xl border p-3.5 transition ${
+                      active
+                        ? 'border-indigo-600 bg-white ring-2 ring-indigo-500/20 shadow-sm'
+                        : 'border-slate-200 bg-white/80 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-slate-900">{mode.title}</span>
+                      <span className={`w-3.5 h-3.5 rounded-full border-2 ${active ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300'}`} />
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{mode.desc}</p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           <div className="rounded-2xl bg-slate-50/70 border border-slate-200/80 p-4 sm:p-5 space-y-4">
             <div className="grid md:grid-cols-3 gap-4">
               <div>
@@ -1215,10 +1376,33 @@ export default function AdminPromotionsPage() {
             <div className="text-xs text-slate-600 space-y-1 bg-slate-50 border border-slate-200 rounded-xl p-3">
               <div><strong>User:</strong> {reviewingClaim.user_email}</div>
               <div><strong>Offer:</strong> {reviewingClaim.promo_title}</div>
-              <div><strong>Qualifying Deposit:</strong> ${Number(reviewingClaim.deposit_amount || 0).toFixed(2)}</div>
+              <div><strong>Qualifying Claim Deposit:</strong> ${Number(reviewingClaim.deposit_amount || 0).toFixed(2)}</div>
+              <div>
+                <strong>Account Total Deposited:</strong> ${Number(reviewingClaim.user_total_deposited || 0).toFixed(2)} ({Number(reviewingClaim.user_deposit_count || 0)} deposits)
+              </div>
             </div>
             <div>
-              <label className={ADMIN_LABEL_CLS}>Bonus Amount to Credit ($)</label>
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <label className="text-xs font-semibold text-slate-700">Bonus Amount to Credit ($)</label>
+                {Number(reviewingClaim.deposit_amount || 0) > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setApproveAmount(String(Number(reviewingClaim.deposit_amount).toFixed(2)))}
+                      className="px-2 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-semibold"
+                    >
+                      100% Match (= 2x Total)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setApproveAmount(String((Number(reviewingClaim.deposit_amount) * 2).toFixed(2)))}
+                      className="px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-semibold"
+                    >
+                      2x Deposit
+                    </button>
+                  </div>
+                )}
+              </div>
               <input
                 type="number"
                 step="0.01"
@@ -1356,6 +1540,165 @@ export default function AdminPromotionsPage() {
           </form>
         </div>
       )}
+
+      {/* Grant Manual / 2x Bonus Modal */}
+      {showGrantModal && (() => {
+        const selectedUser = usersSummary.find(u => String(u.id) === String(grantForm.user_id))
+        const depNum = Math.max(0, Number(grantForm.deposit_amount || 0))
+        const bonusNum = Math.max(0, Number(grantForm.bonus_amount || 0))
+        const currentBal = Number(selectedUser?.available_balance || 0)
+        return (
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <form style={{ colorScheme: 'light' }} onSubmit={handleGrantManual} className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl space-y-4 text-slate-900">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div className="flex items-center gap-2 text-lg font-bold text-slate-900">
+                  <Coins className="w-5 h-5 text-emerald-600" />
+                  <span>Grant Manual / 2x Bonus to Main Balance</span>
+                </div>
+                <button type="button" onClick={() => setShowGrantModal(false)} className="text-sm font-semibold text-slate-500 hover:text-slate-800">Close</button>
+              </div>
+
+              <div>
+                <label className={ADMIN_LABEL_CLS}>Select User (shows Main Balance &amp; Approved Deposits)</label>
+                <select
+                  value={grantForm.user_id}
+                  onChange={e => handleSelectGrantUser(e.target.value)}
+                  className={ADMIN_INPUT_CLS}
+                  required
+                >
+                  <option value="">-- Choose User --</option>
+                  {usersSummary.map(u => (
+                    <option key={u.id} value={u.id}>
+                      {u.name || `User #${u.id}`} ({u.email}) — Bal: ${Number(u.available_balance || 0).toFixed(2)} | Unused Dep: ${Number(u.unused_deposit_amount || 0).toFixed(2)} | Total Dep: ${Number(u.total_deposited || 0).toFixed(2)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedUser && (
+                <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-50 border border-slate-200 p-3 text-xs">
+                  <div>
+                    <div className="text-slate-500">Main Balance</div>
+                    <div className="font-mono font-bold text-slate-900">${Number(selectedUser.available_balance || 0).toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div className="text-slate-500">Unused Deposit</div>
+                    <div className="font-mono font-bold text-indigo-600">${Number(selectedUser.unused_deposit_amount || 0).toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div className="text-slate-500">Total Deposited ({selectedUser.deposit_count || 0})</div>
+                    <div className="font-mono font-bold text-emerald-600">${Number(selectedUser.total_deposited || 0).toFixed(2)}</div>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className={ADMIN_LABEL_CLS}>Link to Promotion / Offer (for tracking &amp; cashout rules)</label>
+                <select
+                  value={grantForm.promotion_id}
+                  onChange={e => setGrantForm(f => ({ ...f, promotion_id: e.target.value }))}
+                  className={ADMIN_INPUT_CLS}
+                >
+                  <option value="">-- Direct Admin Bonus --</option>
+                  {promotions.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.title} {p.promo_code ? `(${p.promo_code})` : ''} — {p.bonus_type === 'percentage' ? `${p.bonus_value}%` : `$${p.bonus_value}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={ADMIN_LABEL_CLS}>Deposit Basis ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={grantForm.deposit_amount}
+                    onChange={e => setGrantForm(f => ({ ...f, deposit_amount: e.target.value }))}
+                    className={ADMIN_MONO_INPUT_CLS}
+                  />
+                </div>
+                <div>
+                  <label className={ADMIN_LABEL_CLS}>Bonus Amount to Credit ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    required
+                    value={grantForm.bonus_amount}
+                    onChange={e => setGrantForm(f => ({ ...f, bonus_amount: e.target.value }))}
+                    className={ADMIN_MONO_INPUT_CLS}
+                  />
+                </div>
+              </div>
+
+              {depNum > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setGrantForm(f => ({ ...f, bonus_amount: String(Number(depNum.toFixed(2))) }))}
+                    className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-semibold"
+                  >
+                    100% Match (= 2x Total: +${depNum.toFixed(2)})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGrantForm(f => ({ ...f, bonus_amount: String(Number((depNum * 2).toFixed(2))) }))}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-semibold"
+                  >
+                    2x Deposit Bonus (+${(depNum * 2).toFixed(2)})
+                  </button>
+                </div>
+              )}
+
+              <label className="flex items-start gap-2.5 rounded-2xl border border-slate-200 bg-slate-50/70 p-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(grantForm.apply_withdrawal_condition)}
+                  onChange={e => setGrantForm(f => ({ ...f, apply_withdrawal_condition: e.target.checked }))}
+                  className="mt-0.5 w-4 h-4 accent-indigo-600"
+                />
+                <div className="text-xs text-slate-700">
+                  <div className="font-semibold text-slate-900">Enforce 2x Profit &amp; 50% Milestone Cashout Lock</div>
+                  <div className="text-slate-500">User must reach profit target via AI Trade, Forex, or Binary to withdraw 50% across milestones.</div>
+                </div>
+              </label>
+
+              <div>
+                <label className={ADMIN_LABEL_CLS}>Admin Note (optional)</label>
+                <input
+                  type="text"
+                  value={grantForm.admin_note}
+                  onChange={e => setGrantForm(f => ({ ...f, admin_note: e.target.value }))}
+                  placeholder="e.g. Manual 100% / 2x deposit bonus credit"
+                  className={ADMIN_INPUT_CLS}
+                />
+              </div>
+
+              {selectedUser && bonusNum > 0 && (
+                <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-3.5 py-2.5 text-xs text-emerald-800 flex items-center justify-between font-mono">
+                  <span>Main Balance Preview:</span>
+                  <span>${currentBal.toFixed(2)} + ${bonusNum.toFixed(2)} = <strong>${(currentBal + bonusNum).toFixed(2)}</strong></span>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button type="button" onClick={() => setShowGrantModal(false)} className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-sm font-semibold text-slate-700">Cancel</button>
+                <button
+                  type="submit"
+                  disabled={granting}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold disabled:opacity-50"
+                >
+                  <Coins className="w-4 h-4" />
+                  <span>{granting ? 'Crediting...' : 'Credit Bonus to Main Balance'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        )
+      })()}
     </div>
   )
 }

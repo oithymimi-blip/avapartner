@@ -1,5 +1,6 @@
 export const DEFAULT_BONUS_SETTINGS = {
   system_enabled: '1',
+  bonus_payout_mode: 'automatic',
   default_double_multiplier: '2',
   default_cashout_pct: '50',
   default_required_milestones: '2',
@@ -206,6 +207,7 @@ export function ensurePromotionsSchemaAndDefaults(db, { skipPromoSeed = false } 
     CREATE INDEX IF NOT EXISTS idx_bonus_locks_user_status ON bonus_locks(user_id, status);
   `);
 
+  ensureCol(db, 'users', 'preferred_promo_code', 'preferred_promo_code TEXT');
   ensureCol(db, 'promotion_claims', 'deposit_request_id', 'deposit_request_id INTEGER');
   ensureCol(db, 'payment_requests', 'bonus_lock_snapshot', 'bonus_lock_snapshot TEXT');
 
@@ -256,6 +258,12 @@ export function ensurePromotionsSchemaAndDefaults(db, { skipPromoSeed = false } 
         AND value LIKE 'Example: Deposit $100 + 100% Bonus ($100) = $200.%'
     `).run(DEFAULT_BONUS_SETTINGS.withdrawal_rule_summary);
     db.prepare("INSERT OR REPLACE INTO bonus_system_settings (key, value) VALUES ('migration_welcome100_nocap_v3', '1')").run();
+  }
+
+  const migratedV4 = db.prepare("SELECT value FROM bonus_system_settings WHERE key = 'migration_clean_zero_activated_v4'").get();
+  if (!migratedV4) {
+    db.prepare("DELETE FROM promotion_claims WHERE status = 'activated' AND COALESCE(deposit_amount, 0) <= 0").run();
+    db.prepare("INSERT OR REPLACE INTO bonus_system_settings (key, value) VALUES ('migration_clean_zero_activated_v4', '1')").run();
   }
 
   const count = db.prepare('SELECT COUNT(*) AS c FROM promotions').get()?.c || 0;
