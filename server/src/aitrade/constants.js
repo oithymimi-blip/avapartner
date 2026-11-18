@@ -7,10 +7,10 @@ export const AI_TRADE_SLOTS = [
 ];
 
 // Per-minute rate ranges [min, max] per slot → yields correct daily %
-// Slot 1: 1.0%–1.5%/day, Slot 2: 1.5%–2.0%/day, Slot 3: 2.0%–2.5%/day, Slot 4: 2.5%–3.0%/day
+// Slot 1: 1.5%–2.0%/day, Slot 2: 2.0%–2.5%/day, Slot 3: 2.5%–3.0%/day, Slot 4: 3.0%–3.5%/day
 export const SLOT_RATES = {
-  1: { min: 0.01 / 1440,  max: 0.015 / 1440 },
-  2: { min: 0.015 / 1440, max: 0.02 / 1440  },
-  3: { min: 0.02 / 1440,  max: 0.025 / 1440 },
-  4: { min: 0.025 / 1440, max: 0.03 / 1440  },
+  1: { min: 0.015 / 1440, max: 0.02 / 1440  },
+  2: { min: 0.02 / 1440,  max: 0.025 / 1440 },
+  3: { min: 0.025 / 1440, max: 0.03 / 1440  },
+  4: { min: 0.03 / 1440,  max: 0.035 / 1440 },
 };

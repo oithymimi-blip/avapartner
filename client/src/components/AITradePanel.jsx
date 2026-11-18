@@ -6,10 +6,10 @@ import { formatBdDate, formatBdDateTime, parseTimestampMs } from '../utils/bdTim
 const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
 
 const SLOTS = [
-  { slot: 1, name: 'Starter',    range: '$10 – $100',        min: 10,   max: 100,  userSplit: 60, dailyRange: '1.0% – 1.5%', gradient: 'from-sky-500 to-blue-600',     border: 'border-sky-500/40',     glow: 'shadow-sky-500/20' },
-  { slot: 2, name: 'Booster',    range: '$101 – $1,000',     min: 101,  max: 1000, userSplit: 70, dailyRange: '1.5% – 2.0%', gradient: 'from-violet-500 to-purple-700', border: 'border-violet-500/40',  glow: 'shadow-violet-500/20' },
-  { slot: 3, name: 'Premium',    range: '$1,001 – $5,000',   min: 1001, max: 5000, userSplit: 75, dailyRange: '2.0% – 2.5%', gradient: 'from-amber-400 to-orange-600',  border: 'border-amber-500/40',   glow: 'shadow-amber-500/20' },
-  { slot: 4, name: 'Titan Mega', range: '$5,001 – $10,000+', min: 5001, max: null, userSplit: 85, dailyRange: '2.5% – 3.0%', gradient: 'from-emerald-400 to-teal-600',  border: 'border-emerald-500/40', glow: 'shadow-emerald-500/20' },
+  { slot: 1, name: 'Starter',    range: '$10 – $100',        min: 10,   max: 100,  userSplit: 60, dailyRange: '1.5% – 2.0%', gradient: 'from-sky-500 to-blue-600',     border: 'border-sky-500/40',     glow: 'shadow-sky-500/20' },
+  { slot: 2, name: 'Booster',    range: '$101 – $1,000',     min: 101,  max: 1000, userSplit: 70, dailyRange: '2.0% – 2.5%', gradient: 'from-violet-500 to-purple-700', border: 'border-violet-500/40',  glow: 'shadow-violet-500/20' },
+  { slot: 3, name: 'Premium',    range: '$1,001 – $5,000',   min: 1001, max: 5000, userSplit: 75, dailyRange: '2.5% – 3.0%', gradient: 'from-amber-400 to-orange-600',  border: 'border-amber-500/40',   glow: 'shadow-amber-500/20' },
+  { slot: 4, name: 'Titan Mega', range: '$5,001 – $10,000+', min: 5001, max: null, userSplit: 85, dailyRange: '3.0% – 3.5%', gradient: 'from-emerald-400 to-teal-600',  border: 'border-emerald-500/40', glow: 'shadow-emerald-500/20' },
 ];
 
 // Animated counter for earnings
