@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertCircle, CheckCircle2, Clock, ShieldCheck } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Clock, ShieldCheck, Gift, Lock, Unlock, TrendingUp } from 'lucide-react'
 import { useAuth } from '../store'
 import { api } from '../api'
 import { useAccount } from '../accountStore'
@@ -34,6 +34,7 @@ export default function WalletWithdraw() {
   const [bals, setBals] = useState({ available: 0, locked: 0 })
   const [aiOn, setAiOn] = useState(false)
   const [totpEnabled, setTotpEnabled] = useState(false)
+  const [bonusStatus, setBonusStatus] = useState(null)
 
   // Google Authenticator 2FA withdrawal confirmation step
   const [authStep, setAuthStep] = useState(false)
@@ -75,7 +76,7 @@ export default function WalletWithdraw() {
     if (!token) return
     setLoading(true)
     try {
-      const [wR, rR, oR, aR, sR] = await Promise.all([
+      const [wR, rR, oR, aR, sR, bR] = await Promise.all([
         api(token).get('/api/payments/methods?type=withdraw').catch(() => ({
           data: [{ id: 'usdt-withdraw', name: 'USDT', network: 'Binance Smart Chain (BEP-20)', active: true }]
         })),
@@ -83,6 +84,7 @@ export default function WalletWithdraw() {
         api(token).get('/api/trades/overview', { params: { limit: 1 } }).catch(() => null),
         api(token).get('/api/ai-trade/session').catch(() => ({ data: { session: null, balance: null } })),
         api(token).get('/api/security/status').catch(() => ({ data: { totp_enabled: false } })),
+        api(token).get('/api/promotions/withdrawal-status').catch(() => ({ data: null })),
       ])
 
       const rawMethods = Array.isArray(wR.data) && wR.data.length > 0
@@ -98,6 +100,7 @@ export default function WalletWithdraw() {
       }))
       setRequests((rR.data || []).filter(r => r.type === 'withdraw'))
       setTotpEnabled(Boolean(sR?.data?.totp_enabled))
+      setBonusStatus(bR?.data || null)
 
       if (oR?.data) {
         setAccountSummary(oR.data)
@@ -160,6 +163,22 @@ export default function WalletWithdraw() {
       setMsgOk(false)
       return false
     }
+    if (bonusStatus?.restricted) {
+      if (!bonusStatus.milestoneUnlocked) {
+        setMsg(
+          `Bonus Condition Active (Milestone ${bonusStatus.currentMilestone}/${bonusStatus.requiredMilestones}): Earn +$${Number(bonusStatus.profitRemaining || 0).toFixed(2)} more profit via ${bonusStatus.allowedSourcesLabel} to reach $${Number(bonusStatus.targetBalance || 0).toFixed(2)} and unlock ${bonusStatus.cashoutPct}% withdrawal.`
+        )
+        setMsgOk(false)
+        return false
+      }
+      if (parsedAmount > Number(bonusStatus.maxWithdrawable || 0) + 1e-6) {
+        setMsg(
+          `Bonus Milestone ${bonusStatus.currentMilestone}/${bonusStatus.requiredMilestones} permits withdrawing up to ${bonusStatus.cashoutPct}% ($${Number(bonusStatus.maxWithdrawable || 0).toFixed(2)} max right now).`
+        )
+        setMsgOk(false)
+        return false
+      }
+    }
     if (!hasAddressInput) {
       setMsg('Wallet address is required.')
       setMsgOk(false)
@@ -216,6 +235,7 @@ export default function WalletWithdraw() {
       setAuthStep(false)
       setTotpCode('')
       setForm(p => ({ ...p, amount: '', address: '', tag: '' }))
+      load()
     } catch (err) {
       const errData = err?.response?.data
       if (errData?.codeRequired === 'GOOGLE_AUTHENTICATOR') {
@@ -290,6 +310,96 @@ export default function WalletWithdraw() {
           <div className={`text-xl font-bold font-mono ${locked > 0 ? 'text-amber-400' : 'text-white/30'}`}>${locked.toFixed(2)}</div>
         </div>
       </div>
+
+      {/* ── Bonus Withdrawal Condition Progress Card ── */}
+      {bonusStatus?.hasActiveLock ? (
+        <div className={`rounded-2xl border p-4 space-y-3 ${
+          bonusStatus.milestoneUnlocked
+            ? 'border-emerald-500/35 bg-emerald-500/10'
+            : 'border-amber-500/35 bg-amber-500/10'
+        }`}>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="flex items-start gap-2.5">
+              <span className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
+                bonusStatus.milestoneUnlocked
+                  ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
+                  : 'bg-amber-500/20 border-amber-400/40 text-amber-300'
+              }`}>
+                {bonusStatus.milestoneUnlocked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+              </span>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-bold text-white">
+                    {bonusStatus.lock?.promo_title || 'Deposit Bonus'} Condition
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-white/10 text-amber-300 border border-amber-400/30">
+                    Milestone {bonusStatus.currentMilestone}/{bonusStatus.requiredMilestones}
+                  </span>
+                </div>
+                <p className="text-xs text-white/75 mt-0.5">
+                  {bonusStatus.milestoneUnlocked ? (
+                    <>
+                      Target achieved! You can withdraw up to{' '}
+                      <strong className="text-emerald-300">${Number(bonusStatus.maxWithdrawable || 0).toFixed(2)} ({bonusStatus.cashoutPct}%)</strong> now.
+                    </>
+                  ) : (
+                    <>
+                      Earn <strong className="text-white">+${Number(bonusStatus.profitRemaining || 0).toFixed(2)}</strong> more profit via{' '}
+                      <strong className="text-amber-300">{bonusStatus.allowedSourcesLabel}</strong> to reach{' '}
+                      <strong className="text-white">${Number(bonusStatus.targetBalance || 0).toFixed(2)}</strong> ({bonusStatus.multiplier}x) and unlock{' '}
+                      <strong className="text-amber-300">{bonusStatus.cashoutPct}%</strong> cashout.
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {bonusStatus.milestoneUnlocked ? (
+              <button
+                type="button"
+                onClick={() => setForm(p => ({ ...p, amount: String(bonusStatus.maxWithdrawable) }))}
+                className="shrink-0 px-3 py-1.5 rounded-xl bg-brand hover:bg-emerald-400 text-black font-bold text-xs transition"
+              >
+                Use Max {bonusStatus.cashoutPct}% (${Number(bonusStatus.maxWithdrawable || 0).toFixed(2)})
+              </button>
+            ) : (
+              <Link
+                to="/dashboard"
+                className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs transition"
+              >
+                <TrendingUp className="w-3.5 h-3.5 text-brand" />
+                <span>Trade Now</span>
+              </Link>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex justify-between text-[11px] text-white/70">
+              <span>Trading Profit Progress: <strong className="font-mono text-white">${Number(bonusStatus.profitEarned || 0).toFixed(2)}</strong> / <strong className="font-mono text-brand">${Number(bonusStatus.profitNeeded || 0).toFixed(2)}</strong></span>
+              <span className="font-mono font-bold text-amber-300">{bonusStatus.profitProgressPct}%</span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-black/30 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-amber-400 to-brand transition-all duration-300"
+                style={{ width: `${Math.min(100, Math.max(0, Number(bonusStatus.profitProgressPct || 0)))}%` }}
+              />
+            </div>
+            <div className="flex flex-wrap gap-3 pt-1 text-[11px] text-white/60 font-mono">
+              <span>AI Trade: ${Number(bonusStatus.breakdown?.ai_trade || 0).toFixed(2)}</span>
+              <span>Forex: ${Number(bonusStatus.breakdown?.forex || 0).toFixed(2)}</span>
+              <span>Binary: ${Number(bonusStatus.breakdown?.binary || 0).toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+      ) : bonusStatus?.completedLocksCount > 0 ? (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-xs text-emerald-300">
+          <div className="flex items-center gap-2">
+            <Gift className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span><strong>Bonus Terms Completed:</strong> All milestone conditions satisfied — your full balance is eligible for normal withdrawal.</span>
+          </div>
+          <Link to="/promotions" className="shrink-0 font-semibold text-brand hover:underline">Offers</Link>
+        </div>
+      ) : null}
 
       {/* ── Processing time notice banner ── */}
       <div className="flex items-start gap-3 rounded-2xl border border-cyan-500/20 bg-cyan-500/[0.06] px-4 py-3 text-xs text-cyan-200/90">

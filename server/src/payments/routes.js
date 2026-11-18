@@ -8,7 +8,12 @@ import { notifyAdmin } from '../notifications/adminNotifications.js';
 import { emitSocket } from '../market/engine.js';
 import { validateCryptoAddress } from '../utils/addressValidator.js';
 import { verifyTotpCode } from '../utils/totp.js';
-import { processQualifyingDepositForPromotions } from '../promotions/promoEngine.js';
+import {
+  processQualifyingDepositForPromotions,
+  validateBonusWithdrawal,
+  advanceBonusLockOnWithdrawalTx,
+  restoreBonusLockOnDeclineTx
+} from '../promotions/promoEngine.js';
 
 const router = express.Router();
 
@@ -256,6 +261,8 @@ function executeWithdrawal({ userId, userEmail, method, amount, address, tag, to
       throw err;
     }
 
+    const bonusCheck = validateBonusWithdrawal(userId, amt);
+
     let nextAvail = roundCurrency(currentAvail - amt);
     if (nextAvail < 1e-6) nextAvail = 0;
 
@@ -263,6 +270,17 @@ function executeWithdrawal({ userId, userEmail, method, amount, address, tag, to
 
     const reqInfo = insertRequest.run(userId, 'withdraw', method?.id || null, amt, cleanAddress, cleanTag, null);
     const requestId = Number(reqInfo.lastInsertRowid);
+
+    if (bonusCheck.restricted && bonusCheck.snapshotJson) {
+      db.prepare('UPDATE payment_requests SET bonus_lock_snapshot = ? WHERE id = ?')
+        .run(bonusCheck.snapshotJson, requestId);
+      advanceBonusLockOnWithdrawalTx({
+        userId,
+        requestId,
+        nextAvailableBalance: nextAvail,
+        lockSnapshotJson: bonusCheck.snapshotJson
+      });
+    }
 
     db.prepare('INSERT INTO activity_logs (user_id, actor_role, action, meta) VALUES (?, ?, ?, ?)')
       .run(userId, 'user', 'withdrawal_request', JSON.stringify({
@@ -352,6 +370,12 @@ router.post('/withdraw/send-otp', async (req, res) => {
   const bal = db.prepare('SELECT available FROM balances WHERE user_id = ?').get(req.user.id);
   if (!bal || Number(bal.available) + 1e-6 < amt) {
     return res.status(400).json({ error: 'Insufficient balance' });
+  }
+
+  try {
+    validateBonusWithdrawal(req.user.id, amt);
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message, bonusStatus: err.bonusStatus });
   }
 
   const otpCode = generateOtpCode();
@@ -533,6 +557,9 @@ function settleRequestStatus(id, status) {
     } else if (status === 'declined' && row.type === 'withdraw') {
       // Refund withheld balance immediately
       db.prepare('UPDATE balances SET available = COALESCE(available,0) + ? WHERE user_id = ?').run(row.amount, row.user_id);
+      if (row.bonus_lock_snapshot) {
+        restoreBonusLockOnDeclineTx(row.bonus_lock_snapshot);
+      }
       db.prepare('INSERT INTO activity_logs (user_id, actor_role, action, meta) VALUES (?, ?, ?, ?)')
         .run(row.user_id, 'admin', 'withdrawal_declined', JSON.stringify({ requestId: row.id, amount: row.amount }));
       const n = db.prepare('INSERT INTO notifications (user_id, title, message) VALUES (?, ?, ?)').run(

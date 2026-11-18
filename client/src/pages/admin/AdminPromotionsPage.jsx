@@ -1,5 +1,21 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Gift, Plus, CheckCircle2, XCircle, Trash2, Edit3, Sparkles, Coins, Loader2 } from 'lucide-react'
+import {
+  Gift,
+  Plus,
+  CheckCircle2,
+  XCircle,
+  Trash2,
+  Edit3,
+  Sparkles,
+  Coins,
+  Loader2,
+  Settings,
+  Lock,
+  Unlock,
+  Copy,
+  Wand2,
+  Link2
+} from 'lucide-react'
 import { api } from '../../api'
 import { useAdminAuth } from '../../adminStore'
 import { formatBdDateTime } from '../../utils/bdTime'
@@ -10,16 +26,38 @@ const emptyForm = {
   category: 'deposit_bonus',
   badge_text: 'HOT OFFER',
   bonus_type: 'percentage',
-  bonus_value: '50',
+  bonus_value: '100',
   max_bonus_amount: '500',
   min_deposit: '50',
   promo_code: '',
   terms: '',
-  max_claims_per_user: '1',
-  auto_credit: false,
+  max_claims_per_user: '2',
+  total_global_limit: '0',
+  sort_order: '0',
+  apply_withdrawal_condition: true,
+  profit_multiplier: '2',
+  cashout_pct_per_milestone: '50',
+  required_milestones: '2',
+  allowed_sources: ['ai_trade', 'forex', 'binary'],
+  auto_credit: true,
   featured: true,
   active: true,
   expires_at: ''
+}
+
+const SOURCE_OPTIONS = [
+  { key: 'ai_trade', label: 'AI Trade' },
+  { key: 'forex', label: 'Forex' },
+  { key: 'binary', label: 'Binary' }
+]
+
+function makeRandomPromoCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let out = 'AVA'
+  for (let i = 0; i < 6; i++) {
+    out += chars[Math.floor(Math.random() * chars.length)]
+  }
+  return out
 }
 
 export default function AdminPromotionsPage() {
@@ -27,20 +65,39 @@ export default function AdminPromotionsPage() {
   const [tab, setTab] = useState('claims')
   const [promotions, setPromotions] = useState([])
   const [claims, setClaims] = useState([])
+  const [locks, setLocks] = useState([])
+  const [settings, setSettings] = useState({
+    system_enabled: true,
+    default_double_multiplier: 2,
+    default_cashout_pct: 50,
+    default_required_milestones: 2,
+    allowed_profit_sources: ['ai_trade', 'forex', 'binary'],
+    enforce_withdrawal_conditions: true,
+    auto_match_deposit_bonus: true,
+    page_headline: '',
+    page_subheadline: '',
+    withdrawal_rule_summary: ''
+  })
   const [summary, setSummary] = useState({})
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
+  const [copiedId, setCopiedId] = useState('')
 
   const [editingId, setEditingId] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [savingSettings, setSavingSettings] = useState(false)
 
   const [reviewingClaim, setReviewingClaim] = useState(null)
   const [approveAmount, setApproveAmount] = useState('')
   const [approveNote, setApproveNote] = useState('')
   const [processingClaimId, setProcessingClaimId] = useState(null)
+
+  const [editingLock, setEditingLock] = useState(null)
+  const [lockForm, setLockForm] = useState({})
+  const [savingLock, setSavingLock] = useState(false)
 
   const loadData = useCallback(async () => {
     if (!token) return
@@ -49,6 +106,8 @@ export default function AdminPromotionsPage() {
       const res = await api(token).get('/api/admin/promotions')
       setPromotions(Array.isArray(res.data?.promotions) ? res.data.promotions : [])
       setClaims(Array.isArray(res.data?.claims) ? res.data.claims : [])
+      setLocks(Array.isArray(res.data?.locks) ? res.data.locks : [])
+      if (res.data?.settings) setSettings(res.data.settings)
       setSummary(res.data?.summary || {})
     } catch (e) {
       setErr(e?.response?.data?.error || 'Failed to load promotions.')
@@ -75,15 +134,45 @@ export default function AdminPromotionsPage() {
     }, 5000)
   }
 
+  const copyMarketingLink = async (code, key) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : ''
+    const url = `${origin}/promotions?code=${encodeURIComponent(code)}`
+    try {
+      await navigator.clipboard.writeText(url)
+    } catch (_) {
+      const ta = document.createElement('textarea')
+      ta.value = url
+      document.body.appendChild(ta)
+      ta.select()
+      try { document.execCommand('copy') } catch (e) {}
+      document.body.removeChild(ta)
+    }
+    setCopiedId(key)
+    setTimeout(() => setCopiedId(''), 2000)
+    notify(`Copied shareable marketing link for ${code}: ${url}`)
+  }
+
   const openCreateForm = () => {
     setEditingId(null)
-    setForm(emptyForm)
+    setForm({
+      ...emptyForm,
+      profit_multiplier: String(settings.default_double_multiplier || 2),
+      cashout_pct_per_milestone: String(settings.default_cashout_pct || 50),
+      required_milestones: String(settings.default_required_milestones || 2),
+      allowed_sources: Array.isArray(settings.allowed_profit_sources) && settings.allowed_profit_sources.length
+        ? settings.allowed_profit_sources
+        : ['ai_trade', 'forex', 'binary']
+    })
     setShowForm(true)
     setTab('offers')
   }
 
   const openEditForm = (promo) => {
     setEditingId(promo.id)
+    const srcArr = String(promo.allowed_sources || 'ai_trade,forex,binary')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
     setForm({
       title: promo.title || '',
       subtitle: promo.subtitle || '',
@@ -96,6 +185,13 @@ export default function AdminPromotionsPage() {
       promo_code: promo.promo_code || '',
       terms: promo.terms || '',
       max_claims_per_user: String(promo.max_claims_per_user ?? 1),
+      total_global_limit: String(promo.total_global_limit ?? 0),
+      sort_order: String(promo.sort_order ?? 0),
+      apply_withdrawal_condition: promo.apply_withdrawal_condition !== 0,
+      profit_multiplier: String(promo.profit_multiplier ?? 2),
+      cashout_pct_per_milestone: String(promo.cashout_pct_per_milestone ?? 50),
+      required_milestones: String(promo.required_milestones ?? 2),
+      allowed_sources: srcArr.length ? srcArr : ['ai_trade', 'forex', 'binary'],
       auto_credit: promo.auto_credit === 1,
       featured: promo.featured === 1,
       active: promo.active === 1,
@@ -103,6 +199,14 @@ export default function AdminPromotionsPage() {
     })
     setShowForm(true)
     setTab('offers')
+  }
+
+  const toggleFormSource = (srcKey) => {
+    setForm(f => {
+      const has = f.allowed_sources.includes(srcKey)
+      const next = has ? f.allowed_sources.filter(x => x !== srcKey) : [...f.allowed_sources, srcKey]
+      return { ...f, allowed_sources: next.length ? next : [srcKey] }
+    })
   }
 
   const handleSaveOffer = async (e) => {
@@ -115,6 +219,12 @@ export default function AdminPromotionsPage() {
         max_bonus_amount: Number(form.max_bonus_amount || 0),
         min_deposit: Number(form.min_deposit || 0),
         max_claims_per_user: Number(form.max_claims_per_user || 1),
+        total_global_limit: Number(form.total_global_limit || 0),
+        sort_order: Number(form.sort_order || 0),
+        profit_multiplier: Number(form.profit_multiplier || 2),
+        cashout_pct_per_milestone: Number(form.cashout_pct_per_milestone || 50),
+        required_milestones: Number(form.required_milestones || 2),
+        allowed_sources: form.allowed_sources,
         expires_at: form.expires_at || null
       }
       if (editingId) {
@@ -132,6 +242,20 @@ export default function AdminPromotionsPage() {
       notify(e?.response?.data?.error || 'Failed to save promotion.', true)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleSaveSettings = async (e) => {
+    e.preventDefault()
+    setSavingSettings(true)
+    try {
+      const res = await api(token).put('/api/admin/promotions/settings', settings)
+      if (res.data?.settings) setSettings(res.data.settings)
+      notify('Global bonus automation & cashout conditions saved! All changes are now live.')
+    } catch (e) {
+      notify(e?.response?.data?.error || 'Failed to save system settings.', true)
+    } finally {
+      setSavingSettings(false)
     }
   }
 
@@ -188,13 +312,65 @@ export default function AdminPromotionsPage() {
     }
   }
 
+  const openEditLock = (lock) => {
+    setEditingLock(lock)
+    setLockForm({
+      milestone_base_balance: String(lock.milestone_base_balance ?? 0),
+      profit_multiplier: String(lock.profit_multiplier ?? 2),
+      cashout_pct: String(lock.cashout_pct ?? 50),
+      required_milestones: String(lock.required_milestones ?? 2),
+      milestones_completed: String(lock.milestones_completed ?? 0),
+      manual_profit_offset: String(lock.manual_profit_offset ?? 0),
+      status: lock.status || 'active',
+      allowed_sources: String(lock.allowed_sources || 'ai_trade,forex,binary').split(',').map(s => s.trim()).filter(Boolean)
+    })
+  }
+
+  const handleSaveLock = async (e) => {
+    e.preventDefault()
+    if (!editingLock) return
+    setSavingLock(true)
+    try {
+      await api(token).put(`/api/admin/promotions/locks/${editingLock.id}`, {
+        milestone_base_balance: Number(lockForm.milestone_base_balance),
+        profit_multiplier: Number(lockForm.profit_multiplier),
+        cashout_pct: Number(lockForm.cashout_pct),
+        required_milestones: Number(lockForm.required_milestones),
+        milestones_completed: Number(lockForm.milestones_completed),
+        manual_profit_offset: Number(lockForm.manual_profit_offset),
+        status: lockForm.status,
+        allowed_sources: lockForm.allowed_sources
+      })
+      notify('User bonus lock & milestone progress updated.')
+      setEditingLock(null)
+      await loadData()
+    } catch (e) {
+      notify(e?.response?.data?.error || 'Failed to update bonus lock.', true)
+    } finally {
+      setSavingLock(false)
+    }
+  }
+
+  const handleCompleteLock = async (lock) => {
+    if (!window.confirm(`Unlock full withdrawal immediately for ${lock.user_email || `User #${lock.user_id}`}?`)) return
+    try {
+      await api(token).post(`/api/admin/promotions/locks/${lock.id}/complete`)
+      notify('Full withdrawal unlocked for user!')
+      await loadData()
+    } catch (e) {
+      notify(e?.response?.data?.error || 'Failed to complete bonus lock.', true)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="text-xs uppercase tracking-[0.3em] text-slate-400">Admin</div>
-          <h1 className="text-3xl font-semibold text-slate-900">Promotions &amp; Deposit Bonuses</h1>
-          <p className="text-sm text-slate-500 mt-1">Create deposit bonuses, new-user rewards, promo codes, and approve user bonus credits.</p>
+          <h1 className="text-3xl font-semibold text-slate-900">Promotions, Deposit Bonus &amp; Cashout Automation</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Configure bonus ratios, profit-double cashout conditions, marketing promo codes, and automated bonus locks.
+          </p>
         </div>
         <button
           type="button"
@@ -202,7 +378,7 @@ export default function AdminPromotionsPage() {
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-sm transition"
         >
           <Plus className="w-4 h-4" />
-          <span>New Bonus / Offer</span>
+          <span>New Bonus / Promo Code</span>
         </button>
       </div>
 
@@ -210,7 +386,7 @@ export default function AdminPromotionsPage() {
       {err && <div className="rounded-2xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700">{err}</div>}
 
       {/* Summary KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-sm">
           <div className="text-xs text-slate-500">Active Offers</div>
           <div className="text-2xl font-bold text-slate-900 mt-1">{summary.active_offers ?? 0} / {summary.total_offers ?? 0}</div>
@@ -222,6 +398,10 @@ export default function AdminPromotionsPage() {
         <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-sm">
           <div className="text-xs text-slate-500">Awaiting Deposit</div>
           <div className="text-2xl font-bold text-indigo-600 mt-1">{summary.activated_claims ?? 0}</div>
+        </div>
+        <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-sm">
+          <div className="text-xs text-slate-500">Active Bonus Locks</div>
+          <div className="text-2xl font-bold text-sky-600 mt-1">{summary.active_locks ?? 0}</div>
         </div>
         <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-sm">
           <div className="text-xs text-slate-500">Total Bonuses Credited</div>
@@ -247,17 +427,36 @@ export default function AdminPromotionsPage() {
             tab === 'offers' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
           }`}
         >
-          Manage Offers &amp; Promos ({promotions.length})
+          Offers &amp; Promo Codes ({promotions.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('locks')}
+          className={`px-4 py-2 rounded-xl text-sm font-semibold border transition ${
+            tab === 'locks' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          User Bonus Locks &amp; Milestones ({locks.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('settings')}
+          className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border transition ${
+            tab === 'settings' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <Settings className="w-4 h-4" />
+          <span>System Rules &amp; Automation</span>
         </button>
       </div>
 
-      {/* Create / Edit Form */}
+      {/* Create / Edit Offer Form */}
       {showForm && (
-        <form onSubmit={handleSaveOffer} className="rounded-3xl bg-white border border-slate-200 p-6 shadow-sm space-y-4">
+        <form onSubmit={handleSaveOffer} className="rounded-3xl bg-white border border-slate-200 p-6 shadow-sm space-y-5">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <Gift className="w-5 h-5 text-indigo-600" />
-              <span>{editingId ? 'Edit Promotion / Bonus' : 'Create New Promotion / Bonus'}</span>
+              <span>{editingId ? 'Edit Promotion / Bonus Offer' : 'Create New Promotion / Bonus Offer'}</span>
             </h2>
             <button type="button" onClick={() => setShowForm(false)} className="text-sm text-slate-500 hover:text-slate-800">Cancel</button>
           </div>
@@ -270,7 +469,7 @@ export default function AdminPromotionsPage() {
                 required
                 value={form.title}
                 onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                placeholder="e.g. 100% Weekend Deposit Bonus"
+                placeholder="e.g. 100% Deposit Welcome Bonus"
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
               />
             </div>
@@ -288,7 +487,7 @@ export default function AdminPromotionsPage() {
               </select>
             </div>
             <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Subtitle / Description</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Subtitle / Marketing Hook</label>
               <input
                 type="text"
                 value={form.subtitle}
@@ -310,7 +509,7 @@ export default function AdminPromotionsPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">
-                {form.bonus_type === 'fixed' ? 'Bonus Amount ($)' : 'Bonus Percentage (%)'} *
+                {form.bonus_type === 'fixed' ? 'Bonus Amount ($)' : 'Bonus Ratio Percentage (%)'} *
               </label>
               <input
                 type="number"
@@ -334,7 +533,7 @@ export default function AdminPromotionsPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Minimum Deposit ($ — 0 if none)</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Minimum Deposit ($ — 0 if no deposit needed)</label>
               <input
                 type="number"
                 step="1"
@@ -345,32 +544,62 @@ export default function AdminPromotionsPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Promo Code (optional)</label>
-              <input
-                type="text"
-                value={form.promo_code}
-                onChange={e => setForm(f => ({ ...f, promo_code: e.target.value.toUpperCase() }))}
-                placeholder="e.g. BONUS100"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 font-mono uppercase"
-              />
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Redeemable Promo Code (for marketing anywhere)</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={form.promo_code}
+                  onChange={e => setForm(f => ({ ...f, promo_code: e.target.value.toUpperCase() }))}
+                  placeholder="e.g. WELCOME100"
+                  className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 font-mono uppercase"
+                />
+                <button
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, promo_code: makeRandomPromoCode() }))}
+                  className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold"
+                  title="Generate random promo code"
+                >
+                  <Wand2 className="w-3.5 h-3.5" />
+                  <span>Generate</span>
+                </button>
+              </div>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Badge Text</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Badge Label</label>
               <input
                 type="text"
                 value={form.badge_text}
                 onChange={e => setForm(f => ({ ...f, badge_text: e.target.value }))}
-                placeholder="HOT OFFER / NEW USER"
+                placeholder="100% BONUS / NEW USER"
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Max Claims Per User</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Max Claims Per User Account</label>
               <input
                 type="number"
                 min="1"
                 value={form.max_claims_per_user}
                 onChange={e => setForm(f => ({ ...f, max_claims_per_user: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Global Campaign Redemption Cap (0 = unlimited)</label>
+              <input
+                type="number"
+                min="0"
+                value={form.total_global_limit}
+                onChange={e => setForm(f => ({ ...f, total_global_limit: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Sort Order (lower shows first)</label>
+              <input
+                type="number"
+                value={form.sort_order}
+                onChange={e => setForm(f => ({ ...f, sort_order: e.target.value }))}
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 font-mono"
               />
             </div>
@@ -392,6 +621,76 @@ export default function AdminPromotionsPage() {
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
               />
             </div>
+          </div>
+
+          {/* Per-Offer Cashout & Withdrawal Rule Controls */}
+          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <Lock className="w-4 h-4 text-amber-600" />
+                <span>Cashout &amp; Withdrawal Conditions for This Bonus</span>
+              </div>
+              <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.apply_withdrawal_condition}
+                  onChange={e => setForm(f => ({ ...f, apply_withdrawal_condition: e.target.checked }))}
+                />
+                <span>Enforce Profit-Double &amp; Milestone Cashout Rule</span>
+              </label>
+            </div>
+
+            {form.apply_withdrawal_condition && (
+              <div className="grid md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Profit Multiplier (2 = Double)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="1.1"
+                    value={form.profit_multiplier}
+                    onChange={e => setForm(f => ({ ...f, profit_multiplier: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-mono text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Cashout % Per Milestone</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    max="100"
+                    value={form.cashout_pct_per_milestone}
+                    onChange={e => setForm(f => ({ ...f, cashout_pct_per_milestone: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-mono text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Required Milestones (Times)</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    value={form.required_milestones}
+                    onChange={e => setForm(f => ({ ...f, required_milestones: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-mono text-slate-900"
+                  />
+                </div>
+                <div className="md:col-span-3 flex flex-wrap items-center gap-4 pt-1 text-xs text-slate-700">
+                  <span className="font-semibold">Required Profit Sources:</span>
+                  {SOURCE_OPTIONS.map(s => (
+                    <label key={s.key} className="inline-flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.allowed_sources.includes(s.key)}
+                        onChange={() => toggleFormSource(s.key)}
+                      />
+                      <span>{s.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-6 pt-1 text-sm text-slate-700">
@@ -502,11 +801,11 @@ export default function AdminPromotionsPage() {
             </table>
           </div>
         </div>
-      ) : (
+      ) : tab === 'offers' ? (
         <div className="grid md:grid-cols-2 gap-4">
           {promotions.map(p => (
             <div key={p.id} className="rounded-3xl bg-white border border-slate-200 p-5 shadow-sm flex flex-col justify-between gap-4">
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="flex flex-wrap items-center gap-1.5 mb-1">
@@ -533,21 +832,41 @@ export default function AdminPromotionsPage() {
                   </div>
                 </div>
                 {p.subtitle && <p className="text-xs text-slate-600">{p.subtitle}</p>}
-                <div className="grid grid-cols-3 gap-2 pt-2 text-xs text-slate-600">
+                <div className="grid grid-cols-4 gap-2 pt-2 text-xs text-slate-600">
                   <div><span className="text-slate-400 block text-[10px]">Code</span><strong className="font-mono">{p.promo_code || '—'}</strong></div>
                   <div><span className="text-slate-400 block text-[10px]">Min Dep</span><strong className="font-mono">${Number(p.min_deposit).toFixed(0)}</strong></div>
-                  <div><span className="text-slate-400 block text-[10px]">Max Cap</span><strong className="font-mono">{Number(p.max_bonus_amount) > 0 ? `$${p.max_bonus_amount}` : 'None'}</strong></div>
+                  <div><span className="text-slate-400 block text-[10px]">Per User</span><strong className="font-mono">{p.max_claims_per_user}x</strong></div>
+                  <div><span className="text-slate-400 block text-[10px]">Claims</span><strong className="font-mono">{p.total_claims_count || 0}{p.total_global_limit > 0 ? `/${p.total_global_limit}` : ''}</strong></div>
+                </div>
+                <div className="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2 text-[11px] text-slate-600">
+                  <strong>Cashout Rule:</strong>{' '}
+                  {p.apply_withdrawal_condition !== 0
+                    ? `${p.profit_multiplier || 2}x balance via ${(p.allowed_sources || 'ai_trade,forex,binary').replace(/,/g, ', ')} → ${p.cashout_pct_per_milestone || 50}% × ${p.required_milestones || 2} times`
+                    : 'No withdrawal lock (instant withdrawable)'}
                 </div>
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => handleToggleActive(p)}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700"
-                >
-                  {p.active === 1 ? 'Pause Offer' : 'Activate Offer'}
-                </button>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleActive(p)}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  >
+                    {p.active === 1 ? 'Pause' : 'Activate'}
+                  </button>
+                  {p.promo_code && (
+                    <button
+                      type="button"
+                      onClick={() => copyMarketingLink(p.promo_code, p.id)}
+                      className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800"
+                      title="Copy marketing share link"
+                    >
+                      {copiedId === p.id ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <Link2 className="w-3.5 h-3.5" />}
+                      <span>Share Link</span>
+                    </button>
+                  )}
+                </div>
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
@@ -570,9 +889,250 @@ export default function AdminPromotionsPage() {
             </div>
           ))}
         </div>
+      ) : tab === 'locks' ? (
+        <div className="rounded-3xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 text-xs uppercase text-slate-500 border-b border-slate-200">
+                <tr>
+                  <th className="px-4 py-3">User</th>
+                  <th className="px-4 py-3">Bonus Offer</th>
+                  <th className="px-4 py-3">Base → Target</th>
+                  <th className="px-4 py-3">Trading Profit</th>
+                  <th className="px-4 py-3">Milestones</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {locks.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="px-4 py-8 text-center text-slate-400">No active or completed bonus locks yet.</td>
+                  </tr>
+                ) : locks.map(l => {
+                  const live = l.live_status
+                  return (
+                    <tr key={l.id} className="hover:bg-slate-50/70">
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-slate-900">{l.user_name || `User #${l.user_id}`}</div>
+                        <div className="text-xs text-slate-500">{l.user_email}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-slate-900">{l.promo_title || 'Deposit Bonus'}</div>
+                        <div className="text-xs text-slate-500 font-mono">
+                          Dep: ${Number(l.deposit_amount).toFixed(0)} + Bon: ${Number(l.bonus_amount).toFixed(0)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-700">
+                        ${Number(l.milestone_base_balance).toFixed(2)} →{' '}
+                        <strong className="text-slate-900">${(Number(l.milestone_base_balance) * Number(l.profit_multiplier)).toFixed(2)}</strong>
+                        <div className="text-[10px] text-slate-400">{l.profit_multiplier}x / {l.cashout_pct}% cashout</div>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs">
+                        {live ? (
+                          <div>
+                            <strong className={live.milestoneUnlocked ? 'text-emerald-600' : 'text-amber-600'}>
+                              ${live.profitEarned.toFixed(2)} / ${live.profitNeeded.toFixed(2)}
+                            </strong>
+                            <div className="text-[10px] text-slate-400">
+                              AI: ${live.breakdown.ai_trade.toFixed(0)} • FX: ${live.breakdown.forex.toFixed(0)} • Bin: ${live.breakdown.binary.toFixed(0)}
+                            </div>
+                          </div>
+                        ) : '—'}
+                      </td>
+                      <td className="px-4 py-3 font-mono font-bold text-slate-800">
+                        {l.milestones_completed} / {l.required_milestones}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase ${
+                          l.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                          l.status === 'active' ? 'bg-amber-100 text-amber-700' :
+                          'bg-slate-200 text-slate-600'
+                        }`}>
+                          {l.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openEditLock(l)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Edit</span>
+                          </button>
+                          {l.status === 'active' && (
+                            <button
+                              type="button"
+                              onClick={() => handleCompleteLock(l)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+                            >
+                              <Unlock className="w-3.5 h-3.5" />
+                              <span>Unlock Full</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        /* Global System & Automation Tab */
+        <form onSubmit={handleSaveSettings} className="rounded-3xl bg-white border border-slate-200 p-6 shadow-sm space-y-6">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">Global Bonus Rules &amp; Automation Control</h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Edit default bonus ratios, withdrawal turnover conditions, allowed trading engines, and marketing copy globally. Changes take effect immediately across user &amp; withdrawal flows.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-4">
+            <label className="rounded-2xl border border-slate-200 p-4 flex items-start gap-3 cursor-pointer hover:bg-slate-50">
+              <input
+                type="checkbox"
+                checked={Boolean(settings.system_enabled)}
+                onChange={e => setSettings(s => ({ ...s, system_enabled: e.target.checked }))}
+                className="mt-1"
+              />
+              <div>
+                <div className="text-sm font-bold text-slate-900">Promotions System Active</div>
+                <div className="text-xs text-slate-500">Master switch to show or pause all user bonus offers.</div>
+              </div>
+            </label>
+
+            <label className="rounded-2xl border border-slate-200 p-4 flex items-start gap-3 cursor-pointer hover:bg-slate-50">
+              <input
+                type="checkbox"
+                checked={Boolean(settings.enforce_withdrawal_conditions)}
+                onChange={e => setSettings(s => ({ ...s, enforce_withdrawal_conditions: e.target.checked }))}
+                className="mt-1"
+              />
+              <div>
+                <div className="text-sm font-bold text-slate-900">Enforce Cashout Conditions</div>
+                <div className="text-xs text-slate-500">Enforce profit-double &amp; 50% milestone cashout locks on active bonus balances.</div>
+              </div>
+            </label>
+
+            <label className="rounded-2xl border border-slate-200 p-4 flex items-start gap-3 cursor-pointer hover:bg-slate-50">
+              <input
+                type="checkbox"
+                checked={Boolean(settings.auto_match_deposit_bonus)}
+                onChange={e => setSettings(s => ({ ...s, auto_match_deposit_bonus: e.target.checked }))}
+                className="mt-1"
+              />
+              <div>
+                <div className="text-sm font-bold text-slate-900">Auto-Apply Deposit Bonus</div>
+                <div className="text-xs text-slate-500">Automatically match &amp; run qualifying deposit bonuses whenever a user deposits.</div>
+              </div>
+            </label>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Default Profit Multiplier (2 = Double)</label>
+              <input
+                type="number"
+                step="0.1"
+                min="1.1"
+                value={settings.default_double_multiplier}
+                onChange={e => setSettings(s => ({ ...s, default_double_multiplier: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Default Cashout % Per Milestone</label>
+              <input
+                type="number"
+                step="1"
+                min="1"
+                max="100"
+                value={settings.default_cashout_pct}
+                onChange={e => setSettings(s => ({ ...s, default_cashout_pct: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Default Required Milestones (Times)</label>
+              <input
+                type="number"
+                step="1"
+                min="1"
+                value={settings.default_required_milestones}
+                onChange={e => setSettings(s => ({ ...s, default_required_milestones: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-2xl p-4">
+            <span className="font-semibold text-slate-900">Default Qualifying Profit Sources:</span>
+            {SOURCE_OPTIONS.map(src => {
+              const arr = Array.isArray(settings.allowed_profit_sources) ? settings.allowed_profit_sources : []
+              const checked = arr.includes(src.key)
+              return (
+                <label key={src.key} className="inline-flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => {
+                      const next = checked ? arr.filter(x => x !== src.key) : [...arr, src.key]
+                      setSettings(s => ({ ...s, allowed_profit_sources: next.length ? next : [src.key] }))
+                    }}
+                  />
+                  <span>{src.label}</span>
+                </label>
+              )
+            })}
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Promotions Page Headline</label>
+              <input
+                type="text"
+                value={settings.page_headline}
+                onChange={e => setSettings(s => ({ ...s, page_headline: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Promotions Page Subheadline</label>
+              <textarea
+                rows={2}
+                value={settings.page_subheadline}
+                onChange={e => setSettings(s => ({ ...s, page_subheadline: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Withdrawal Condition Rule Explanation (shown to users)</label>
+              <textarea
+                rows={3}
+                value={settings.withdrawal_rule_summary}
+                onChange={e => setSettings(s => ({ ...s, withdrawal_rule_summary: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={savingSettings}
+              className="px-6 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-sm disabled:opacity-50"
+            >
+              {savingSettings ? 'Saving Settings...' : 'Save Global System & Automation Rules'}
+            </button>
+          </div>
+        </form>
       )}
 
-      {/* Approve Modal */}
+      {/* Approve Claim Modal */}
       {reviewingClaim && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4">
@@ -615,10 +1175,113 @@ export default function AdminPromotionsPage() {
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold disabled:opacity-50"
               >
                 <Coins className="w-4 h-4" />
-                <span>Credit Balance</span>
+                <span>Credit Balance &amp; Apply Lock</span>
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Edit Lock Modal */}
+      {editingLock && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <form onSubmit={handleSaveLock} className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-lg font-bold text-slate-900">
+                <Lock className="w-5 h-5 text-indigo-600" />
+                <span>Edit User Bonus Lock &amp; Milestones</span>
+              </div>
+              <button type="button" onClick={() => setEditingLock(null)} className="text-sm text-slate-500">Close</button>
+            </div>
+
+            <div className="text-xs text-slate-600 bg-slate-50 rounded-xl p-3">
+              <strong>User:</strong> {editingLock.user_email} • <strong>Offer:</strong> {editingLock.promo_title}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Milestone Base Balance ($)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={lockForm.milestone_base_balance}
+                  onChange={e => setLockForm(f => ({ ...f, milestone_base_balance: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Profit Multiplier (e.g. 2)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="1.1"
+                  value={lockForm.profit_multiplier}
+                  onChange={e => setLockForm(f => ({ ...f, profit_multiplier: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Cashout % Per Milestone</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={lockForm.cashout_pct}
+                  onChange={e => setLockForm(f => ({ ...f, cashout_pct: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Completed / Required</label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    value={lockForm.milestones_completed}
+                    onChange={e => setLockForm(f => ({ ...f, milestones_completed: e.target.value }))}
+                    className="w-1/2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900"
+                  />
+                  <input
+                    type="number"
+                    min="1"
+                    value={lockForm.required_milestones}
+                    onChange={e => setLockForm(f => ({ ...f, required_milestones: e.target.value }))}
+                    className="w-1/2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Manual Profit Credit Offset ($)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={lockForm.manual_profit_offset}
+                  onChange={e => setLockForm(f => ({ ...f, manual_profit_offset: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Lock Status</label>
+                <select
+                  value={lockForm.status}
+                  onChange={e => setLockForm(f => ({ ...f, status: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
+                >
+                  <option value="active">Active (Enforced)</option>
+                  <option value="completed">Completed (Full Withdrawal)</option>
+                  <option value="cancelled">Cancelled (Unlocked)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setEditingLock(null)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600">Cancel</button>
+              <button type="submit" disabled={savingLock} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold disabled:opacity-50">
+                {savingLock ? 'Saving...' : 'Save Lock Changes'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

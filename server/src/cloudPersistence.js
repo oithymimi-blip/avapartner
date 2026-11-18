@@ -32,8 +32,10 @@ export const PERSISTENT_TABLES = [
   'ib_program_config',
   'ib_commission_ledger',
   'ib_monthly_metrics',
+  'bonus_system_settings',
   'promotions',
   'promotion_claims',
+  'bonus_locks',
   'verifications',
   'payment_methods',
   'payment_requests',
@@ -57,6 +59,7 @@ const USER_LINKED_TABLES_APPEND = [
   'ai_trade_history',
   'ib_commission_ledger',
   'promotion_claims',
+  'bonus_locks',
   'notifications',
   'activity_logs',
   'payment_requests',
@@ -318,7 +321,7 @@ function mergeSnapshot(db, snapshot) {
         stats.recordsMerged += res.changes || 0;
       }
 
-      for (const table of ['ib_settings', 'ib_program_config']) {
+      for (const table of ['ib_settings', 'ib_program_config', 'bonus_system_settings']) {
         const rows = Array.isArray(data[table]) ? data[table] : [];
         const validCols = getTableColumns(db, table);
         if (validCols.length === 0) continue;
@@ -434,6 +437,13 @@ function mergeSnapshot(db, snapshot) {
             const dup = db.prepare('SELECT id FROM promotion_claims WHERE user_id = ? AND promotion_id = ? AND COALESCE(claimed_at, \'\') = ?')
               .get(clone.user_id, clone.promotion_id, row.claimed_at || '');
             if (dup) continue;
+          } else if (table === 'bonus_locks') {
+            if (row.promotion_id) {
+              clone.promotion_id = promoIdMap.get(row.promotion_id) || row.promotion_id;
+            }
+            const dup = db.prepare('SELECT id FROM bonus_locks WHERE user_id = ? AND COALESCE(promo_code, \'\') = ? AND COALESCE(created_at, \'\') = ?')
+              .get(clone.user_id, row.promo_code || '', row.created_at || '');
+            if (dup) continue;
           }
 
           const cols = validCols.filter(c => Object.prototype.hasOwnProperty.call(clone, c));
@@ -461,14 +471,12 @@ export function importDatabaseSnapshot(db = dbRef, snapshot, { mode = 'merge' } 
     if (mode === 'replace') {
       replaceSnapshot(db, snapshot);
       ensureIBSchemaAndDefaults(db);
-      if (!Array.isArray(snapshot.data.promotions)) {
-        ensurePromotionsSchemaAndDefaults(db);
-      }
+      ensurePromotionsSchemaAndDefaults(db, { skipPromoSeed: Array.isArray(snapshot.data.promotions) });
       return { ok: true, mode: 'replace', userCount: snapshot.data.users?.length || 0 };
     }
     const stats = mergeSnapshot(db, snapshot);
     ensureIBSchemaAndDefaults(db);
-    ensurePromotionsSchemaAndDefaults(db);
+    ensurePromotionsSchemaAndDefaults(db, { skipPromoSeed: Array.isArray(snapshot.data.promotions) });
     return { ok: true, mode: 'merge', ...stats };
   } finally {
     isRestoring = false;

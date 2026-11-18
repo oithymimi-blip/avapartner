@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Gift,
   Sparkles,
@@ -16,7 +16,13 @@ import {
   Loader2,
   Flame,
   Wallet,
-  XCircle
+  XCircle,
+  Lock,
+  Unlock,
+  TrendingUp,
+  Bot,
+  Timer,
+  ShieldCheck
 } from 'lucide-react'
 import { useAuth } from '../store'
 import { api } from '../api'
@@ -69,6 +75,15 @@ const CLAIM_STATUS_STYLE = {
   }
 }
 
+function formatSources(str) {
+  const names = { ai_trade: 'AI Trade', forex: 'Forex', binary: 'Binary' }
+  return String(str || 'ai_trade,forex,binary')
+    .split(',')
+    .map(s => names[s.trim()] || s.trim())
+    .filter(Boolean)
+    .join(' / ')
+}
+
 function calcEstimatedBonus(promo, amount) {
   if (!promo) return 0
   const dep = Math.max(0, Number(amount) || 0)
@@ -83,13 +98,16 @@ function calcEstimatedBonus(promo, amount) {
 export default function Promotions() {
   const { token, user } = useAuth()
   const nav = useNavigate()
+  const [searchParams] = useSearchParams()
 
   const [promotions, setPromotions] = useState([])
   const [claims, setClaims] = useState([])
+  const [settings, setSettings] = useState(null)
+  const [withdrawalStatus, setWithdrawalStatus] = useState(null)
   const [depositStats, setDepositStats] = useState({ approved_count: 0, total_deposited: 0, latest_deposit_amount: 0 })
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('all')
-  const [promoCodeInput, setPromoCodeInput] = useState('')
+  const [promoCodeInput, setPromoCodeInput] = useState(() => (searchParams.get('code') || '').trim().toUpperCase())
   const [redeeming, setRedeeming] = useState(false)
   const [claimingId, setClaimingId] = useState(null)
   const [copiedCode, setCopiedCode] = useState('')
@@ -98,6 +116,11 @@ export default function Promotions() {
   const [calcAmount, setCalcAmount] = useState('100')
   const [calcPromoId, setCalcPromoId] = useState('')
 
+  useEffect(() => {
+    const codeParam = (searchParams.get('code') || '').trim().toUpperCase()
+    if (codeParam) setPromoCodeInput(codeParam)
+  }, [searchParams])
+
   const loadPromotions = useCallback(async () => {
     try {
       const res = await api(token).get('/api/promotions')
@@ -105,6 +128,8 @@ export default function Promotions() {
       setPromotions(list)
       setClaims(Array.isArray(res.data?.claims) ? res.data.claims : [])
       if (res.data?.deposit_stats) setDepositStats(res.data.deposit_stats)
+      if (res.data?.settings) setSettings(res.data.settings)
+      if (res.data?.withdrawal_status !== undefined) setWithdrawalStatus(res.data.withdrawal_status)
       setCalcPromoId(prev => {
         if (prev && list.some(p => String(p.id) === String(prev))) return prev
         return list[0] ? String(list[0].id) : ''
@@ -238,6 +263,10 @@ export default function Promotions() {
     { key: 'claims', label: 'My Claims', icon: CheckCircle2, count: claims.length }
   ]
 
+  const multiplierLabel = settings?.default_double_multiplier ?? 2
+  const cashoutLabel = settings?.default_cashout_pct ?? 50
+  const milestonesLabel = settings?.default_required_milestones ?? 2
+
   return (
     <div className="promo-page max-w-6xl mx-auto py-4 sm:py-6 space-y-6 pb-12">
       {/* Hero Banner */}
@@ -249,13 +278,14 @@ export default function Promotions() {
           <div className="space-y-3 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-[11px] font-bold uppercase tracking-wider">
               <Gift className="w-3.5 h-3.5" />
-              <span>Deposit Bonus &amp; Promotions</span>
+              <span>Offers, Bonuses &amp; Promotions</span>
             </div>
             <h1 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
-              Boost Your Trading Capital with <span className="text-brand">Exclusive Bonuses</span>
+              {settings?.page_headline || 'Deposit Bonuses & Exclusive Promotions'}
             </h1>
             <p className="text-xs sm:text-sm text-white/65 leading-relaxed">
-              Unlock deposit match bonuses, new trader welcome rewards, and promotional cashback offers. Activate an offer below or apply a promo code before funding your account.
+              {settings?.page_subheadline ||
+                'Unlock deposit match bonuses, new trader welcome rewards, and promotional cashback offers. Double your trading capital via AI Trade, Forex, or Binary to cash out 50%.'}
             </p>
           </div>
 
@@ -269,9 +299,130 @@ export default function Promotions() {
               <div className="text-lg sm:text-xl font-black text-white mt-1 font-mono">${depositStats.total_deposited.toFixed(0)}</div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-3 sm:p-4">
-              <div className="text-[10px] uppercase tracking-wider text-white/50">Earned</div>
+              <div className="text-[10px] uppercase tracking-wider text-white/50">Bonuses</div>
               <div className="text-lg sm:text-xl font-black text-brand mt-1 font-mono">${totalCreditedBonus.toFixed(2)}</div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Active Bonus Cashout Milestone Tracker (Live if User Has an Active Bonus Lock) */}
+      {withdrawalStatus?.hasActiveLock && (
+        <section className="card rounded-3xl border border-emerald-400/30 bg-gradient-to-br from-[#0e1a1a] via-[#0c141d] to-[#111521] p-5 sm:p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className={`w-10 h-10 rounded-2xl border flex items-center justify-center flex-shrink-0 ${
+                withdrawalStatus.milestoneUnlocked
+                  ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
+                  : 'bg-amber-500/20 border-amber-400/40 text-amber-300'
+              }`}>
+                {withdrawalStatus.milestoneUnlocked ? <Unlock className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
+              </span>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-base sm:text-lg font-bold text-white">
+                    Active Bonus Cashout Tracker — {withdrawalStatus.lock?.promo_title || 'Deposit Bonus'}
+                  </h2>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-400/20 text-amber-300 border border-amber-400/35">
+                    Milestone {withdrawalStatus.currentMilestone} of {withdrawalStatus.requiredMilestones}
+                  </span>
+                </div>
+                <p className="text-xs text-white/65 mt-0.5">
+                  Earn profit via <strong className="text-white">{withdrawalStatus.allowedSourcesLabel}</strong> to reach{' '}
+                  <strong className="text-brand">${withdrawalStatus.targetBalance.toFixed(2)}</strong> ({withdrawalStatus.multiplier}x of ${withdrawalStatus.baseBalance.toFixed(2)}) and unlock{' '}
+                  <strong className="text-amber-300">{withdrawalStatus.cashoutPct}%</strong> withdrawal.
+                </p>
+              </div>
+            </div>
+
+            {withdrawalStatus.milestoneUnlocked ? (
+              <Link
+                to="/wallet/withdraw"
+                className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-emerald-400 text-black font-extrabold text-xs transition"
+              >
+                <Unlock className="w-4 h-4" />
+                <span>Withdraw up to ${withdrawalStatus.maxWithdrawable.toFixed(2)} ({withdrawalStatus.cashoutPct}%)</span>
+              </Link>
+            ) : (
+              <Link
+                to="/dashboard"
+                className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold text-xs transition"
+              >
+                <TrendingUp className="w-4 h-4 text-brand" />
+                <span>Trade Now to Unlock</span>
+              </Link>
+            )}
+          </div>
+
+          {/* Progress Bar */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-white/70">
+                Qualifying Trading Profit: <strong className="text-white font-mono">${withdrawalStatus.profitEarned.toFixed(2)}</strong> /{' '}
+                <strong className="text-brand font-mono">${withdrawalStatus.profitNeeded.toFixed(2)}</strong>
+              </span>
+              <span className="font-mono font-bold text-amber-300">{withdrawalStatus.profitProgressPct}%</span>
+            </div>
+            <div className="w-full h-2.5 rounded-full bg-white/10 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-amber-400 via-emerald-400 to-brand transition-all duration-500"
+                style={{ width: `${Math.min(100, Math.max(0, withdrawalStatus.profitProgressPct))}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+            <div className="rounded-xl bg-white/5 border border-white/10 p-2.5">
+              <div className="text-[10px] text-white/50 flex items-center gap-1"><Bot className="w-3 h-3 text-emerald-400" /> AI Trade Profit</div>
+              <div className="font-mono font-bold text-white mt-0.5">${Number(withdrawalStatus.breakdown?.ai_trade || 0).toFixed(2)}</div>
+            </div>
+            <div className="rounded-xl bg-white/5 border border-white/10 p-2.5">
+              <div className="text-[10px] text-white/50 flex items-center gap-1"><TrendingUp className="w-3 h-3 text-sky-400" /> Forex Profit</div>
+              <div className="font-mono font-bold text-white mt-0.5">${Number(withdrawalStatus.breakdown?.forex || 0).toFixed(2)}</div>
+            </div>
+            <div className="rounded-xl bg-white/5 border border-white/10 p-2.5">
+              <div className="text-[10px] text-white/50 flex items-center gap-1"><Timer className="w-3 h-3 text-amber-400" /> Binary Profit</div>
+              <div className="font-mono font-bold text-white mt-0.5">${Number(withdrawalStatus.breakdown?.binary || 0).toFixed(2)}</div>
+            </div>
+            <div className="rounded-xl bg-white/5 border border-white/10 p-2.5">
+              <div className="text-[10px] text-white/50">Total Balance / Target</div>
+              <div className="font-mono font-bold text-brand mt-0.5">
+                ${withdrawalStatus.totalBalance.toFixed(2)} / ${withdrawalStatus.targetBalance.toFixed(0)}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Cashout & Withdrawal Conditions Explainer (Dynamic from Admin Settings) */}
+      <section className="card rounded-2xl border border-white/10 bg-[#0d131d] p-4 sm:p-5 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-sm font-bold text-white">
+            <span className="w-8 h-8 rounded-xl bg-sky-500/15 border border-sky-400/30 text-sky-300 flex items-center justify-center">
+              <ShieldCheck className="w-4 h-4" />
+            </span>
+            <span>Bonus Cashout &amp; Withdrawal Conditions</span>
+          </div>
+          <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300">
+            {multiplierLabel}x Profit Target • {cashoutLabel}% Cashout × {milestonesLabel} Times
+          </span>
+        </div>
+        <p className="text-xs text-white/70 leading-relaxed">
+          {settings?.withdrawal_rule_summary ||
+            'Deposit 100% Bonus Rule: Double your total balance (Deposit + Bonus) via AI Trade, Forex, or Binary to withdraw 50%. Double your remaining balance a 2nd time to withdraw 50% again — after 2 completed milestones, 100% of remaining funds are eligible for normal withdrawal.'}
+        </p>
+        <div className="grid sm:grid-cols-3 gap-2.5 text-xs">
+          <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+            <div className="font-bold text-amber-300 mb-0.5">1. Deposit + Bonus = {multiplierLabel}x Target</div>
+            <div className="text-white/60">Example: $100 deposit + $100 bonus = $200 starting capital. Double to $400 via AI Trade, Forex, or Binary.</div>
+          </div>
+          <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+            <div className="font-bold text-emerald-300 mb-0.5">2. {cashoutLabel}% Cashout × {milestonesLabel} Milestones</div>
+            <div className="text-white/60">Each time you double via trading profit, cash out up to {cashoutLabel}% ({milestonesLabel} times total).</div>
+          </div>
+          <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+            <div className="font-bold text-sky-300 mb-0.5">3. Full Normal Withdrawal</div>
+            <div className="text-white/60">After {milestonesLabel} completed milestones, all terms are fulfilled and 100% of your funds unlock normally.</div>
           </div>
         </div>
       </section>
@@ -408,11 +559,22 @@ export default function Promotions() {
                 </div>
                 <div className="w-px h-7 bg-white/10 hidden sm:block" />
                 <div>
-                  <span className="text-white/50 block text-[10px] uppercase">Total Trading Power</span>
+                  <span className="text-white/50 block text-[10px] uppercase">Total Starting Capital</span>
                   <span className="font-mono font-extrabold text-base text-brand">
                     ${(numericCalcDep + (meetsCalcMin ? estimatedBonus : 0)).toFixed(2)}
                   </span>
                 </div>
+                {Number(selectedCalcPromo.apply_withdrawal_condition) === 1 && meetsCalcMin && (
+                  <>
+                    <div className="w-px h-7 bg-white/10 hidden sm:block" />
+                    <div>
+                      <span className="text-white/50 block text-[10px] uppercase">Target ({selectedCalcPromo.profit_multiplier || 2}x)</span>
+                      <span className="font-mono font-bold text-sm text-sky-300">
+                        ${((numericCalcDep + estimatedBonus) * Number(selectedCalcPromo.profit_multiplier || 2)).toFixed(2)}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
               <Link
                 to={`/wallet/deposit${selectedCalcPromo.promo_code ? `?promo=${encodeURIComponent(selectedCalcPromo.promo_code)}` : ''}`}
@@ -466,7 +628,9 @@ export default function Promotions() {
       ) : activeTab !== 'claims' ? (
         filteredPromotions.length === 0 ? (
           <div className="card rounded-2xl border border-white/10 bg-[#0d131d] p-10 text-center text-white/60 text-sm">
-            No promotions currently available in this category. Check back soon or explore All Offers!
+            {settings && !settings.system_enabled
+              ? 'Promotions are temporarily paused by the administrator.'
+              : 'No promotions currently available in this category. Check back soon or explore All Offers!'}
           </div>
         ) : (
           <div className="grid md:grid-cols-2 gap-4">
@@ -477,6 +641,7 @@ export default function Promotions() {
               const isActivated = promo.latest_claim_status === 'activated'
               const isPending = promo.latest_claim_status === 'pending'
               const maxClaims = Math.max(1, Number(promo.max_claims_per_user || 1))
+              const hasCond = Number(promo.apply_withdrawal_condition) === 1
 
               return (
                 <div
@@ -500,7 +665,7 @@ export default function Promotions() {
                             </span>
                             {promo.auto_credit === 1 && (
                               <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 text-[10px] font-bold uppercase">
-                                Instant
+                                Auto-Credit
                               </span>
                             )}
                           </div>
@@ -537,6 +702,16 @@ export default function Promotions() {
                           {Number(promo.min_deposit) > 0 ? `$${Number(promo.min_deposit).toFixed(0)}` : '$0'}
                         </span>
                       </div>
+                    </div>
+
+                    {/* Dynamic Cashout Condition Pill */}
+                    <div className="rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2 text-[11px] flex items-center justify-between gap-2">
+                      <span className="text-white/60">Cashout Condition:</span>
+                      <span className="font-semibold text-amber-300 text-right">
+                        {hasCond
+                          ? `${promo.profit_multiplier || 2}x Profit (${formatSources(promo.allowed_sources)}) • ${promo.cashout_pct_per_milestone || 50}% × ${promo.required_milestones || 2}`
+                          : 'No Withdrawal Lock (Instant Cashout)'}
+                      </span>
                     </div>
 
                     {promo.terms && (
@@ -621,7 +796,7 @@ export default function Promotions() {
                       ) : (
                         <div className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/50 font-semibold text-xs">
                           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                          <span>Maximum Claims Reached</span>
+                          <span>Maximum Claims Reached ({promo.user_claim_count}/{maxClaims})</span>
                         </div>
                       )}
                     </div>
