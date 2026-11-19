@@ -2,10 +2,16 @@ import Database from 'better-sqlite3';
 import { DB_FILE, INITIAL_BALANCE } from './config.js';
 import fs from 'fs';
 import path from 'path';
+import zlib from 'zlib';
 import { spotMarketsSeed } from './spot/marketsSeed.js';
 import { DEFAULT_MARKETS } from './market/defaultMarkets.js';
 import { ensurePromotionsSchemaAndDefaults } from './promotions/defaults.js';
 import { ensureVerificationSchemaAndDefaults } from './verifications/settings.js';
+
+const dbDir = path.dirname(DB_FILE);
+if (dbDir && !fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
 
 const db = new Database(DB_FILE);
 db.pragma('journal_mode = WAL');
@@ -18,6 +24,7 @@ export function registerMutationListener(fn) {
 const MUTATION_SQL_RE = /^\s*(INSERT|UPDATE|DELETE|REPLACE)\b/i;
 const TRANSIENT_TABLE_SQL_RE = /^\s*(INSERT|UPDATE|DELETE|REPLACE)\s+(?:OR\s+\w+\s+)?(?:INTO\s+|FROM\s+)?["'`]?(ticks|candles)\b/i;
 const originalPrepare = db.prepare.bind(db);
+const originalExec = db.exec.bind(db);
 
 db.prepare = function wrappedPrepare(sql) {
   const stmt = originalPrepare(sql);
@@ -34,6 +41,23 @@ db.prepare = function wrappedPrepare(sql) {
     };
   }
   return stmt;
+};
+
+db.exec = function wrappedExec(sql) {
+  const result = originalExec(sql);
+  if (mutationListener && typeof sql === 'string' && /\b(INSERT|UPDATE|DELETE|REPLACE)\b/i.test(sql)) {
+    const stripped = sql.replace(/--.*$/gm, '');
+    const statements = stripped.split(';').map(s => s.trim()).filter(Boolean);
+    const hasDurableMutation = statements.some(
+      s => MUTATION_SQL_RE.test(s) && !TRANSIENT_TABLE_SQL_RE.test(s)
+    );
+    if (hasDurableMutation) {
+      try {
+        mutationListener();
+      } catch (_) {}
+    }
+  }
+  return result;
 };
 
 // Initialize schema if not present
@@ -438,9 +462,7 @@ try {
 const insertMarketSettingStmt = db.prepare(`
   INSERT INTO market_settings (symbol, base_price, volatility, paused)
   VALUES (@symbol, @base_price, @volatility, 0)
-  ON CONFLICT(symbol) DO UPDATE SET
-    base_price = excluded.base_price,
-    volatility = excluded.volatility
+  ON CONFLICT(symbol) DO NOTHING
 `);
 
 const seedMarketsTx = db.transaction(() => {
@@ -744,34 +766,146 @@ db.prepare(`
 db.prepare(`
   UPDATE balances
   SET available = ?, locked = COALESCE(locked, 0)
-  WHERE (available IS NULL OR available = 0)
-    AND (locked IS NULL OR locked = 0)
+  WHERE available IS NULL
 `).run(INITIAL_BALANCE);
 
-try {
-  db.prepare('DELETE FROM notification_reads WHERE notification_id IN (SELECT id FROM notifications WHERE user_id IS NULL)').run();
-  db.prepare('DELETE FROM notifications WHERE user_id IS NULL').run();
-} catch (e) {
-  console.error("Failed to delete default notifications:", e);
+const localBackupState = {
+  lastLocalBackupAt: null,
+  lastArchiveAt: null,
+  lastLocalBackupError: null,
+  lastSnapshotHash: null,
+  lastSnapshotAt: null,
+  snapshotCount: 0,
+  backupDir: path.resolve(path.dirname(DB_FILE), 'backups')
+};
+
+function countSnapshotFiles(snapshotDir) {
+  try {
+    if (!fs.existsSync(snapshotDir)) return 0;
+    return fs.readdirSync(snapshotDir).filter(f => f.endsWith('.json.gz')).length;
+  } catch {
+    return 0;
+  }
 }
 
-export async function backupDatabase(destDir = path.resolve(path.dirname(DB_FILE), 'backups')) {
+export async function backupDatabase(
+  destDir = path.resolve(path.dirname(DB_FILE), 'backups'),
+  { createArchive = null } = {}
+) {
   try {
+    localBackupState.backupDir = destDir;
     if (!fs.existsSync(destDir)) {
       fs.mkdirSync(destDir, { recursive: true });
     }
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const destPath = path.join(destDir, `data-backup-${timestamp}.db`);
-    await db.backup(destPath);
-    console.log(`[DB BACKUP] Automated snapshot preserved: ${destPath}`);
-    const files = fs.readdirSync(destDir).filter(f => f.startsWith('data-backup-')).sort();
-    if (files.length > 30) {
-      for (const oldFile of files.slice(0, files.length - 30)) {
-        try { fs.unlinkSync(path.join(destDir, oldFile)); } catch (_) {}
+    const now = Date.now();
+    const timestamp = new Date(now).toISOString().replace(/[:.]/g, '-');
+    const latestPath = path.join(destDir, 'data-backup-latest.db');
+    const tmpPath = path.join(destDir, `.data-backup-tmp-${process.pid}.db`);
+
+    await db.backup(tmpPath);
+    fs.renameSync(tmpPath, latestPath);
+    localBackupState.lastLocalBackupAt = new Date(now).toISOString();
+    localBackupState.lastLocalBackupError = null;
+
+    const shouldArchive = createArchive === true || (
+      createArchive !== false &&
+      (!localBackupState.lastArchiveAt || (now - Date.parse(localBackupState.lastArchiveAt)) >= 60 * 60 * 1000)
+    );
+
+    if (shouldArchive) {
+      const archivePath = path.join(destDir, `data-backup-${timestamp}.db`);
+      fs.copyFileSync(latestPath, archivePath);
+      localBackupState.lastArchiveAt = localBackupState.lastLocalBackupAt;
+      const files = fs.readdirSync(destDir)
+        .filter(f => f.startsWith('data-backup-') && f.endsWith('.db') && f !== 'data-backup-latest.db')
+        .sort();
+      if (files.length > 24) {
+        for (const oldFile of files.slice(0, files.length - 24)) {
+          try { fs.unlinkSync(path.join(destDir, oldFile)); } catch (_) {}
+        }
       }
     }
+    return { ok: true, latestPath, at: localBackupState.lastLocalBackupAt };
   } catch (err) {
+    localBackupState.lastLocalBackupError = err.message;
     console.error('[DB BACKUP ERROR]', err);
+    return { ok: false, error: err.message };
+  }
+}
+
+export function saveLocalJsonSnapshot(snapshot, hash, meta = {}, destDir = path.resolve(path.dirname(DB_FILE), 'backups')) {
+  try {
+    const snapshotsDir = path.join(destDir, 'snapshots');
+    if (!fs.existsSync(snapshotsDir)) {
+      fs.mkdirSync(snapshotsDir, { recursive: true });
+    }
+    const nowIso = new Date().toISOString();
+    const safeTs = nowIso.replace(/[:.]/g, '-');
+    const gzBuf = zlib.gzipSync(Buffer.from(JSON.stringify(snapshot), 'utf8'));
+
+    const latestJsonPath = path.join(destDir, 'latest-snapshot.json.gz');
+    const tmpJsonPath = path.join(destDir, `.latest-snapshot-tmp-${process.pid}.json.gz`);
+    fs.writeFileSync(tmpJsonPath, gzBuf);
+    fs.renameSync(tmpJsonPath, latestJsonPath);
+
+    const changed = hash !== localBackupState.lastSnapshotHash;
+    if (changed) {
+      const snapFile = path.join(snapshotsDir, `snapshot-${safeTs}-${String(hash).slice(0, 8)}.json.gz`);
+      fs.writeFileSync(snapFile, gzBuf);
+      localBackupState.lastSnapshotHash = hash;
+    }
+
+    const historyPath = path.join(destDir, 'backup-history.jsonl');
+    const logLine = JSON.stringify({
+      ts: nowIso,
+      hash,
+      changed,
+      users: meta.userCount ?? snapshot?.userCount ?? 0,
+      totalBalance: meta.totalBalance ?? 0,
+      trades: meta.tradeCount ?? 0,
+      activities: meta.activityCount ?? 0
+    }) + '\n';
+    fs.appendFileSync(historyPath, logLine);
+
+    localBackupState.lastSnapshotAt = nowIso;
+    localBackupState.snapshotCount = countSnapshotFiles(snapshotsDir);
+    return { ok: true, changed, at: nowIso };
+  } catch (err) {
+    localBackupState.lastLocalBackupError = err.message;
+    console.error('[DB JSON SNAPSHOT ERROR]', err);
+    return { ok: false, error: err.message };
+  }
+}
+
+export function getLocalBackupStatus() {
+  const snapshotsDir = path.join(localBackupState.backupDir, 'snapshots');
+  const snapshotCount = countSnapshotFiles(snapshotsDir);
+  return {
+    ...localBackupState,
+    snapshotCount
+  };
+}
+
+export function listLocalBackups(limit = 60) {
+  try {
+    const historyPath = path.join(localBackupState.backupDir, 'backup-history.jsonl');
+    if (!fs.existsSync(historyPath)) return [];
+    const lines = fs.readFileSync(historyPath, 'utf8').trim().split('\n').filter(Boolean);
+    return lines.slice(-limit).reverse().map(line => {
+      try { return JSON.parse(line); } catch { return null; }
+    }).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+export function recordActivity(userId, actorRole, action, meta = null) {
+  try {
+    const serialized = meta == null ? null : (typeof meta === 'string' ? meta : JSON.stringify(meta));
+    db.prepare('INSERT INTO activity_logs (user_id, actor_role, action, meta) VALUES (?, ?, ?, ?)')
+      .run(userId ?? null, actorRole || 'user', action, serialized);
+  } catch (err) {
+    console.error('[ACTIVITY LOG ERROR]', err.message);
   }
 }
 

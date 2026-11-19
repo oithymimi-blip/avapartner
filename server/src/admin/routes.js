@@ -11,7 +11,10 @@ import {
   exportDatabaseSnapshot,
   getPersistenceStatus,
   importDatabaseSnapshot,
-  pushSnapshotToCloud
+  listCloudBackups,
+  pushSnapshotToCloud,
+  restoreCloudBackupByHash,
+  runMinuteBackupCycle
 } from '../cloudPersistence.js';
 
 const router = express.Router();
@@ -1061,12 +1064,41 @@ router.get('/backup/status', ensureSuperAdmin, (req, res) => {
   res.json(getPersistenceStatus(db));
 });
 
+router.get('/backup/history', ensureSuperAdmin, async (req, res) => {
+  try {
+    const limit = Number(req.query.limit || 60);
+    const history = await listCloudBackups(limit);
+    res.json(history);
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to load backup history' });
+  }
+});
+
+router.post('/backup/now', ensureSuperAdmin, async (req, res) => {
+  try {
+    const result = await runMinuteBackupCycle({ createArchive: true, forceSync: true });
+    res.json({ ok: true, ...result, status: getPersistenceStatus(db) });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Immediate backup failed' });
+  }
+});
+
 router.post('/backup/sync', ensureSuperAdmin, async (req, res) => {
   try {
     const result = await pushSnapshotToCloud({ force: true });
     res.json({ ...result, status: getPersistenceStatus(db) });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Cloud sync failed' });
+  }
+});
+
+router.post('/backup/restore-cloud', ensureSuperAdmin, async (req, res) => {
+  try {
+    const { hash, mode } = req.body || {};
+    const result = await restoreCloudBackupByHash(hash, { mode: mode === 'replace' ? 'replace' : 'merge' });
+    res.json({ ok: true, ...result, status: getPersistenceStatus(db) });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Failed to restore cloud backup snapshot' });
   }
 });
 

@@ -5,7 +5,9 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const SERVER_ROOT = path.resolve(__dirname, '..');
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: path.resolve(SERVER_ROOT, '.env') });
 
 export const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
 export const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -17,10 +19,13 @@ if (IS_PRODUCTION && (JWT_SECRET === 'dev_only_change_me' || !process.env.JWT_SE
 }
 
 export const DB_FILE = (() => {
-  if (process.env.DB_FILE) return process.env.DB_FILE;
+  const raw = (process.env.DB_FILE || '').trim();
+  if (raw) {
+    return path.isAbsolute(raw) ? raw : path.resolve(SERVER_ROOT, raw);
+  }
   if (fs.existsSync('/var/data')) return '/var/data/data.db';
   if (fs.existsSync('/data')) return '/data/data.db';
-  return './data.db';
+  return path.resolve(SERVER_ROOT, 'data.db');
 })();
 const cleanEnv = (v) => (v || '').trim().replace(/^["']|["']$/g, '');
 

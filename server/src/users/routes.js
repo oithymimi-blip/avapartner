@@ -1,5 +1,5 @@
 import express from 'express';
-import db from '../db.js';
+import db, { recordActivity } from '../db.js';
 import { requireAuth } from '../auth/authMiddleware.js';
 import { performFaceCheck } from '../faceCheck.js';
 import { notifyAdmin } from '../notifications/adminNotifications.js';
@@ -227,6 +227,12 @@ router.put('/me', requireAuth, (req, res) => {
       WHERE id = ?
     `).run(trimmedName || null, trimmedHandle, req.user.id);
   }
+
+  recordActivity(req.user.id, req.user.role || 'user', 'profile_updated', {
+    updated_name: Boolean(trimmedName),
+    updated_handle: Boolean(trimmedHandle),
+    updated_avatar: hasAvatarUpdate
+  });
 
   res.json(getEnrichedUser(req.user.id));
 });
@@ -533,6 +539,11 @@ function handleUpsertVerification(req, res) {
 
     const saved = selectVerificationStmt.get(req.user.id);
     const userRow = db.prepare('SELECT id, email, name, avatar FROM users WHERE id = ?').get(req.user.id);
+    recordActivity(req.user.id, req.user.role || 'user', isDraft ? 'verification_draft_saved' : 'verification_submitted', {
+      document_type: normalizedType,
+      country: country || null,
+      status: nextStatus
+    });
     res.json(formatVerification(saved, userRow));
     if (!isDraft && effectiveFront && effectiveSelfie) {
       void performFaceCheck(req.user.id);

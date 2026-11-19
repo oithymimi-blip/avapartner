@@ -22,10 +22,11 @@ import ibRoutes from './ib/routes.js';
 import { initMonthlyIBScheduler } from './ib/monthlyScheduler.js';
 import { promotionsRouter, adminPromotionsRouter } from './promotions/routes.js';
 import locationsRoutes from './locations/routes.js';
-import db, { backupDatabase } from './db.js';
+import db from './db.js';
 import {
   getPersistenceStatus,
   initCloudPersistence,
+  runMinuteBackupCycle,
   shutdownCloudPersistence
 } from './cloudPersistence.js';
 import { attachIO, tickOnce } from './market/engine.js';
@@ -45,25 +46,27 @@ app.use(cors({
 }));
 
 app.get('/', (req, res) => res.json({ ok: true, name: 'OTC Market Server' }));
-app.get('/api/health', (req, res) => {
+const buildHealthPayload = () => {
   const status = getPersistenceStatus(db);
-  res.json({
+  return {
     ok: true,
     service: 'otc-market',
     durableStorage: status.durable,
     storageDriver: status.driver,
+    backupIntervalSeconds: status.backupIntervalSeconds,
+    lastSyncAt: status.lastSyncAt,
+    lastCloudBackupAt: status.lastCloudBackupAt,
+    lastLocalBackupAt: status.localBackup?.lastLocalBackupAt || null,
+    hasData: (status.counts?.users || 0) > 0,
     timestamp: Date.now()
-  });
+  };
+};
+
+app.get('/api/health', (req, res) => {
+  res.json(buildHealthPayload());
 });
 app.get('/health', (req, res) => {
-  const status = getPersistenceStatus(db);
-  res.json({
-    ok: true,
-    service: 'otc-market',
-    durableStorage: status.durable,
-    storageDriver: status.driver,
-    timestamp: Date.now()
-  });
+  res.json(buildHealthPayload());
 });
 
 // Dual route mounts for fail-safe Nginx proxy compatibility
@@ -149,11 +152,8 @@ async function startServer() {
     }
   }, 1000);
 
-  // Automated periodic database snapshot for local/disk safety
-  backupDatabase();
-  setInterval(() => {
-    backupDatabase();
-  }, 6 * 60 * 60 * 1000);
+  // Automated every-minute local & cloud database backup (initial snapshot immediately on boot)
+  await runMinuteBackupCycle({ createArchive: true }).catch(() => {});
 
   server.listen(PORT, '0.0.0.0', () => {
     const status = getPersistenceStatus(db);

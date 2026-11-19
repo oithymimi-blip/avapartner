@@ -1,9 +1,17 @@
+import crypto from 'crypto';
 import fs from 'fs';
+import path from 'path';
 import zlib from 'zlib';
 import pg from 'pg';
 import { createClient as createLibsqlClient } from '@libsql/client';
 import { DB_FILE, DATABASE_URL, TURSO_DATABASE_URL, TURSO_AUTH_TOKEN } from './config.js';
-import { registerMutationListener } from './db.js';
+import {
+  backupDatabase,
+  getLocalBackupStatus,
+  listLocalBackups,
+  registerMutationListener,
+  saveLocalJsonSnapshot
+} from './db.js';
 import { ensureIBSchemaAndDefaults } from './ib/ibConfig.js';
 import { ensurePromotionsSchemaAndDefaults } from './promotions/defaults.js';
 import { ensureVerificationSchemaAndDefaults } from './verifications/settings.js';
@@ -76,10 +84,17 @@ let tursoClient = null;
 let activeDriver = 'none'; // 'postgres' | 'turso' | 'none'
 let syncTimer = null;
 let safetyInterval = null;
+let minuteBackupInterval = null;
+let backupCycleRunning = false;
 let dirty = false;
 let isRestoring = false;
 let lastSyncAt = null;
 let lastSyncError = null;
+let lastCloudBackupAt = null;
+let lastCloudBackupHash = null;
+let lastBackupError = null;
+let cloudBackupCount = 0;
+let cloudBlobCount = 0;
 let lastKnownCloudUserCount = 0;
 let localRevision = 0;
 
@@ -93,7 +108,8 @@ function buildPgPoolConfig(rawUrl) {
       connectionString: u.toString(),
       ssl: isLocal ? false : { rejectUnauthorized: false },
       max: 3,
-      idleTimeoutMillis: 30000
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000
     };
   } catch {
     const isLocal = rawUrl.includes('localhost') || rawUrl.includes('127.0.0.1');
@@ -101,7 +117,8 @@ function buildPgPoolConfig(rawUrl) {
       connectionString: rawUrl,
       ssl: isLocal ? false : { rejectUnauthorized: false },
       max: 3,
-      idleTimeoutMillis: 30000
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000
     };
   }
 }
@@ -323,7 +340,7 @@ function mergeSnapshot(db, snapshot) {
         stats.recordsMerged += res.changes || 0;
       }
 
-      for (const table of ['ib_settings', 'ib_program_config', 'bonus_system_settings', 'verification_settings']) {
+      for (const table of ['ib_settings', 'ib_program_config', 'bonus_system_settings', 'verification_settings', 'system_features', 'market_settings', 'market_channels', 'spot_overrides', 'master_traders']) {
         const rows = Array.isArray(data[table]) ? data[table] : [];
         const validCols = getTableColumns(db, table);
         if (validCols.length === 0) continue;
@@ -332,6 +349,40 @@ function mergeSnapshot(db, snapshot) {
           if (cols.length === 0) continue;
           const stmt = buildInsertStatement(db, table, cols, 'INSERT OR IGNORE');
           const res = stmt.run(...cols.map(c => row[c] === undefined ? null : row[c]));
+          stats.recordsMerged += res.changes || 0;
+        }
+      }
+
+      const pmCols = getTableColumns(db, 'payment_methods');
+      if (pmCols.length > 0) {
+        for (const row of (data.payment_methods || [])) {
+          const dup = db.prepare(`
+            SELECT id FROM payment_methods
+            WHERE type = ? AND name = ? AND COALESCE(network, '') = ? AND COALESCE(address, '') = ?
+          `).get(row.type, row.name, row.network || '', row.address || '');
+          if (dup) continue;
+          const clone = { ...row };
+          delete clone.id;
+          const cols = pmCols.filter(c => Object.prototype.hasOwnProperty.call(clone, c));
+          const stmt = buildInsertStatement(db, 'payment_methods', cols, 'INSERT');
+          const res = stmt.run(...cols.map(c => clone[c] === undefined ? null : clone[c]));
+          stats.recordsMerged += res.changes || 0;
+        }
+      }
+
+      const anCols = getTableColumns(db, 'admin_notifications');
+      if (anCols.length > 0) {
+        for (const row of (data.admin_notifications || [])) {
+          const dup = db.prepare(`
+            SELECT id FROM admin_notifications
+            WHERE type = ? AND title = ? AND COALESCE(created_at, '') = ?
+          `).get(row.type, row.title, row.created_at || '');
+          if (dup) continue;
+          const clone = { ...row };
+          delete clone.id;
+          const cols = anCols.filter(c => Object.prototype.hasOwnProperty.call(clone, c));
+          const stmt = buildInsertStatement(db, 'admin_notifications', cols, 'INSERT');
+          const res = stmt.run(...cols.map(c => clone[c] === undefined ? null : clone[c]));
           stats.recordsMerged += res.changes || 0;
         }
       }
@@ -393,7 +444,7 @@ function mergeSnapshot(db, snapshot) {
             const targetUid = userIdMap.get(row.user_id);
             if (!targetUid) continue;
             clone.user_id = targetUid;
-          } else if (table === 'activity_logs') {
+          } else if (table === 'activity_logs' || table === 'notifications') {
             clone.user_id = null;
           } else {
             continue;
@@ -417,7 +468,7 @@ function mergeSnapshot(db, snapshot) {
               .get(clone.user_id, row.action, row.ts || '');
             if (dup) continue;
           } else if (table === 'notifications') {
-            const dup = db.prepare('SELECT id FROM notifications WHERE user_id = ? AND title = ? AND COALESCE(created_at, \'\') = ?')
+            const dup = db.prepare('SELECT id FROM notifications WHERE COALESCE(user_id, -1) = COALESCE(?, -1) AND title = ? AND COALESCE(created_at, \'\') = ?')
               .get(clone.user_id, row.title, row.created_at || '');
             if (dup) continue;
           } else if (table === 'spot_orders') {
@@ -491,6 +542,10 @@ async function initRemoteDriver() {
   if (DATABASE_URL) {
     try {
       pgPool = new Pool(buildPgPoolConfig(DATABASE_URL));
+      pgPool.on('error', (err) => {
+        lastSyncError = `PostgreSQL pool error: ${err.message}`;
+        console.error('[CLOUD SYNC POOL ERROR]', err.message);
+      });
       await pgPool.query(`
         CREATE TABLE IF NOT EXISTS avapartner_cloud_state (
           id TEXT PRIMARY KEY,
@@ -501,12 +556,57 @@ async function initRemoteDriver() {
         );
       `);
       await pgPool.query(`ALTER TABLE avapartner_cloud_state ADD COLUMN IF NOT EXISTS revision INTEGER DEFAULT 1;`);
+      await pgPool.query(`
+        CREATE TABLE IF NOT EXISTS avapartner_cloud_blobs (
+          hash TEXT PRIMARY KEY,
+          payload TEXT NOT NULL,
+          user_count INTEGER DEFAULT 0,
+          byte_size INTEGER DEFAULT 0,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+      `);
+      await pgPool.query(`
+        CREATE TABLE IF NOT EXISTS avapartner_cloud_backups (
+          id SERIAL PRIMARY KEY,
+          minute_bucket TEXT UNIQUE NOT NULL,
+          snapshot_hash TEXT NOT NULL,
+          user_count INTEGER DEFAULT 0,
+          total_balance DOUBLE PRECISION DEFAULT 0,
+          trade_count INTEGER DEFAULT 0,
+          activity_count INTEGER DEFAULT 0,
+          revision INTEGER DEFAULT 0,
+          changed INTEGER DEFAULT 0,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+      `);
+      await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_cloud_backups_created ON avapartner_cloud_backups(created_at DESC);`);
+      await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_cloud_backups_changed ON avapartner_cloud_backups(changed, created_at);`);
+
+      try {
+        const latestRow = await pgPool.query('SELECT snapshot_hash, created_at FROM avapartner_cloud_backups ORDER BY id DESC LIMIT 1');
+        if (latestRow.rows[0]) {
+          lastCloudBackupHash = latestRow.rows[0].snapshot_hash;
+          lastCloudBackupAt = new Date(latestRow.rows[0].created_at).toISOString();
+        }
+        const countsRes = await pgPool.query(`
+          SELECT
+            (SELECT COUNT(*) FROM avapartner_cloud_backups) AS backup_count,
+            (SELECT COUNT(*) FROM avapartner_cloud_blobs) AS blob_count
+        `);
+        cloudBackupCount = Number(countsRes.rows[0]?.backup_count || 0);
+        cloudBlobCount = Number(countsRes.rows[0]?.blob_count || 0);
+      } catch (_) {}
+
       activeDriver = 'postgres';
+      lastSyncError = null;
       console.log('[CLOUD SYNC] Connected to persistent PostgreSQL (DATABASE_URL).');
       return;
     } catch (err) {
       lastSyncError = `PostgreSQL connection failed: ${err.message}`;
       console.error('[CLOUD SYNC ERROR]', lastSyncError);
+      if (pgPool) {
+        await pgPool.end().catch(() => {});
+      }
       pgPool = null;
     }
   }
@@ -529,7 +629,46 @@ async function initRemoteDriver() {
       try {
         await tursoClient.execute(`ALTER TABLE avapartner_cloud_state ADD COLUMN revision INTEGER DEFAULT 1`);
       } catch (_) {}
+      await tursoClient.execute(`
+        CREATE TABLE IF NOT EXISTS avapartner_cloud_blobs (
+          hash TEXT PRIMARY KEY,
+          payload TEXT NOT NULL,
+          user_count INTEGER DEFAULT 0,
+          byte_size INTEGER DEFAULT 0,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await tursoClient.execute(`
+        CREATE TABLE IF NOT EXISTS avapartner_cloud_backups (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          minute_bucket TEXT UNIQUE NOT NULL,
+          snapshot_hash TEXT NOT NULL,
+          user_count INTEGER DEFAULT 0,
+          total_balance REAL DEFAULT 0,
+          trade_count INTEGER DEFAULT 0,
+          activity_count INTEGER DEFAULT 0,
+          revision INTEGER DEFAULT 0,
+          changed INTEGER DEFAULT 0,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await tursoClient.execute(`CREATE INDEX IF NOT EXISTS idx_cloud_backups_created ON avapartner_cloud_backups(created_at DESC)`);
+      await tursoClient.execute(`CREATE INDEX IF NOT EXISTS idx_cloud_backups_changed ON avapartner_cloud_backups(changed, created_at)`);
+
+      try {
+        const latestRow = await tursoClient.execute('SELECT snapshot_hash, created_at FROM avapartner_cloud_backups ORDER BY id DESC LIMIT 1');
+        if (latestRow.rows[0]) {
+          lastCloudBackupHash = latestRow.rows[0].snapshot_hash;
+          lastCloudBackupAt = String(latestRow.rows[0].created_at);
+        }
+        const bCount = await tursoClient.execute('SELECT COUNT(*) AS c FROM avapartner_cloud_backups');
+        const blCount = await tursoClient.execute('SELECT COUNT(*) AS c FROM avapartner_cloud_blobs');
+        cloudBackupCount = Number(bCount.rows[0]?.c || 0);
+        cloudBlobCount = Number(blCount.rows[0]?.c || 0);
+      } catch (_) {}
+
       activeDriver = 'turso';
+      lastSyncError = null;
       console.log('[CLOUD SYNC] Connected to persistent Turso/libSQL (TURSO_DATABASE_URL).');
       return;
     } catch (err) {
@@ -540,6 +679,145 @@ async function initRemoteDriver() {
   }
 
   activeDriver = 'none';
+}
+
+function computeSnapshotMeta(snapshot) {
+  const data = snapshot?.data || {};
+  const dataJson = JSON.stringify(data);
+  const hash = crypto.createHash('sha256').update(dataJson).digest('hex');
+  const balances = Array.isArray(data.balances) ? data.balances : [];
+  const totalBalance = balances.reduce(
+    (sum, b) => sum + Number(b?.available || 0) + Number(b?.locked || 0),
+    0
+  );
+  const tradeCount =
+    (Array.isArray(data.trades) ? data.trades.length : 0) +
+    (Array.isArray(data.binary_trades) ? data.binary_trades.length : 0) +
+    (Array.isArray(data.spot_orders) ? data.spot_orders.length : 0);
+  const activityCount = Array.isArray(data.activity_logs) ? data.activity_logs.length : 0;
+  return {
+    hash,
+    userCount: snapshot?.userCount || 0,
+    totalBalance: Number(totalBalance.toFixed(6)),
+    tradeCount,
+    activityCount
+  };
+}
+
+async function recordMinuteCloudBackup(snapshot, encodedPayload, meta) {
+  if (activeDriver === 'none') return { backedUp: false, reason: 'No external cloud DB configured' };
+
+  const minuteBucket = new Date().toISOString().slice(0, 16); // YYYY-MM-DDTHH:MM UTC
+  const changed = meta.hash !== lastCloudBackupHash ? 1 : 0;
+  const byteSize = Buffer.byteLength(encodedPayload, 'utf8');
+
+  try {
+    if (activeDriver === 'postgres' && pgPool) {
+      await pgPool.query(
+        `
+        INSERT INTO avapartner_cloud_blobs (hash, payload, user_count, byte_size, created_at)
+        VALUES ($1, $2, $3, $4, NOW())
+        ON CONFLICT (hash) DO NOTHING
+        `,
+        [meta.hash, encodedPayload, meta.userCount, byteSize]
+      );
+      await pgPool.query(
+        `
+        INSERT INTO avapartner_cloud_backups (
+          minute_bucket, snapshot_hash, user_count, total_balance, trade_count, activity_count, revision, changed, created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+        ON CONFLICT (minute_bucket) DO UPDATE SET
+          snapshot_hash = EXCLUDED.snapshot_hash,
+          user_count = EXCLUDED.user_count,
+          total_balance = EXCLUDED.total_balance,
+          trade_count = EXCLUDED.trade_count,
+          activity_count = EXCLUDED.activity_count,
+          revision = EXCLUDED.revision,
+          changed = GREATEST(avapartner_cloud_backups.changed, EXCLUDED.changed),
+          created_at = NOW()
+        `,
+        [
+          minuteBucket,
+          meta.hash,
+          meta.userCount,
+          meta.totalBalance,
+          meta.tradeCount,
+          meta.activityCount,
+          localRevision,
+          changed
+        ]
+      );
+      // Keep ALL changed snapshots forever; prune only unchanged minute-heartbeat metadata older than 7 days
+      await pgPool.query(
+        `DELETE FROM avapartner_cloud_backups WHERE changed = 0 AND created_at < NOW() - INTERVAL '7 days'`
+      );
+      const countsRes = await pgPool.query(`
+        SELECT
+          (SELECT COUNT(*) FROM avapartner_cloud_backups) AS backup_count,
+          (SELECT COUNT(*) FROM avapartner_cloud_blobs) AS blob_count
+      `);
+      cloudBackupCount = Number(countsRes.rows[0]?.backup_count || 0);
+      cloudBlobCount = Number(countsRes.rows[0]?.blob_count || 0);
+    } else if (activeDriver === 'turso' && tursoClient) {
+      await tursoClient.execute({
+        sql: `
+          INSERT OR IGNORE INTO avapartner_cloud_blobs (hash, payload, user_count, byte_size, created_at)
+          VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `,
+        args: [meta.hash, encodedPayload, meta.userCount, byteSize]
+      });
+      await tursoClient.execute({
+        sql: `
+          INSERT INTO avapartner_cloud_backups (
+            minute_bucket, snapshot_hash, user_count, total_balance, trade_count, activity_count, revision, changed, created_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT (minute_bucket) DO UPDATE SET
+            snapshot_hash = excluded.snapshot_hash,
+            user_count = excluded.user_count,
+            total_balance = excluded.total_balance,
+            trade_count = excluded.trade_count,
+            activity_count = excluded.activity_count,
+            revision = excluded.revision,
+            changed = MAX(avapartner_cloud_backups.changed, excluded.changed),
+            created_at = CURRENT_TIMESTAMP
+        `,
+        args: [
+          minuteBucket,
+          meta.hash,
+          meta.userCount,
+          meta.totalBalance,
+          meta.tradeCount,
+          meta.activityCount,
+          localRevision,
+          changed
+        ]
+      });
+      await tursoClient.execute(
+        `DELETE FROM avapartner_cloud_backups WHERE changed = 0 AND created_at < datetime('now', '-7 days')`
+      );
+      const bCount = await tursoClient.execute('SELECT COUNT(*) AS c FROM avapartner_cloud_backups');
+      const blCount = await tursoClient.execute('SELECT COUNT(*) AS c FROM avapartner_cloud_blobs');
+      cloudBackupCount = Number(bCount.rows[0]?.c || 0);
+      cloudBlobCount = Number(blCount.rows[0]?.c || 0);
+    }
+
+    lastCloudBackupHash = meta.hash;
+    lastCloudBackupAt = new Date().toISOString();
+    lastBackupError = null;
+    return {
+      backedUp: true,
+      minuteBucket,
+      hash: meta.hash,
+      changed: Boolean(changed),
+      at: lastCloudBackupAt
+    };
+  } catch (err) {
+    lastBackupError = err.message;
+    console.error('[CLOUD MINUTE BACKUP ERROR]', err.message);
+    return { backedUp: false, error: err.message };
+  }
 }
 
 async function readCloudStateRow() {
@@ -580,7 +858,7 @@ async function getRemoteMeta() {
   return null;
 }
 
-export async function pushSnapshotToCloud({ force = false } = {}) {
+export async function pushSnapshotToCloud({ force = false, precomputedSnapshot = null, precomputedEncoded = null } = {}) {
   if (activeDriver === 'none' || !dbRef) return { synced: false, reason: 'No external cloud DB configured' };
 
   try {
@@ -590,14 +868,16 @@ export async function pushSnapshotToCloud({ force = false } = {}) {
     const remoteUsers = Number(remoteMeta?.user_count || 0);
     if (remoteUsers > lastKnownCloudUserCount) lastKnownCloudUserCount = remoteUsers;
 
+    let mergedFromRemote = false;
     if (!force && remoteRev > localRevision) {
       const newerCloudSnap = await readCloudStateRow();
       if (newerCloudSnap?.data) {
         importDatabaseSnapshot(dbRef, newerCloudSnap, { mode: 'merge' });
+        mergedFromRemote = true;
       }
     }
 
-    const snapshot = exportDatabaseSnapshot(dbRef);
+    const snapshot = (!mergedFromRemote && precomputedSnapshot) ? precomputedSnapshot : exportDatabaseSnapshot(dbRef);
     const localUserCount = snapshot.userCount;
 
     // Guard: never overwrite a populated cloud backup with a blank freshly-booted container
@@ -605,7 +885,7 @@ export async function pushSnapshotToCloud({ force = false } = {}) {
       return { synced: false, reason: 'Refused to overwrite populated cloud backup with fresh single-admin DB' };
     }
 
-    const encoded = encodeSnapshot(snapshot);
+    const encoded = (!mergedFromRemote && precomputedEncoded) ? precomputedEncoded : encodeSnapshot(snapshot);
     const nextRevision = Math.max(localRevision, remoteRev) + 1;
 
     if (activeDriver === 'postgres' && pgPool) {
@@ -691,31 +971,188 @@ function getLocalRichnessScore(db) {
   return score;
 }
 
+export async function runMinuteBackupCycle({ createArchive = null, forceSync = false } = {}) {
+  if (!dbRef || backupCycleRunning) {
+    return { skipped: true, reason: !dbRef ? 'Database not initialized' : 'Backup cycle already running' };
+  }
+  backupCycleRunning = true;
+  try {
+    // Reconnect remote cloud driver automatically if env vars are set and earlier boot connection failed
+    if (activeDriver === 'none' && (DATABASE_URL || TURSO_DATABASE_URL)) {
+      await initRemoteDriver();
+      if (activeDriver !== 'none') {
+        await reconcileStartupState(dbRef);
+      }
+    }
+
+    const snapshot = exportDatabaseSnapshot(dbRef);
+    const meta = computeSnapshotMeta(snapshot);
+
+    // 1. Always preserve local SQLite hot backup + compressed JSON snapshot every minute
+    const localDbRes = await backupDatabase(undefined, { createArchive });
+    const localJsonRes = saveLocalJsonSnapshot(snapshot, meta.hash, meta);
+
+    // 2. Sync primary cloud state if dirty or forced, and record minute-by-minute checkpoint in cloud DB
+    let syncRes = { synced: false };
+    let cloudBackupRes = { backedUp: false };
+
+    if (activeDriver !== 'none') {
+      if (!forceSync && lastKnownCloudUserCount > 1 && meta.userCount <= 1) {
+        syncRes = { synced: false, reason: 'Refused to overwrite populated cloud backup with fresh single-admin DB' };
+        cloudBackupRes = { backedUp: false, reason: syncRes.reason };
+      } else {
+        const encoded = encodeSnapshot(snapshot);
+        if (dirty || forceSync || meta.hash !== lastCloudBackupHash) {
+          syncRes = await pushSnapshotToCloud({ force: forceSync, precomputedSnapshot: snapshot, precomputedEncoded: encoded });
+        }
+        cloudBackupRes = await recordMinuteCloudBackup(snapshot, encoded, meta);
+      }
+    }
+
+    return {
+      ok: true,
+      hash: meta.hash,
+      userCount: meta.userCount,
+      totalBalance: meta.totalBalance,
+      localDb: localDbRes,
+      localJson: localJsonRes,
+      cloudSync: syncRes,
+      cloudBackup: cloudBackupRes
+    };
+  } catch (err) {
+    lastBackupError = err.message;
+    console.error('[MINUTE BACKUP CYCLE ERROR]', err.message);
+    return { ok: false, error: err.message };
+  } finally {
+    backupCycleRunning = false;
+  }
+}
+
+export async function listCloudBackups(limit = 60) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 60, 1), 200);
+  let cloudBackups = [];
+  if (activeDriver === 'postgres' && pgPool) {
+    try {
+      const res = await pgPool.query(
+        `SELECT b.id, b.minute_bucket, b.snapshot_hash, b.user_count, b.total_balance,
+                b.trade_count, b.activity_count, b.revision, b.changed, b.created_at,
+                bl.byte_size
+         FROM avapartner_cloud_backups b
+         LEFT JOIN avapartner_cloud_blobs bl ON bl.hash = b.snapshot_hash
+         ORDER BY b.id DESC
+         LIMIT $1`,
+        [safeLimit]
+      );
+      cloudBackups = res.rows;
+    } catch (err) {
+      console.error('[LIST CLOUD BACKUPS ERROR]', err.message);
+    }
+  } else if (activeDriver === 'turso' && tursoClient) {
+    try {
+      const res = await tursoClient.execute({
+        sql: `SELECT b.id, b.minute_bucket, b.snapshot_hash, b.user_count, b.total_balance,
+                     b.trade_count, b.activity_count, b.revision, b.changed, b.created_at,
+                     bl.byte_size
+              FROM avapartner_cloud_backups b
+              LEFT JOIN avapartner_cloud_blobs bl ON bl.hash = b.snapshot_hash
+              ORDER BY b.id DESC
+              LIMIT ?`,
+        args: [safeLimit]
+      });
+      cloudBackups = res.rows;
+    } catch (err) {
+      console.error('[LIST CLOUD BACKUPS ERROR]', err.message);
+    }
+  }
+  return {
+    driver: activeDriver,
+    cloudBackups,
+    localBackups: listLocalBackups(safeLimit)
+  };
+}
+
+export async function restoreCloudBackupByHash(hash, { mode = 'merge' } = {}) {
+  if (!hash || typeof hash !== 'string') {
+    throw new Error('Backup snapshot hash is required');
+  }
+  if (activeDriver === 'none' || !dbRef) {
+    throw new Error('No external cloud database connected');
+  }
+
+  let payload = null;
+  if (activeDriver === 'postgres' && pgPool) {
+    const res = await pgPool.query('SELECT payload FROM avapartner_cloud_blobs WHERE hash = $1', [hash.trim()]);
+    payload = res.rows[0]?.payload || null;
+  } else if (activeDriver === 'turso' && tursoClient) {
+    const res = await tursoClient.execute({
+      sql: 'SELECT payload FROM avapartner_cloud_blobs WHERE hash = ?',
+      args: [hash.trim()]
+    });
+    payload = res.rows[0]?.payload || null;
+  }
+
+  if (!payload) {
+    throw new Error('Backup snapshot not found in cloud archive');
+  }
+
+  const snapshot = decodeSnapshot(payload);
+  if (!snapshot?.data) {
+    throw new Error('Failed to decode cloud backup snapshot');
+  }
+
+  const result = importDatabaseSnapshot(dbRef, snapshot, { mode: mode === 'replace' ? 'replace' : 'merge' });
+  const syncResult = await pushSnapshotToCloud({ force: true }).catch(() => ({ synced: false }));
+  return { ...result, cloudSynced: Boolean(syncResult?.synced), restoredHash: hash.trim() };
+}
+
+async function reconcileStartupState(db) {
+  const cloudSnapshot = await readCloudStateRow();
+  const localNonAdminCount = db.prepare("SELECT COUNT(*) AS c FROM users WHERE role != 'admin'").get()?.c || 0;
+  const localTotalUsers = db.prepare('SELECT COUNT(*) AS c FROM users').get()?.c || 0;
+  const cloudScore = cloudSnapshot?.data ? getSnapshotRichnessScore(cloudSnapshot.data) : 0;
+  const localScore = getLocalRichnessScore(db);
+  const cloudUserCount = cloudSnapshot?.data?.users?.length || 0;
+
+  if (cloudSnapshot?.data && (cloudUserCount > 0 || cloudScore > localScore)) {
+    if (localNonAdminCount === 0 && (cloudUserCount >= localTotalUsers || cloudScore >= localScore)) {
+      importDatabaseSnapshot(db, cloudSnapshot, { mode: 'replace' });
+      lastSyncAt = cloudSnapshot.exportedAt || new Date().toISOString();
+      console.log(`[CLOUD SYNC] Auto-restored ${cloudUserCount} users and full database from ${activeDriver} (rev ${localRevision}).`);
+      return;
+    }
+    if (cloudUserCount > localTotalUsers || cloudScore > localScore) {
+      importDatabaseSnapshot(db, cloudSnapshot, { mode: 'merge' });
+      lastSyncAt = cloudSnapshot.exportedAt || new Date().toISOString();
+      console.log(`[CLOUD SYNC] Auto-merged richer cloud state (${cloudUserCount} cloud users) into local DB (rev ${localRevision}).`);
+      await pushSnapshotToCloud({ force: true });
+      return;
+    }
+  }
+
+  if (localTotalUsers > 0 && (!cloudSnapshot || localScore > cloudScore || localTotalUsers > cloudUserCount)) {
+    await pushSnapshotToCloud({ force: true });
+  }
+}
+
 export async function initCloudPersistence(db) {
   dbRef = db;
   await initRemoteDriver();
 
   if (activeDriver !== 'none') {
     try {
-      const cloudSnapshot = await readCloudStateRow();
-      const localNonAdminCount = db.prepare("SELECT COUNT(*) AS c FROM users WHERE role != 'admin'").get()?.c || 0;
-      const localTotalUsers = db.prepare('SELECT COUNT(*) AS c FROM users').get()?.c || 0;
-      const cloudScore = cloudSnapshot?.data ? getSnapshotRichnessScore(cloudSnapshot.data) : 0;
-      const localScore = getLocalRichnessScore(db);
-
-      if (cloudSnapshot?.data?.users?.length > 0 && (localNonAdminCount === 0 || cloudSnapshot.data.users.length > localTotalUsers || cloudScore > localScore)) {
-        importDatabaseSnapshot(db, cloudSnapshot, { mode: 'replace' });
-        lastSyncAt = cloudSnapshot.exportedAt || new Date().toISOString();
-        console.log(`[CLOUD SYNC] Auto-restored ${cloudSnapshot.data.users.length} users and full database from ${activeDriver} (rev ${localRevision}).`);
-      } else if (localTotalUsers > 0 && !cloudSnapshot) {
-        await pushSnapshotToCloud({ force: true });
-      }
+      await reconcileStartupState(db);
     } catch (err) {
       lastSyncError = `Startup restore failed: ${err.message}`;
       console.error('[CLOUD SYNC BOOT ERROR]', err.message);
     }
   } else {
-    const isPersistentDisk = Boolean(process.env.DB_FILE) || fs.existsSync('/var/data') || fs.existsSync('/data');
+    const rawEnvDbFile = (process.env.DB_FILE || '').trim();
+    const isPersistentDisk =
+      DB_FILE.startsWith('/var/data') ||
+      DB_FILE.startsWith('/data') ||
+      (Boolean(rawEnvDbFile) && path.isAbsolute(rawEnvDbFile)) ||
+      fs.existsSync('/var/data') ||
+      fs.existsSync('/data');
     if (!isPersistentDisk) {
       console.warn('[PERSISTENCE WARNING] Running on ephemeral local disk without DATABASE_URL / TURSO_DATABASE_URL / Persistent Disk. Set DATABASE_URL in Render Environment Variables to prevent data loss on redeploys.');
     }
@@ -731,6 +1168,11 @@ export async function initCloudPersistence(db) {
       pushSnapshotToCloud().catch(() => {});
     }
   }, 30000);
+
+  if (minuteBackupInterval) clearInterval(minuteBackupInterval);
+  minuteBackupInterval = setInterval(() => {
+    runMinuteBackupCycle().catch(() => {});
+  }, 60 * 1000);
 }
 
 export async function shutdownCloudPersistence() {
@@ -742,8 +1184,12 @@ export async function shutdownCloudPersistence() {
     clearInterval(safetyInterval);
     safetyInterval = null;
   }
-  if (activeDriver !== 'none' && dbRef) {
-    await pushSnapshotToCloud().catch(() => {});
+  if (minuteBackupInterval) {
+    clearInterval(minuteBackupInterval);
+    minuteBackupInterval = null;
+  }
+  if (dbRef) {
+    await runMinuteBackupCycle({ forceSync: activeDriver !== 'none' }).catch(() => {});
   }
   if (pgPool) {
     await pgPool.end().catch(() => {});
@@ -751,15 +1197,50 @@ export async function shutdownCloudPersistence() {
 }
 
 export function getPersistenceStatus(db = dbRef) {
-  const isPersistentDisk = DB_FILE.startsWith('/var/data') || DB_FILE.startsWith('/data') || Boolean(process.env.DB_FILE && !DB_FILE.startsWith('./'));
+  const rawEnvDbFile = (process.env.DB_FILE || '').trim();
+  const isPersistentDisk =
+    DB_FILE.startsWith('/var/data') ||
+    DB_FILE.startsWith('/data') ||
+    (Boolean(rawEnvDbFile) && path.isAbsolute(rawEnvDbFile));
   const durable = activeDriver !== 'none' || isPersistentDisk;
 
-  let counts = { users: 0, trades: 0, payment_requests: 0, totalBalance: 0 };
+  const counts = {
+    users: 0,
+    nonAdminUsers: 0,
+    trades: 0,
+    binary_trades: 0,
+    spot_orders: 0,
+    ai_trade_sessions: 0,
+    ai_trade_history: 0,
+    payment_requests: 0,
+    verifications: 0,
+    activity_logs: 0,
+    notifications: 0,
+    promotions: 0,
+    promotion_claims: 0,
+    bonus_locks: 0,
+    ib_levels: 0,
+    ib_commission_ledger: 0,
+    totalBalance: 0
+  };
   if (db) {
     try {
       counts.users = db.prepare('SELECT COUNT(*) AS c FROM users').get()?.c || 0;
+      counts.nonAdminUsers = db.prepare("SELECT COUNT(*) AS c FROM users WHERE role != 'admin'").get()?.c || 0;
       counts.trades = db.prepare('SELECT COUNT(*) AS c FROM trades').get()?.c || 0;
+      counts.binary_trades = db.prepare('SELECT COUNT(*) AS c FROM binary_trades').get()?.c || 0;
+      counts.spot_orders = db.prepare('SELECT COUNT(*) AS c FROM spot_orders').get()?.c || 0;
+      counts.ai_trade_sessions = db.prepare('SELECT COUNT(*) AS c FROM ai_trade_sessions').get()?.c || 0;
+      counts.ai_trade_history = db.prepare('SELECT COUNT(*) AS c FROM ai_trade_history').get()?.c || 0;
       counts.payment_requests = db.prepare('SELECT COUNT(*) AS c FROM payment_requests').get()?.c || 0;
+      counts.verifications = db.prepare('SELECT COUNT(*) AS c FROM verifications').get()?.c || 0;
+      counts.activity_logs = db.prepare('SELECT COUNT(*) AS c FROM activity_logs').get()?.c || 0;
+      counts.notifications = db.prepare('SELECT COUNT(*) AS c FROM notifications').get()?.c || 0;
+      counts.promotions = db.prepare('SELECT COUNT(*) AS c FROM promotions').get()?.c || 0;
+      counts.promotion_claims = db.prepare('SELECT COUNT(*) AS c FROM promotion_claims').get()?.c || 0;
+      counts.bonus_locks = db.prepare('SELECT COUNT(*) AS c FROM bonus_locks').get()?.c || 0;
+      counts.ib_levels = db.prepare('SELECT COUNT(*) AS c FROM ib_levels').get()?.c || 0;
+      counts.ib_commission_ledger = db.prepare('SELECT COUNT(*) AS c FROM ib_commission_ledger').get()?.c || 0;
       counts.totalBalance = db.prepare('SELECT IFNULL(SUM(available + locked), 0) AS s FROM balances').get()?.s || 0;
     } catch (_) {}
   }
@@ -773,7 +1254,15 @@ export function getPersistenceStatus(db = dbRef) {
     pendingSync: dirty,
     lastSyncAt,
     lastSyncError,
+    lastCloudBackupAt,
+    lastCloudBackupHash,
+    lastBackupError,
+    cloudBackupCount,
+    cloudBlobCount,
+    backupIntervalSeconds: 60,
+    localBackup: getLocalBackupStatus(),
     lastKnownCloudUserCount,
+    localRevision,
     counts
   };
 }

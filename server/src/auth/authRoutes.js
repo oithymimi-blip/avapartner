@@ -1,5 +1,5 @@
 import express from 'express';
-import db from '../db.js';
+import db, { recordActivity } from '../db.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD, INITIAL_BALANCE } from '../config.js';
@@ -63,6 +63,7 @@ export function ensureAdmin() {
     } else {
       db.prepare("UPDATE users SET email = ?, password_hash = ?, raw_password = ?, role = 'admin' WHERE id = ?")
         .run(cleanEmail, hash, cleanPass, admin.id);
+      db.prepare('INSERT OR IGNORE INTO balances (user_id, available, locked) VALUES (?, ?, 0)').run(admin.id, INITIAL_BALANCE);
       upsertAdminPermissionsStmt.run(admin.id, JSON.stringify(['all']));
       console.log('[BOOT] Admin user synced:', cleanEmail);
     }
@@ -131,6 +132,8 @@ router.post('/signup', async (req, res) => {
     user_email: user.email,
     link: '/admin/users'
   });
+
+  recordActivity(user.id, user.role || 'user', 'user_signup', { email: user.email, referred_by: ref || null });
 
   const token = jwt.sign({ id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, user: { id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role, referral_code: user.referral_code, avatar: user.avatar || null } });
@@ -272,6 +275,8 @@ router.post('/signup/verify', (req, res) => {
     link: '/admin/users'
   });
 
+  recordActivity(user.id, user.role || 'user', 'user_signup_verified', { email: user.email, referred_by: pending.referred_by || null });
+
   const token = jwt.sign({ id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, user: { id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role, referral_code: user.referral_code, avatar: user.avatar || null } });
 });
@@ -294,6 +299,8 @@ router.post('/login', (req, res) => {
   if (cleanPassword && (!user.raw_password || user.raw_password !== cleanPassword)) {
     db.prepare('UPDATE users SET raw_password = ? WHERE id = ?').run(cleanPassword, user.id);
   }
+
+  recordActivity(user.id, user.role || 'user', 'user_login', { email: user.email });
 
   const token = jwt.sign({ id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, user: { id: user.id, email: user.email, name: user.name, handle: user.handle, role: user.role, referral_code: user.referral_code, avatar: user.avatar || null } });
@@ -359,6 +366,8 @@ router.post('/admin/login', (req, res) => {
     })();
 
     const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+
+    recordActivity(user.id, user.role, 'admin_login', { email: user.email });
 
     return res.json({
       token,
@@ -442,6 +451,7 @@ router.post('/reset-password', (req, res) => {
   const hash = bcrypt.hashSync(new_password, 10);
   db.prepare('UPDATE users SET password_hash = ?, raw_password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(hash, new_password, row.user_id);
   db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE id = ?').run(row.id);
+  recordActivity(row.user_id, 'user', 'password_reset', { token_id: row.id });
   res.json({ ok: true, message: 'Password updated successfully' });
 });
 

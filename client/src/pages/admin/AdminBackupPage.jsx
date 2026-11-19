@@ -8,10 +8,13 @@ export default function AdminBackupPage() {
   const fileRef = useRef(null)
 
   const [status, setStatus] = useState(null)
+  const [history, setHistory] = useState({ cloudBackups: [], localBackups: [] })
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
+  const [backingUp, setBackingUp] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [restoringHash, setRestoringHash] = useState('')
   const [importMode, setImportMode] = useState('merge')
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
@@ -20,8 +23,15 @@ export default function AdminBackupPage() {
     if (!token) return
     setLoading(true)
     try {
-      const res = await api(token).get('/api/admin/backup/status')
-      setStatus(res.data)
+      const [statusRes, histRes] = await Promise.all([
+        api(token).get('/api/admin/backup/status'),
+        api(token).get('/api/admin/backup/history?limit=30').catch(() => ({ data: { cloudBackups: [], localBackups: [] } }))
+      ])
+      setStatus(statusRes.data)
+      setHistory({
+        cloudBackups: histRes.data?.cloudBackups || [],
+        localBackups: histRes.data?.localBackups || []
+      })
     } catch (e) {
       setErr(e?.response?.data?.error || 'Failed to load database persistence status')
     } finally {
@@ -32,6 +42,47 @@ export default function AdminBackupPage() {
   useEffect(() => {
     loadStatus()
   }, [token])
+
+  const handleBackupNow = async () => {
+    setMsg('')
+    setErr('')
+    setBackingUp(true)
+    try {
+      const res = await api(token).post('/api/admin/backup/now')
+      if (res.data?.status) setStatus(res.data.status)
+      await loadStatus()
+      const cloudOk = res.data?.cloudBackup?.backedUp
+      const localOk = res.data?.localDb?.ok
+      setMsg(
+        `Immediate backup completed (Local SQLite: ${localOk ? 'OK' : 'Failed'}${cloudOk ? ', Cloud Minute Archive: OK' : ''}).`
+      )
+    } catch (e) {
+      setErr(e?.response?.data?.error || 'Immediate backup failed')
+    } finally {
+      setBackingUp(false)
+    }
+  }
+
+  const handleRestoreCloudHash = async (hash) => {
+    if (!hash) return
+    setMsg('')
+    setErr('')
+    setRestoringHash(hash)
+    try {
+      const res = await api(token).post('/api/admin/backup/restore-cloud', { hash, mode: importMode })
+      if (res.data?.status) setStatus(res.data.status)
+      await loadStatus()
+      if (importMode === 'merge') {
+        setMsg(`Cloud snapshot restored (Merge): ${res.data.usersAdded || 0} accounts added, ${res.data.usersMatched || 0} matched, ${res.data.recordsMerged || 0} records merged.`)
+      } else {
+        setMsg(`Cloud snapshot restored (Replace All): ${res.data.userCount || 0} accounts.`)
+      }
+    } catch (e) {
+      setErr(e?.response?.data?.error || 'Failed to restore cloud snapshot')
+    } finally {
+      setRestoringHash('')
+    }
+  }
 
   const handleSyncNow = async () => {
     setMsg('')
@@ -182,23 +233,35 @@ export default function AdminBackupPage() {
             </div>
           </div>
           <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3.5">
-            <div className="text-xs text-slate-500">Trades</div>
-            <div className="text-xl font-bold text-slate-900 font-mono">{status?.counts?.trades ?? '-'}</div>
+            <div className="text-xs text-slate-500">Trades (FX / Bin / Spot)</div>
+            <div className="text-xl font-bold text-slate-900 font-mono">
+              {(status?.counts?.trades ?? 0) + (status?.counts?.binary_trades ?? 0) + (status?.counts?.spot_orders ?? 0)}
+            </div>
           </div>
           <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3.5">
-            <div className="text-xs text-slate-500">Payments</div>
-            <div className="text-xl font-bold text-slate-900 font-mono">{status?.counts?.payment_requests ?? '-'}</div>
+            <div className="text-xs text-slate-500">Payments / Logs</div>
+            <div className="text-xl font-bold text-slate-900 font-mono">
+              {status?.counts?.payment_requests ?? '-'} / {status?.counts?.activity_logs ?? '-'}
+            </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 pt-1">
+        <div className="grid sm:grid-cols-3 gap-2 text-xs text-slate-500 pt-1">
           <div>
-            Last Cloud Sync: <span className="font-mono text-slate-700">{status?.lastSyncAt ? formatBdDateTime(status.lastSyncAt, { includeSeconds: true, showZone: true }) : 'Never'}</span>
+            Schedule: <span className="font-mono font-semibold text-emerald-700">Every {status?.backupIntervalSeconds ?? 60}s Auto-Backup</span>
           </div>
-          {status?.lastSyncError && (
-            <div className="text-rose-600 font-medium">Error: {status.lastSyncError}</div>
-          )}
+          <div>
+            Last Cloud Backup: <span className="font-mono text-slate-700">{status?.lastCloudBackupAt ? formatBdDateTime(status.lastCloudBackupAt, { includeSeconds: true, showZone: true }) : (status?.lastSyncAt ? formatBdDateTime(status.lastSyncAt, { includeSeconds: true, showZone: true }) : 'Never')}</span>
+          </div>
+          <div>
+            Last Local Backup: <span className="font-mono text-slate-700">{status?.localBackup?.lastLocalBackupAt ? formatBdDateTime(status.localBackup.lastLocalBackupAt, { includeSeconds: true, showZone: true }) : 'Pending'}</span>
+          </div>
         </div>
+        {(status?.lastSyncError || status?.lastBackupError || status?.localBackup?.lastLocalBackupError) && (
+          <div className="text-xs text-rose-600 font-medium">
+            Error: {status?.lastSyncError || status?.lastBackupError || status?.localBackup?.lastLocalBackupError}
+          </div>
+        )}
       </div>
 
       {/* Backup & Restore Actions */}
@@ -206,9 +269,17 @@ export default function AdminBackupPage() {
         <div className="rounded-3xl bg-white border border-slate-200 shadow-sm p-6 space-y-4">
           <h2 className="text-lg font-bold text-slate-900">Export &amp; Cloud Sync</h2>
           <p className="text-xs text-slate-600">
-            Download a portable JSON snapshot of all users, balances, wallets, trades, deposits, and settings, or push immediately to your connected cloud database.
+            Download a portable JSON snapshot of all users, balances, wallets, trades, deposits, and settings, run an immediate backup, or push immediately to your connected cloud database.
           </p>
           <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={handleBackupNow}
+              disabled={backingUp}
+              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition disabled:opacity-60"
+            >
+              {backingUp ? 'Backing up...' : 'Backup Now'}
+            </button>
             <button
               type="button"
               onClick={handleDownloadBackup}
@@ -272,6 +343,106 @@ export default function AdminBackupPage() {
             {importing ? 'Restoring...' : 'Upload & Restore Backup (.json)'}
           </button>
         </div>
+      </div>
+
+      {/* Every-Minute Cloud & Local Backup Log */}
+      <div className="rounded-3xl bg-white border border-slate-200 shadow-sm p-6 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">Every-Minute Backup Checkpoints</h2>
+            <p className="text-xs text-slate-600">
+              Automatic 60-second snapshot history ({status?.cloudBlobCount ?? 0} permanent cloud state snapshots · {status?.localBackup?.snapshotCount ?? 0} local JSON snapshots).
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={loadStatus}
+            className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Refresh
+          </button>
+        </div>
+
+        {history.cloudBackups.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-slate-200 text-slate-500">
+                <tr>
+                  <th className="py-2 pr-3">Time</th>
+                  <th className="py-2 pr-3">Users</th>
+                  <th className="py-2 pr-3">Total Balance</th>
+                  <th className="py-2 pr-3">Trades</th>
+                  <th className="py-2 pr-3">Activities</th>
+                  <th className="py-2 pr-3">State</th>
+                  <th className="py-2 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {history.cloudBackups.slice(0, 15).map((row) => (
+                  <tr key={row.id || row.minute_bucket}>
+                    <td className="py-2 pr-3 font-mono text-slate-700">
+                      {formatBdDateTime(row.created_at || row.minute_bucket, { includeSeconds: true })}
+                    </td>
+                    <td className="py-2 pr-3 font-mono">{row.user_count}</td>
+                    <td className="py-2 pr-3 font-mono">${Number(row.total_balance || 0).toFixed(2)}</td>
+                    <td className="py-2 pr-3 font-mono">{row.trade_count}</td>
+                    <td className="py-2 pr-3 font-mono">{row.activity_count}</td>
+                    <td className="py-2 pr-3">
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${row.changed ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                        {row.changed ? 'New Snapshot' : 'Verified'}
+                      </span>
+                    </td>
+                    <td className="py-2 text-right">
+                      <button
+                        type="button"
+                        disabled={Boolean(restoringHash)}
+                        onClick={() => handleRestoreCloudHash(row.snapshot_hash)}
+                        className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-semibold disabled:opacity-50"
+                      >
+                        {restoringHash === row.snapshot_hash ? 'Restoring...' : 'Restore'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : history.localBackups.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-slate-200 text-slate-500">
+                <tr>
+                  <th className="py-2 pr-3">Local Checkpoint Time</th>
+                  <th className="py-2 pr-3">Users</th>
+                  <th className="py-2 pr-3">Total Balance</th>
+                  <th className="py-2 pr-3">Trades</th>
+                  <th className="py-2 pr-3">Activities</th>
+                  <th className="py-2">State</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {history.localBackups.slice(0, 15).map((row, idx) => (
+                  <tr key={`${row.ts}-${idx}`}>
+                    <td className="py-2 pr-3 font-mono text-slate-700">
+                      {formatBdDateTime(row.ts, { includeSeconds: true })}
+                    </td>
+                    <td className="py-2 pr-3 font-mono">{row.users}</td>
+                    <td className="py-2 pr-3 font-mono">${Number(row.totalBalance || 0).toFixed(2)}</td>
+                    <td className="py-2 pr-3 font-mono">{row.trades}</td>
+                    <td className="py-2 pr-3 font-mono">{row.activities}</td>
+                    <td className="py-2">
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${row.changed ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                        {row.changed ? 'New Snapshot' : 'Verified'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-xs text-slate-500">No minute checkpoints recorded yet.</div>
+        )}
       </div>
     </div>
   )

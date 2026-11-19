@@ -121,6 +121,7 @@ function Shell({ children }) {
   const [notifOpen, setNotifOpen] = useState(false)
   const [menuPdfOpen, setMenuPdfOpen] = useState(false)
   const [activePromoCount, setActivePromoCount] = useState(0)
+  const [apiOfflineStatus, setApiOfflineStatus] = useState(null)
   const [balanceHidden, setBalanceHidden] = useState(() => localStorage.getItem('balance_hidden') === '1')
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark')
   const nav = useNavigate()
@@ -142,6 +143,18 @@ function Shell({ children }) {
   }, [theme])
 
 
+
+  useEffect(() => {
+    const onConn = (e) => {
+      if (e?.detail?.offline) {
+        setApiOfflineStatus(e.detail.status || 503)
+      } else {
+        setApiOfflineStatus(null)
+      }
+    }
+    window.addEventListener('api:connectivity', onConn)
+    return () => window.removeEventListener('api:connectivity', onConn)
+  }, [])
 
   useEffect(() => {
     if (!token) return
@@ -619,6 +632,20 @@ function Shell({ children }) {
         </div>
       </header>
       <main className="flex-1 max-w-6xl mx-auto w-full px-3 sm:px-4 pb-6 mt-[52px] sm:mt-[60px] min-w-0">
+        {apiOfflineStatus !== null && (
+          <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-200 flex flex-wrap items-center justify-between gap-2">
+            <span>
+              Backend API server is currently unavailable{apiOfflineStatus ? ` (HTTP ${apiOfflineStatus})` : ''}. Your account data remains safely preserved — please ensure the backend service is active and retry.
+            </span>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-100 font-semibold transition"
+            >
+              Retry
+            </button>
+          </div>
+        )}
         {children}
       </main>
       <CompanyProfileButton hideTrigger open={menuPdfOpen} onOpenChange={setMenuPdfOpen} />

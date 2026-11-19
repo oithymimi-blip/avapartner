@@ -55,11 +55,24 @@ export function api(token) {
     return config
   })
 
+  const notifyConnectivity = (offline, status = null) => {
+    if (typeof window === 'undefined') return
+    try {
+      window.dispatchEvent(new CustomEvent('api:connectivity', { detail: { offline, status } }))
+    } catch (_) {}
+  }
+
   instance.interceptors.response.use(
-    (res) => res,
+    (res) => {
+      notifyConnectivity(false, res.status)
+      return res
+    },
     (error) => {
       const status = error?.response?.status
       const message = error?.response?.data?.error || ''
+      if (!error?.response || status === 502 || status === 503 || status === 504) {
+        notifyConnectivity(true, status || 0)
+      }
       if (typeof window !== 'undefined') {
         const path = window.location.pathname || ''
         const publicPaths = ['/login', '/signup', '/admin/login', '/reset-password']
