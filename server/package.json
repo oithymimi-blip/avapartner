@@ -18,7 +18,6 @@
     "country-state-city": "^3.2.1",
     "dotenv": "^16.6.1",
     "ethers": "^6.16.0",
-    "expo": "^54.0.22",
     "express": "^4.19.2",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",

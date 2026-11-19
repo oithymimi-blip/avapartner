@@ -1,0 +1,48 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "frontend": {
+      "root": "client",
+      "framework": "vite",
+      "headers": [
+        {
+          "source": "/AvaPartner_Company_Profile.pdf",
+          "headers": [
+            { "key": "Content-Type", "value": "application/pdf" },
+            { "key": "Content-Disposition", "value": "inline; filename=\"AvaPartner_Company_Profile.pdf\"" },
+            { "key": "Cache-Control", "value": "public, max-age=3600" }
+          ]
+        }
+      ],
+      "rewrites": [
+        {
+          "source": "/(.*)",
+          "destination": "/index.html"
+        }
+      ]
+    },
+    "backend": {
+      "root": "server",
+      "entrypoint": "src/index.js",
+      "functions": {
+        "src/index.js": {
+          "maxDuration": 60
+        }
+      }
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": { "service": "backend" }
+    },
+    {
+      "source": "/socket.io/(.*)",
+      "destination": { "service": "backend" }
+    },
+    {
+      "source": "/(.*)",
+      "destination": { "service": "frontend" }
+    }
+  ]
+}

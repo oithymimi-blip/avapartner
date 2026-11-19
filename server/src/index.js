@@ -1,9 +1,10 @@
+import crypto from 'crypto';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
-import { PORT, CORS_ORIGINS } from './config.js';
+import { PORT, CORS_ORIGINS, JWT_SECRET } from './config.js';
 import authRoutes, { ensureAdmin } from './auth/authRoutes.js';
 import userRoutes from './users/routes.js';
 import marketRoutes from './market/routes.js';
@@ -14,22 +15,56 @@ import binaryRoutes from './binary/routes.js';
 import spotRoutes from './spot/routes.js';
 import copytradingRoutes from './copytrading/routes.js';
 import { paymentsRouter, adminPaymentsRouter } from './payments/routes.js';
-import { initCryptoService } from './payments/cryptoService.js';
+import { checkMissedDeposits, initCryptoService } from './payments/cryptoService.js';
 import securityRoutes from './security/routes.js';
 import aiTradeRoutes from './aitrade/routes.js';
-import { initAITradeEngine } from './aitrade/earningsEngine.js';
+import { initAITradeEngine, runAITradeCycleNow } from './aitrade/earningsEngine.js';
 import ibRoutes from './ib/routes.js';
-import { initMonthlyIBScheduler } from './ib/monthlyScheduler.js';
+import { checkMonthlyIBBonuses, initMonthlyIBScheduler } from './ib/monthlyScheduler.js';
 import { promotionsRouter, adminPromotionsRouter } from './promotions/routes.js';
 import locationsRoutes from './locations/routes.js';
 import db from './db.js';
 import {
+  ensureLatestFromCloud,
+  exportDatabaseSnapshot,
+  flushIfDirty,
   getPersistenceStatus,
+  hasPendingCloudSync,
   initCloudPersistence,
   runMinuteBackupCycle,
   shutdownCloudPersistence
 } from './cloudPersistence.js';
-import { attachIO, tickOnce } from './market/engine.js';
+import { attachIO, runMarketPriceSyncOnce, startMarketBackgroundLoops, tickOnce } from './market/engine.js';
+
+const IS_SERVERLESS = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+let initPromise = null;
+
+async function ensureInitialized() {
+  if (!initPromise) {
+    initPromise = (async () => {
+      await initCloudPersistence(db);
+      ensureAdmin();
+      initCryptoService();
+      if (!IS_SERVERLESS) {
+        initAITradeEngine();
+        initMonthlyIBScheduler();
+        startMarketBackgroundLoops();
+        setInterval(() => {
+          try {
+            tickOnce();
+          } catch (e) {
+            console.error('tick error:', e);
+          }
+        }, 1000);
+        await runMinuteBackupCycle({ createArchive: true }).catch(() => {});
+      }
+    })().catch((err) => {
+      initPromise = null;
+      throw err;
+    });
+  }
+  return initPromise;
+}
 
 const app = express();
 app.use(helmet());
@@ -44,6 +79,57 @@ app.use(cors({
   },
   credentials: true
 }));
+
+app.use(async (req, res, next) => {
+  try {
+    await ensureInitialized();
+    if (IS_SERVERLESS && !req.path.startsWith('/api/internal/') && !req.path.startsWith('/socket.io')) {
+      await ensureLatestFromCloud();
+    }
+  } catch (err) {
+    return next(err);
+  }
+
+  if (!IS_SERVERLESS || req.path === '/api/internal/minute-backup') {
+    return next();
+  }
+
+  const origSend = res.send.bind(res);
+  const origRedirect = res.redirect.bind(res);
+  let flushing = false;
+
+  res.send = function wrappedSend(body) {
+    if (flushing || !hasPendingCloudSync()) {
+      return origSend(body);
+    }
+    flushing = true;
+    flushIfDirty()
+      .catch((err) => console.error('[CLOUD FLUSH ERROR]', err.message))
+      .finally(() => {
+        if (!res.headersSent) {
+          origSend(body);
+        }
+      });
+    return res;
+  };
+
+  res.redirect = function wrappedRedirect(...args) {
+    if (flushing || !hasPendingCloudSync()) {
+      return origRedirect(...args);
+    }
+    flushing = true;
+    flushIfDirty()
+      .catch((err) => console.error('[CLOUD FLUSH ERROR]', err.message))
+      .finally(() => {
+        if (!res.headersSent) {
+          origRedirect(...args);
+        }
+      });
+    return res;
+  };
+
+  next();
+});
 
 app.get('/', (req, res) => res.json({ ok: true, name: 'OTC Market Server' }));
 const buildHealthPayload = () => {
@@ -126,6 +212,45 @@ app.get('/api/features', (req, res) => {
   res.json(features);
 });
 
+function verifyCronSecret(req) {
+  const expected = process.env.CRON_SECRET || JWT_SECRET;
+  if (!expected) return false;
+  const authHeader = String(req.headers.authorization || '');
+  const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  const provided = String(req.headers['x-cron-secret'] || bearer || req.query.secret || '');
+  if (!provided || provided.length !== expected.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(provided, 'utf8'), Buffer.from(expected, 'utf8'));
+}
+
+app.all('/api/internal/minute-backup', async (req, res) => {
+  if (!verifyCronSecret(req)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  try {
+    await ensureInitialized();
+    await ensureLatestFromCloud();
+    runAITradeCycleNow({ runTick: true });
+    checkMonthlyIBBonuses();
+    await runMarketPriceSyncOnce({ force: true, includeYahoo: true }).catch(() => {});
+    await Promise.race([
+      checkMissedDeposits().catch(() => {}),
+      new Promise((resolve) => setTimeout(resolve, 6000))
+    ]);
+    const backup = await runMinuteBackupCycle({ createArchive: !IS_SERVERLESS });
+    const status = getPersistenceStatus(db);
+    const includeSnapshot = String(req.query.snapshot || '') === '1';
+    res.json({
+      ok: Boolean(backup?.ok ?? true),
+      backup,
+      status,
+      ...(includeSnapshot ? { snapshot: exportDatabaseSnapshot(db) } : {})
+    });
+  } catch (err) {
+    console.error('[INTERNAL MINUTE BACKUP ERROR]', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 const server = http.createServer(app);
 const io = new SocketIOServer(server, {
   cors: { origin: '*' }
@@ -135,39 +260,6 @@ attachIO(io);
 io.on('connection', (socket) => {
   // nothing special; market engine emits to "io" directly for broadcast
 });
-
-async function startServer() {
-  await initCloudPersistence(db);
-  ensureAdmin();
-  initCryptoService();
-  initAITradeEngine();
-  initMonthlyIBScheduler();
-
-  // Tick loop
-  setInterval(() => {
-    try {
-      tickOnce();
-    } catch (e) {
-      console.error('tick error:', e);
-    }
-  }, 1000);
-
-  // Automated every-minute local & cloud database backup (initial snapshot immediately on boot)
-  await runMinuteBackupCycle({ createArchive: true }).catch(() => {});
-
-  server.listen(PORT, '0.0.0.0', () => {
-    const status = getPersistenceStatus(db);
-    console.log(`Server listening on http://0.0.0.0:${PORT} [Storage: ${status.driver}, Durable: ${status.durable}]`);
-
-    // Keep free instance awake & prevent spin-downs (pings every 8 minutes)
-    const renderUrl = process.env.RENDER_EXTERNAL_URL || 'https://avapartner-api.onrender.com';
-    if (renderUrl) {
-      setInterval(() => {
-        fetch(`${renderUrl}/health`).catch(() => {});
-      }, 8 * 60 * 1000);
-    }
-  });
-}
 
 let shuttingDown = false;
 async function handleShutdown(signal) {
@@ -186,7 +278,28 @@ async function handleShutdown(signal) {
 process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 process.on('SIGINT', () => handleShutdown('SIGINT'));
 
-startServer().catch((err) => {
-  console.error('[BOOT FATAL]', err);
-  process.exit(1);
-});
+if (!IS_SERVERLESS) {
+  ensureInitialized()
+    .then(() => {
+      server.listen(PORT, '0.0.0.0', () => {
+        const status = getPersistenceStatus(db);
+        console.log(`Server listening on http://0.0.0.0:${PORT} [Storage: ${status.driver}, Durable: ${status.durable}]`);
+
+        // Keep persistent free instance awake & prevent spin-downs (pings every 8 minutes)
+        const externalUrl =
+          process.env.RENDER_EXTERNAL_URL ||
+          (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '');
+        if (externalUrl) {
+          setInterval(() => {
+            fetch(`${externalUrl}/health`).catch(() => {});
+          }, 8 * 60 * 1000);
+        }
+      });
+    })
+    .catch((err) => {
+      console.error('[BOOT FATAL]', err);
+      process.exit(1);
+    });
+}
+
+export default server;

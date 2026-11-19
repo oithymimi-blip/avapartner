@@ -121,6 +121,11 @@ function checkPayouts() {
 
 // ── Init ─────────────────────────────────────────────────────────
 
+export function runAITradeCycleNow({ runTick = true } = {}) {
+  if (runTick) tickEarnings();
+  checkPayouts();
+}
+
 export function initAITradeEngine() {
   console.log('[AITradeEngine] Started — tick 60s, payout check every 60s (fires within 1 min of 24h window)');
 

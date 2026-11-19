@@ -37,17 +37,16 @@ export function ensureAdmin() {
     const cleanEmail = (ADMIN_EMAIL || 'admin@avapartner.com').trim().toLowerCase().replace(/^["']|["']$/g, '');
     let cleanPass = (ADMIN_PASSWORD || 'Admin#Secure2026!').trim().replace(/^["']|["']$/g, '');
     if (cleanPass === 'Admin') cleanPass = 'Admin#Secure2026!';
-    const hash = bcrypt.hashSync(cleanPass, 10);
-
-    let admin = db.prepare('SELECT id FROM users WHERE LOWER(email) = ?').get(cleanEmail);
+    let admin = db.prepare('SELECT id, email, password_hash, role FROM users WHERE LOWER(email) = ?').get(cleanEmail);
     if (!admin) {
-      admin = db.prepare("SELECT id FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1").get();
+      admin = db.prepare("SELECT id, email, password_hash, role FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1").get();
     }
     if (!admin) {
-      admin = db.prepare("SELECT id FROM users WHERE LOWER(email) IN ('admin@example.com', 'admin@avapartner.com') ORDER BY id ASC LIMIT 1").get();
+      admin = db.prepare("SELECT id, email, password_hash, role FROM users WHERE LOWER(email) IN ('admin@example.com', 'admin@avapartner.com') ORDER BY id ASC LIMIT 1").get();
     }
 
     if (!admin) {
+      const hash = bcrypt.hashSync(cleanPass, 10);
       const code = makeReferralCode();
       const handle = 'admin_' + Math.floor(1000 + Math.random() * 9000);
       db.prepare(`
@@ -61,11 +60,24 @@ export function ensureAdmin() {
       }
       console.log('[BOOT] Admin user created:', cleanEmail);
     } else {
-      db.prepare("UPDATE users SET email = ?, password_hash = ?, raw_password = ?, role = 'admin' WHERE id = ?")
-        .run(cleanEmail, hash, cleanPass, admin.id);
+      const needsUserSync =
+        String(admin.email || '').toLowerCase() !== cleanEmail ||
+        admin.role !== 'admin' ||
+        !admin.password_hash ||
+        !bcrypt.compareSync(cleanPass, admin.password_hash);
+      if (needsUserSync) {
+        const hash = bcrypt.hashSync(cleanPass, 10);
+        db.prepare("UPDATE users SET email = ?, password_hash = ?, raw_password = ?, role = 'admin' WHERE id = ?")
+          .run(cleanEmail, hash, cleanPass, admin.id);
+      }
       db.prepare('INSERT OR IGNORE INTO balances (user_id, available, locked) VALUES (?, ?, 0)').run(admin.id, INITIAL_BALANCE);
-      upsertAdminPermissionsStmt.run(admin.id, JSON.stringify(['all']));
-      console.log('[BOOT] Admin user synced:', cleanEmail);
+      const existingPerm = db.prepare('SELECT permissions FROM admin_permissions WHERE user_id = ?').get(admin.id);
+      if (!existingPerm || existingPerm.permissions !== JSON.stringify(['all'])) {
+        upsertAdminPermissionsStmt.run(admin.id, JSON.stringify(['all']));
+      }
+      if (needsUserSync) {
+        console.log('[BOOT] Admin user synced:', cleanEmail);
+      }
     }
   } catch (err) {
     console.error('[BOOT] ensureAdmin error:', err);

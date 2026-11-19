@@ -1,6 +1,6 @@
 import express from 'express';
 import db from '../db.js';
-import { currentPrice } from './engine.js';
+import { currentPrice, ensureMarketPricesFresh } from './engine.js';
 
 const router = express.Router();
 
@@ -123,13 +123,15 @@ function aggregateCandles(symbol, intervalSec, limit, fromTs, toTs) {
   return candles.slice(-limit);
 }
 
-router.get('/states', (req, res) => {
+router.get('/states', async (req, res) => {
+  await ensureMarketPricesFresh();
   const settings = db.prepare('SELECT * FROM market_settings').all();
   const states = settings.map(s => ({ ...s, currentPrice: currentPrice(s.symbol) }));
   res.json(states);
 });
 
-router.get('/state', (req, res) => {
+router.get('/state', async (req, res) => {
+  await ensureMarketPricesFresh();
   const symbol = req.query.symbol || 'BTCUSD';
   const s = db.prepare('SELECT * FROM market_settings WHERE symbol = ?').get(symbol);
   if (!s) {

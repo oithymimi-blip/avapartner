@@ -807,10 +807,11 @@ export async function backupDatabase(
     localBackupState.lastLocalBackupAt = new Date(now).toISOString();
     localBackupState.lastLocalBackupError = null;
 
-    const shouldArchive = createArchive === true || (
+    const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+    const shouldArchive = !isServerless && (createArchive === true || (
       createArchive !== false &&
       (!localBackupState.lastArchiveAt || (now - Date.parse(localBackupState.lastArchiveAt)) >= 60 * 60 * 1000)
-    );
+    ));
 
     if (shouldArchive) {
       const archivePath = path.join(destDir, `data-backup-${timestamp}.db`);
@@ -848,10 +849,13 @@ export function saveLocalJsonSnapshot(snapshot, hash, meta = {}, destDir = path.
     fs.writeFileSync(tmpJsonPath, gzBuf);
     fs.renameSync(tmpJsonPath, latestJsonPath);
 
+    const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
     const changed = hash !== localBackupState.lastSnapshotHash;
     if (changed) {
-      const snapFile = path.join(snapshotsDir, `snapshot-${safeTs}-${String(hash).slice(0, 8)}.json.gz`);
-      fs.writeFileSync(snapFile, gzBuf);
+      if (!isServerless) {
+        const snapFile = path.join(snapshotsDir, `snapshot-${safeTs}-${String(hash).slice(0, 8)}.json.gz`);
+        fs.writeFileSync(snapFile, gzBuf);
+      }
       localBackupState.lastSnapshotHash = hash;
     }
 

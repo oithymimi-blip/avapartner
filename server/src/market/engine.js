@@ -3,7 +3,7 @@ import WebSocket from 'ws';
 import db from '../db.js';
 import { nowTs } from '../utils.js';
 import { autoCloseTrades } from '../trades/routes.js';
-import { startLivePriceFetcher } from './livePriceFetcher.js';
+import { startLivePriceFetcher, syncForexRates, syncYahooFinancials } from './livePriceFetcher.js';
 
 const insertCandleStmt = db.prepare(`
   INSERT INTO candles (symbol, open, high, low, close, volume, ts)
@@ -345,16 +345,133 @@ export function handleLiveTick(symbol, price) {
   }
 }
 
-// init on startup
-const all = getAllSettings();
-connectBinance();
-startLivePriceFetcher(handleLiveTick);
+let backgroundLoopsStarted = false;
+let lastRestSyncAt = 0;
+let restSyncPromise = null;
 
-(async () => {
-  for (const s of all) {
-    await initSymbolState(s);
-    // sleep a bit to avoid binance rate limits
-    await new Promise(r => setTimeout(r, 200));
+function applyLivePriceOnly(symbol, price, now = nowTs()) {
+  if (!symbol || !Number.isFinite(price) || price <= 0) return;
+  let st = stateMap.get(symbol);
+  if (!st) {
+    st = { lastPrice: price, lastCandle: null };
+    stateMap.set(symbol, st);
+  } else {
+    st.lastPrice = price;
   }
-})();
+  st.lastWsTick = now;
+  activeSymbols.add(symbol);
+
+  try {
+    db.prepare('INSERT INTO ticks (symbol, price, ts) VALUES (?, ?, ?)').run(symbol, price, now);
+    if (!st.lastCandle || now - st.lastCandle.tsStart >= 60) {
+      if (st.lastCandle) {
+        insertCandleStmt.run(
+          symbol, st.lastCandle.open, st.lastCandle.high, st.lastCandle.low, st.lastCandle.close, st.lastCandle.volume, st.lastCandle.tsStart
+        );
+      }
+      st.lastCandle = { open: price, high: price, low: price, close: price, volume: 1, tsStart: now - (now % 60) };
+    } else {
+      st.lastCandle.high = Math.max(st.lastCandle.high, price);
+      st.lastCandle.low = Math.min(st.lastCandle.low, price);
+      st.lastCandle.close = price;
+      st.lastCandle.volume += 0.1;
+    }
+    autoCloseTrades(symbol, price);
+  } catch (err) {
+    console.error(`[Market Sync] Tick update error for ${symbol}:`, err.message);
+  }
+}
+
+export async function runMarketPriceSyncOnce({ force = false, includeYahoo = false } = {}) {
+  const nowMs = Date.now();
+  if (!force && nowMs - lastRestSyncAt < 12000 && stateMap.size > 0) {
+    return { skipped: true, cached: true };
+  }
+  if (restSyncPromise) return restSyncPromise;
+
+  restSyncPromise = (async () => {
+    try {
+      const settings = getAllSettings();
+      const knownSymbols = new Set(settings.map((s) => s.symbol));
+      for (const s of settings) {
+        activeSymbols.add(s.symbol);
+        if (!stateMap.has(s.symbol)) {
+          stateMap.set(s.symbol, { lastPrice: s.base_price, lastCandle: null });
+        }
+      }
+
+      const now = nowTs();
+      const binancePromise = (async () => {
+        try {
+          const res = await fetch('https://data-api.binance.vision/api/v3/ticker/price', {
+            signal: AbortSignal.timeout(3000)
+          });
+          if (!res.ok) return 0;
+          const rows = await res.json();
+          if (!Array.isArray(rows)) return 0;
+          let count = 0;
+          const tx = db.transaction(() => {
+            for (const row of rows) {
+              let sym = row?.symbol;
+              if (!sym || sym === 'XAUTUSDT' || sym === 'EURUSDT' || sym === 'GBPUSDT') continue;
+              if (sym.endsWith('USDT')) sym = sym.slice(0, -1);
+              if (!knownSymbols.has(sym)) continue;
+              const price = parseFloat(row.price);
+              if (!Number.isFinite(price) || price <= 0) continue;
+              applyLivePriceOnly(sym, price, now);
+              count++;
+            }
+          });
+          tx();
+          return count;
+        } catch {
+          return 0;
+        }
+      })();
+
+      const forexPromise = syncForexRates((sym, price) => {
+        if (knownSymbols.has(sym)) applyLivePriceOnly(sym, price, now);
+      }).catch(() => {});
+
+      const tasks = [binancePromise, forexPromise];
+      if (includeYahoo) {
+        tasks.push(
+          syncYahooFinancials((sym, price) => {
+            if (knownSymbols.has(sym)) applyLivePriceOnly(sym, price, now);
+          }).catch(() => {})
+        );
+      }
+
+      await Promise.allSettled(tasks);
+      lastRestSyncAt = Date.now();
+      return { synced: true, symbols: stateMap.size };
+    } finally {
+      restSyncPromise = null;
+    }
+  })();
+
+  return restSyncPromise;
+}
+
+export async function ensureMarketPricesFresh() {
+  if (!backgroundLoopsStarted) {
+    await runMarketPriceSyncOnce({ force: false }).catch(() => {});
+  }
+}
+
+export function startMarketBackgroundLoops() {
+  if (backgroundLoopsStarted) return;
+  backgroundLoopsStarted = true;
+  const all = getAllSettings();
+  connectBinance();
+  startLivePriceFetcher(handleLiveTick);
+
+  (async () => {
+    for (const s of all) {
+      await initSymbolState(s);
+      // sleep a bit to avoid binance rate limits
+      await new Promise(r => setTimeout(r, 200));
+    }
+  })();
+}
 

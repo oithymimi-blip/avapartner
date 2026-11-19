@@ -97,6 +97,8 @@ let cloudBackupCount = 0;
 let cloudBlobCount = 0;
 let lastKnownCloudUserCount = 0;
 let localRevision = 0;
+let refreshInFlight = null;
+let syncInFlight = null;
 
 function buildPgPoolConfig(rawUrl) {
   try {
@@ -928,10 +930,92 @@ export async function pushSnapshotToCloud({ force = false, precomputedSnapshot =
   }
 }
 
+export function hasPendingCloudSync() {
+  return dirty;
+}
+
+export async function ensureLatestFromCloud() {
+  if (activeDriver === 'none' || !dbRef || isRestoring) {
+    return { checked: false, refreshed: false };
+  }
+  if (syncInFlight) {
+    await syncInFlight.catch(() => {});
+  }
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async () => {
+    try {
+      const remoteMeta = await getRemoteMeta();
+      const remoteRev = Number(remoteMeta?.revision || 0);
+      const remoteUsers = Number(remoteMeta?.user_count || 0);
+      if (remoteUsers > lastKnownCloudUserCount) lastKnownCloudUserCount = remoteUsers;
+      if (remoteRev > localRevision) {
+        const newerSnap = await readCloudStateRow();
+        if (newerSnap?.data) {
+          const mode = dirty ? 'merge' : 'replace';
+          importDatabaseSnapshot(dbRef, newerSnap, { mode });
+          lastSyncAt = newerSnap.exportedAt || new Date().toISOString();
+          return { checked: true, refreshed: true, revision: localRevision };
+        }
+      }
+      return { checked: true, refreshed: false, revision: localRevision };
+    } catch (err) {
+      lastSyncError = `Remote freshness check failed: ${err.message}`;
+      return { checked: false, refreshed: false, error: err.message };
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
+}
+
+export async function flushIfDirty({ force = false, recordMinuteBackup = false } = {}) {
+  if (activeDriver === 'none' || !dbRef || isRestoring) {
+    return { flushed: false };
+  }
+  if (syncInFlight) {
+    await syncInFlight.catch(() => {});
+  }
+  if (!dirty && !force && !recordMinuteBackup) {
+    return { flushed: false };
+  }
+
+  syncInFlight = (async () => {
+    let syncRes = { synced: false };
+    let cloudBackupRes = { backedUp: false };
+    if (dirty || force) {
+      if (syncTimer) {
+        clearTimeout(syncTimer);
+        syncTimer = null;
+      }
+      syncRes = await pushSnapshotToCloud({ force });
+    }
+    const lastMs = lastCloudBackupAt ? Date.parse(lastCloudBackupAt) : 0;
+    const dueForMinute = recordMinuteBackup || !lastMs || (Date.now() - lastMs >= 60 * 1000);
+    if (dueForMinute && activeDriver !== 'none') {
+      const snapshot = exportDatabaseSnapshot(dbRef);
+      const meta = computeSnapshotMeta(snapshot);
+      if (!(lastKnownCloudUserCount > 1 && meta.userCount <= 1)) {
+        const encoded = encodeSnapshot(snapshot);
+        cloudBackupRes = await recordMinuteCloudBackup(snapshot, encoded, meta);
+      }
+    }
+    return { flushed: Boolean(syncRes?.synced), syncRes, cloudBackupRes };
+  })();
+
+  try {
+    return await syncInFlight;
+  } finally {
+    syncInFlight = null;
+  }
+}
+
 export function scheduleCloudSync(delayMs = 300) {
   if (isRestoring) return;
   dirty = true;
   if (activeDriver === 'none') return;
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) return;
   if (syncTimer) clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
     syncTimer = null;
@@ -1158,21 +1242,25 @@ export async function initCloudPersistence(db) {
     }
   }
 
+  const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+
   registerMutationListener(() => {
     scheduleCloudSync(300);
   });
 
   if (safetyInterval) clearInterval(safetyInterval);
-  safetyInterval = setInterval(() => {
-    if (dirty && activeDriver !== 'none') {
-      pushSnapshotToCloud().catch(() => {});
-    }
-  }, 30000);
-
   if (minuteBackupInterval) clearInterval(minuteBackupInterval);
-  minuteBackupInterval = setInterval(() => {
-    runMinuteBackupCycle().catch(() => {});
-  }, 60 * 1000);
+  if (!isServerless) {
+    safetyInterval = setInterval(() => {
+      if (dirty && activeDriver !== 'none') {
+        pushSnapshotToCloud().catch(() => {});
+      }
+    }, 30000);
+
+    minuteBackupInterval = setInterval(() => {
+      runMinuteBackupCycle().catch(() => {});
+    }, 60 * 1000);
+  }
 }
 
 export async function shutdownCloudPersistence() {
@@ -1199,9 +1287,11 @@ export async function shutdownCloudPersistence() {
 export function getPersistenceStatus(db = dbRef) {
   const rawEnvDbFile = (process.env.DB_FILE || '').trim();
   const isPersistentDisk =
-    DB_FILE.startsWith('/var/data') ||
-    DB_FILE.startsWith('/data') ||
-    (Boolean(rawEnvDbFile) && path.isAbsolute(rawEnvDbFile));
+    !DB_FILE.startsWith('/tmp/') && (
+      DB_FILE.startsWith('/var/data') ||
+      DB_FILE.startsWith('/data') ||
+      (Boolean(rawEnvDbFile) && path.isAbsolute(rawEnvDbFile))
+    );
   const durable = activeDriver !== 'none' || isPersistentDisk;
 
   const counts = {

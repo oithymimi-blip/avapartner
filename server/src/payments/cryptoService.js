@@ -188,15 +188,17 @@ export function initCryptoService() {
     console.error('[CRYPTO INIT] Error syncing user deposit addresses:', err.message);
   }
 
-  // Initial check after 4 seconds, then poll every 20 seconds for rock-solid deposit detection
-  setTimeout(() => {
-    checkMissedDeposits().catch(() => {});
-  }, 4000);
+  if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    // Initial check after 4 seconds, then poll every 20 seconds for rock-solid deposit detection
+    setTimeout(() => {
+      checkMissedDeposits().catch(() => {});
+    }, 4000);
 
-  if (pollInterval) clearInterval(pollInterval);
-  pollInterval = setInterval(() => {
-    checkMissedDeposits().catch(() => {});
-  }, 20000);
+    if (pollInterval) clearInterval(pollInterval);
+    pollInterval = setInterval(() => {
+      checkMissedDeposits().catch(() => {});
+    }, 20000);
+  }
 }
 
 async function sendDepositEmail(userEmail, amount, txHash) {

@@ -25,6 +25,9 @@ export const DB_FILE = (() => {
   }
   if (fs.existsSync('/var/data')) return '/var/data/data.db';
   if (fs.existsSync('/data')) return '/data/data.db';
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return '/tmp/avapartner-data.db';
+  }
   return path.resolve(SERVER_ROOT, 'data.db');
 })();
 const cleanEnv = (v) => (v || '').trim().replace(/^["']|["']$/g, '');
