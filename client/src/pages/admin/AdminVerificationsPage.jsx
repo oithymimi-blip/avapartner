@@ -3,6 +3,7 @@ import { api } from '../../api'
 import { useAdminAuth } from '../../adminStore'
 import { formatBdDateTime } from '../../utils/bdTime'
 import CountryStateCitySelects from '../../components/CountryStateCitySelects'
+import GlobalPhoneInput from '../../components/GlobalPhoneInput'
 import {
   Award,
   CheckCircle2,
@@ -358,8 +359,8 @@ export default function AdminVerificationsPage() {
               },
               {
                 key: 'require_address',
-                title: 'Require Village, City, State & Country',
-                desc: 'Require complete residential address matching NID back part.'
+                title: 'Require Street, City, State & Country',
+                desc: 'Require complete residential address matching ID back part.'
               },
               {
                 key: 'require_selfie',
@@ -617,11 +618,11 @@ export default function AdminVerificationsPage() {
                               <div><span className="text-slate-400 block">NID / ID Number</span><strong className="font-mono text-slate-800">{row.document_number || '—'}</strong></div>
                               <div><span className="text-slate-400 block">Phone</span><strong className="text-slate-800">{row.phone_number || '—'}</strong></div>
                               <div><span className="text-slate-400 block">Date of Birth</span><strong className="text-slate-800">{row.document_birthdate || '—'}</strong></div>
-                              <div><span className="text-slate-400 block">Father / Spouse</span><strong className="text-slate-800">{row.father_or_spouse_name || '—'}</strong></div>
-                              <div><span className="text-slate-400 block">Village / Street</span><strong className="text-slate-800">{row.village_address || '—'}</strong></div>
-                              <div><span className="text-slate-400 block">City / District</span><strong className="text-slate-800">{row.city || '—'}</strong></div>
-                              <div><span className="text-slate-400 block">State / Division</span><strong className="text-slate-800">{row.state_province || '—'}</strong></div>
-                              <div><span className="text-slate-400 block">Postal Code</span><strong className="text-slate-800">{row.postal_code || '—'}</strong></div>
+                              <div><span className="text-slate-400 block">Middle / Spouse</span><strong className="text-slate-800">{row.father_or_spouse_name || '—'}</strong></div>
+                              <div><span className="text-slate-400 block">Street / Village</span><strong className="text-slate-800">{row.village_address || '—'}</strong></div>
+                              <div><span className="text-slate-400 block">City / Town</span><strong className="text-slate-800">{row.city || '—'}</strong></div>
+                              <div><span className="text-slate-400 block">State / Province</span><strong className="text-slate-800">{row.state_province || '—'}</strong></div>
+                              <div><span className="text-slate-400 block">Postal / ZIP Code</span><strong className="text-slate-800">{row.postal_code || '—'}</strong></div>
                               <div><span className="text-slate-400 block">Country</span><strong className="text-slate-800">{row.document_country || '—'}</strong></div>
                               <div><span className="text-slate-400 block">Gold Verified Badge</span><strong className={isGold ? 'text-amber-600' : 'text-slate-500'}>{isGold ? 'Active (Gold)' : 'Inactive'}</strong></div>
                             </div>
@@ -692,11 +693,17 @@ export default function AdminVerificationsPage() {
                 <input type="date" value={editForm.document_birthdate} onChange={e => setEditForm(f => ({ ...f, document_birthdate: e.target.value }))} className={ADMIN_INPUT_CLS} />
               </div>
               <div>
-                <label className={ADMIN_LABEL_CLS}>Phone Number</label>
-                <input type="text" value={editForm.phone_number} onChange={e => setEditForm(f => ({ ...f, phone_number: e.target.value }))} className={ADMIN_INPUT_CLS} />
+                <label className={ADMIN_LABEL_CLS}>Phone Number (Global)</label>
+                <GlobalPhoneInput
+                  value={editForm.phone_number || ''}
+                  selectedCountryName={editForm.document_country || ''}
+                  dark={false}
+                  inputClassName={ADMIN_INPUT_CLS}
+                  onChange={val => setEditForm(f => ({ ...f, phone_number: val }))}
+                />
               </div>
               <div>
-                <label className={ADMIN_LABEL_CLS}>Father / Spouse Name</label>
+                <label className={ADMIN_LABEL_CLS}>Middle / Guardian / Spouse</label>
                 <input type="text" value={editForm.father_or_spouse_name} onChange={e => setEditForm(f => ({ ...f, father_or_spouse_name: e.target.value }))} className={ADMIN_INPUT_CLS} />
               </div>
               <div>
@@ -704,11 +711,11 @@ export default function AdminVerificationsPage() {
                 <input type="text" value={editForm.document_expires_at} onChange={e => setEditForm(f => ({ ...f, document_expires_at: e.target.value }))} className={ADMIN_INPUT_CLS} />
               </div>
               <div>
-                <label className={ADMIN_LABEL_CLS}>Postal Code</label>
+                <label className={ADMIN_LABEL_CLS}>Postal / ZIP Code</label>
                 <input type="text" value={editForm.postal_code} onChange={e => setEditForm(f => ({ ...f, postal_code: e.target.value }))} className={ADMIN_INPUT_CLS} />
               </div>
               <div className="sm:col-span-3">
-                <label className={ADMIN_LABEL_CLS}>Village / House / Road / Street (NID Back)</label>
+                <label className={ADMIN_LABEL_CLS}>Street Address / Apt / Village (ID Back)</label>
                 <input type="text" value={editForm.village_address} onChange={e => setEditForm(f => ({ ...f, village_address: e.target.value }))} className={ADMIN_INPUT_CLS} />
               </div>
               <CountryStateCitySelects

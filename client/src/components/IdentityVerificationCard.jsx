@@ -4,6 +4,7 @@ import { useAuth } from '../store'
 import { socket } from '../socket'
 import VerifiedBadge from './VerifiedBadge'
 import CountryStateCitySelects from './CountryStateCitySelects'
+import GlobalPhoneInput from './GlobalPhoneInput'
 import {
   Award,
   Camera,
@@ -213,8 +214,8 @@ export default function IdentityVerificationCard({ onUpdated }) {
     },
     {
       key: 'document_back',
-      title: 'NID Back Part',
-      hint: 'Clear photo of ID back side (village, city, address)',
+      title: 'ID / NID Back Part',
+      hint: 'Clear photo of ID back side (street address, city, state, ZIP)',
       required: settings.require_front_back
     },
     {
@@ -356,7 +357,7 @@ export default function IdentityVerificationCard({ onUpdated }) {
               type="text"
               value={form.first_name}
               onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))}
-              placeholder="e.g. Touab"
+              placeholder="e.g. Michael"
               className={inputCls}
             />
           </div>
@@ -366,17 +367,17 @@ export default function IdentityVerificationCard({ onUpdated }) {
               type="text"
               value={form.last_name}
               onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))}
-              placeholder="e.g. Ali"
+              placeholder="e.g. Anderson"
               className={inputCls}
             />
           </div>
           <div>
-            <label className={labelCls}>NID / ID Number *</label>
+            <label className={labelCls}>ID / Document Number *</label>
             <input
               type="text"
               value={form.document_number}
               onChange={e => setForm(f => ({ ...f, document_number: e.target.value }))}
-              placeholder="Enter NID / Smart Card / ID number"
+              placeholder="Enter National ID / SSN / ID number"
               className={`${inputCls} font-mono`}
             />
           </div>
@@ -390,22 +391,23 @@ export default function IdentityVerificationCard({ onUpdated }) {
             />
           </div>
           <div>
-            <label className={labelCls}>Phone / Contact Number</label>
-            <input
-              type="text"
+            <label className={labelCls}>Phone / Contact Number (Global)</label>
+            <GlobalPhoneInput
               value={form.phone_number}
-              onChange={e => setForm(f => ({ ...f, phone_number: e.target.value }))}
-              placeholder="+880 1XXX-XXXXXX"
-              className={inputCls}
+              selectedCountryName={form.document_country}
+              dark
+              inputClassName={inputCls}
+              placeholder="(555) 234-5678"
+              onChange={val => setForm(f => ({ ...f, phone_number: val }))}
             />
           </div>
           <div>
-            <label className={labelCls}>Father / Spouse Name (per NID)</label>
+            <label className={labelCls}>Middle / Legal Guardian / Spouse (Optional)</label>
             <input
               type="text"
               value={form.father_or_spouse_name}
               onChange={e => setForm(f => ({ ...f, father_or_spouse_name: e.target.value }))}
-              placeholder="Optional — printed on NID"
+              placeholder="Optional — printed on ID card"
               className={inputCls}
             />
           </div>
@@ -415,7 +417,7 @@ export default function IdentityVerificationCard({ onUpdated }) {
               type="text"
               value={form.document_expires_at}
               onChange={e => setForm(f => ({ ...f, document_expires_at: e.target.value }))}
-              placeholder="e.g. 2032-12-31 or Lifetime"
+              placeholder="e.g. 2032-12-31 or No Expiry"
               className={inputCls}
             />
           </div>
@@ -426,27 +428,27 @@ export default function IdentityVerificationCard({ onUpdated }) {
       <div className="space-y-4 pt-2 border-t border-white/10">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-sky-400">
           <MapPin className="w-4 h-4" />
-          <span>2. Full Address (NID Back Part)</span>
+          <span>2. Full Address (ID / NID Back Part)</span>
         </div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
           <div className="sm:col-span-2 lg:col-span-2">
-            <label className={labelCls}>Village / House / Road / Street {settings.require_address ? '*' : ''}</label>
+            <label className={labelCls}>Street Address / Apt / House / Village {settings.require_address ? '*' : ''}</label>
             <input
               type="text"
               value={form.village_address}
               onChange={e => setForm(f => ({ ...f, village_address: e.target.value }))}
-              placeholder="Village, House/Holding No, Road / Ward"
+              placeholder="e.g. 742 Maple Street, Apt 4B"
               className={inputCls}
             />
           </div>
           <div>
-            <label className={labelCls}>Post Office / Postal Code</label>
+            <label className={labelCls}>Postal / ZIP Code</label>
             <input
               type="text"
               value={form.postal_code}
               onChange={e => setForm(f => ({ ...f, postal_code: e.target.value }))}
-              placeholder="e.g. 1212"
+              placeholder="e.g. 10001"
               className={inputCls}
             />
           </div>

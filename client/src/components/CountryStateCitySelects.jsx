@@ -1,9 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
-
-let countriesCache = null
-const statesCache = new Map()
-const citiesCache = new Map()
+import { fetchCountriesCached, statesCache, citiesCache } from '../utils/locationsCache'
 
 const OTHER_VALUE = '__CUSTOM_OTHER__'
 
@@ -18,12 +15,12 @@ export default function CountryStateCitySelects({
   labelClassName = '',
   countryLabel = 'Country',
   stateLabel = 'State / Division / Province',
-  cityLabel = 'City / Upazila / District'
+  cityLabel = 'City / Town / District'
 }) {
-  const [countries, setCountries] = useState(countriesCache || [])
+  const [countries, setCountries] = useState([])
   const [states, setStates] = useState([])
   const [cities, setCities] = useState([])
-  const [loadingCountries, setLoadingCountries] = useState(!countriesCache)
+  const [loadingCountries, setLoadingCountries] = useState(true)
   const [loadingStates, setLoadingStates] = useState(false)
   const [loadingCities, setLoadingCities] = useState(false)
   const [customStateMode, setCustomStateMode] = useState(false)
@@ -31,20 +28,11 @@ export default function CountryStateCitySelects({
 
   useEffect(() => {
     let active = true
-    if (countriesCache) {
-      setCountries(countriesCache)
-      setLoadingCountries(false)
-      return
-    }
     setLoadingCountries(true)
-    api()
-      .get('/api/locations/countries')
-      .then(res => {
-        const list = Array.isArray(res.data?.countries) ? res.data.countries : []
-        countriesCache = list
+    fetchCountriesCached()
+      .then(list => {
         if (active) setCountries(list)
       })
-      .catch(() => {})
       .finally(() => {
         if (active) setLoadingCountries(false)
       })
@@ -250,7 +238,7 @@ export default function CountryStateCitySelects({
             type="text"
             value={city}
             onChange={e => onChange({ country, state, city: e.target.value })}
-            placeholder={!country ? 'Select country first' : 'Enter City / Upazila / District'}
+            placeholder={!country ? 'Select country first' : 'Enter City / Town / District'}
             disabled={!country}
             className={inputClassName}
           />
