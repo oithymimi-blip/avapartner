@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FileText, Download, ExternalLink, Eye, X, ShieldCheck } from 'lucide-react'
 
-export const COMPANY_PROFILE_PDF_URL = '/AvaPartner_Company_Profile.pdf?v=20261120'
+export const COMPANY_PROFILE_PDF_URL = '/AvaPartner_Company_Profile.pdf?v=20261120b'
 export const COMPANY_PROFILE_PDF_FILENAME = 'AvaPartner_Company_Profile.pdf'
 
 export default function CompanyProfileButton({
@@ -247,7 +247,7 @@ export default function CompanyProfileButton({
                     AvaPartner Official Company Profile
                   </div>
                   <div className="text-[11px] text-white/55 truncate">
-                    19-Page A4 Corporate Dossier · 2026 Global Edition · avapartner.app
+                    19-Page A4 Dossier · avapartner.app · avapartner.up.railway.app · avapartner.vercel.app
                   </div>
                 </div>
               </div>
