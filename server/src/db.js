@@ -13,8 +13,85 @@ if (dbDir && !fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
+function getDiskSpaceInfo(targetPath) {
+  try {
+    if (typeof fs.statfsSync === 'function') {
+      const stat = fs.statfsSync(targetPath);
+      const bsize = Number(stat.bsize || stat.frsize || 4096);
+      const freeBytes = Number(stat.bavail ?? stat.bfree ?? 0) * bsize;
+      const totalBytes = Number(stat.blocks ?? 0) * bsize;
+      return { freeBytes, totalBytes };
+    }
+  } catch (_) {}
+  return { freeBytes: Infinity, totalBytes: Infinity };
+}
+
+function reclaimDiskSpaceBeforeOpen(dbFilePath) {
+  try {
+    const dir = path.dirname(dbFilePath);
+    const backupsDir = path.resolve(dir, 'backups');
+    if (!fs.existsSync(backupsDir)) return;
+    const entries = fs.readdirSync(backupsDir);
+    for (const file of entries) {
+      const fullPath = path.join(backupsDir, file);
+      if (
+        file.startsWith('.data-backup-tmp-') ||
+        file.startsWith('.latest-snapshot-tmp-') ||
+        (file.startsWith('data-backup-') && file.endsWith('.db') && file !== 'data-backup-latest.db')
+      ) {
+        try { fs.unlinkSync(fullPath); } catch (_) {}
+      }
+    }
+    const { freeBytes, totalBytes } = getDiskSpaceInfo(dir);
+    if (freeBytes < 200 * 1024 * 1024) {
+      const latestBackupDb = path.join(backupsDir, 'data-backup-latest.db');
+      if (fs.existsSync(latestBackupDb)) {
+        try { fs.unlinkSync(latestBackupDb); } catch (_) {}
+      }
+    }
+    const snapshotsDir = path.join(backupsDir, 'snapshots');
+    if (fs.existsSync(snapshotsDir) && totalBytes < 2 * 1024 * 1024 * 1024) {
+      const snaps = fs.readdirSync(snapshotsDir).filter(f => f.endsWith('.json.gz')).sort();
+      if (snaps.length > 300) {
+        for (const oldSnap of snaps.slice(0, snaps.length - 300)) {
+          try { fs.unlinkSync(path.join(snapshotsDir, oldSnap)); } catch (_) {}
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[DB DISK RECLAIM WARN]', err.message);
+  }
+}
+
+reclaimDiskSpaceBeforeOpen(DB_FILE);
+
 const db = new Database(DB_FILE);
 db.pragma('journal_mode = WAL');
+
+try {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const hasTicks = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ticks'").get();
+  if (hasTicks) {
+    db.prepare('DELETE FROM ticks WHERE ts < ?').run(nowSec - 1800);
+  }
+  const hasCandles = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='candles'").get();
+  if (hasCandles) {
+    db.prepare('DELETE FROM candles WHERE ts < ?').run(nowSec - 7 * 86400);
+  }
+  db.pragma('wal_checkpoint(TRUNCATE)');
+  const freelistCount = Number(db.pragma('freelist_count', { simple: true }) || 0);
+  const pageSize = Number(db.pragma('page_size', { simple: true }) || 4096);
+  const reclaimableBytes = freelistCount * pageSize;
+  const { freeBytes } = getDiskSpaceInfo(dbDir || '.');
+  let dbFileSize = 0;
+  try { dbFileSize = fs.statSync(DB_FILE).size; } catch (_) {}
+  if (reclaimableBytes > 20 * 1024 * 1024 && freeBytes > (dbFileSize - reclaimableBytes) + 40 * 1024 * 1024) {
+    db.exec('VACUUM');
+    db.pragma('wal_checkpoint(TRUNCATE)');
+  }
+} catch (err) {
+  console.warn('[DB BOOT COMPACT WARN]', err.message);
+}
 
 let mutationListener = null;
 export function registerMutationListener(fn) {
@@ -802,16 +879,39 @@ export async function backupDatabase(
     const latestPath = path.join(destDir, 'data-backup-latest.db');
     const tmpPath = path.join(destDir, `.data-backup-tmp-${process.pid}.db`);
 
+    try { db.pragma('wal_checkpoint(PASSIVE)'); } catch (_) {}
+
+    const { freeBytes, totalBytes } = getDiskSpaceInfo(destDir);
+    const isConstrainedVolume = totalBytes < 2 * 1024 * 1024 * 1024;
+    if (isConstrainedVolume) {
+      const oldArchives = fs.readdirSync(destDir)
+        .filter(f => f.startsWith('data-backup-') && f.endsWith('.db') && f !== 'data-backup-latest.db');
+      for (const oldFile of oldArchives) {
+        try { fs.unlinkSync(path.join(destDir, oldFile)); } catch (_) {}
+      }
+    }
+
+    let dbFileSize = 0;
+    try { dbFileSize = fs.statSync(DB_FILE).size; } catch (_) {}
+    const postDeleteSpace = getDiskSpaceInfo(destDir).freeBytes;
+    if (postDeleteSpace < dbFileSize + 80 * 1024 * 1024) {
+      localBackupState.lastLocalBackupAt = new Date(now).toISOString();
+      localBackupState.lastLocalBackupError = null;
+      return { ok: true, latestPath, skippedRawCopy: true, at: localBackupState.lastLocalBackupAt };
+    }
+
     await db.backup(tmpPath);
     fs.renameSync(tmpPath, latestPath);
     localBackupState.lastLocalBackupAt = new Date(now).toISOString();
     localBackupState.lastLocalBackupError = null;
 
     const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
-    const shouldArchive = !isServerless && (createArchive === true || (
-      createArchive !== false &&
-      (!localBackupState.lastArchiveAt || (now - Date.parse(localBackupState.lastArchiveAt)) >= 60 * 60 * 1000)
-    ));
+    const shouldArchive = !isServerless && !isConstrainedVolume && postDeleteSpace > 500 * 1024 * 1024 && (
+      createArchive === true || (
+        createArchive !== false &&
+        (!localBackupState.lastArchiveAt || (now - Date.parse(localBackupState.lastArchiveAt)) >= 60 * 60 * 1000)
+      )
+    );
 
     if (shouldArchive) {
       const archivePath = path.join(destDir, `data-backup-${timestamp}.db`);
@@ -850,11 +950,21 @@ export function saveLocalJsonSnapshot(snapshot, hash, meta = {}, destDir = path.
     fs.renameSync(tmpJsonPath, latestJsonPath);
 
     const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+    const { totalBytes } = getDiskSpaceInfo(destDir);
+    const isConstrainedVolume = totalBytes < 2 * 1024 * 1024 * 1024;
     const changed = hash !== localBackupState.lastSnapshotHash;
     if (changed) {
       if (!isServerless) {
         const snapFile = path.join(snapshotsDir, `snapshot-${safeTs}-${String(hash).slice(0, 8)}.json.gz`);
         fs.writeFileSync(snapFile, gzBuf);
+        if (isConstrainedVolume) {
+          const snaps = fs.readdirSync(snapshotsDir).filter(f => f.endsWith('.json.gz')).sort();
+          if (snaps.length > 300) {
+            for (const oldSnap of snaps.slice(0, snaps.length - 300)) {
+              try { fs.unlinkSync(path.join(snapshotsDir, oldSnap)); } catch (_) {}
+            }
+          }
+        }
       }
       localBackupState.lastSnapshotHash = hash;
     }
@@ -870,6 +980,17 @@ export function saveLocalJsonSnapshot(snapshot, hash, meta = {}, destDir = path.
       activities: meta.activityCount ?? 0
     }) + '\n';
     fs.appendFileSync(historyPath, logLine);
+    if (isConstrainedVolume) {
+      try {
+        const histStat = fs.statSync(historyPath);
+        if (histStat.size > 512 * 1024) {
+          const lines = fs.readFileSync(historyPath, 'utf8').trim().split('\n');
+          if (lines.length > 1000) {
+            fs.writeFileSync(historyPath, lines.slice(-1000).join('\n') + '\n');
+          }
+        }
+      } catch (_) {}
+    }
 
     localBackupState.lastSnapshotAt = nowIso;
     localBackupState.snapshotCount = countSnapshotFiles(snapshotsDir);

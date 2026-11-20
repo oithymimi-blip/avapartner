@@ -59,7 +59,7 @@ async function ensureInitialized() {
             console.error('tick error:', e);
           }
         }, 1000);
-        await runMinuteBackupCycle({ createArchive: true }).catch(() => {});
+        await runMinuteBackupCycle({ createArchive: false }).catch(() => {});
       }
     })().catch((err) => {
       initPromise = null;

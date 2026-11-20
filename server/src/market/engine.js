@@ -153,7 +153,9 @@ export function clearTicks() {
 export function tickOnce() {
   const now = nowTs();
   if (!lastTickCleanup || now - lastTickCleanup > 300) {
-    db.prepare('DELETE FROM ticks WHERE ts < ?').run(now - 86400);
+    db.prepare('DELETE FROM ticks WHERE ts < ?').run(now - 1800);
+    db.prepare('DELETE FROM candles WHERE ts < ?').run(now - 7 * 86400);
+    try { db.pragma('wal_checkpoint(PASSIVE)'); } catch (_) {}
     lastTickCleanup = now;
 
     const all = getAllSettings();

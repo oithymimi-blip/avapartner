@@ -63,6 +63,14 @@ function writeOffsiteMirror(snapshot, hash, counts = {}) {
     const snapFile = path.join(snapshotsDir, `snapshot-${safeTs}-${String(hash).slice(0, 8)}.json.gz`);
     fs.writeFileSync(snapFile, gz);
     state.lastSavedHash = hash;
+    try {
+      const snaps = fs.readdirSync(snapshotsDir).filter(f => f.endsWith('.json.gz')).sort();
+      if (snaps.length > 600) {
+        for (const oldSnap of snaps.slice(0, snaps.length - 600)) {
+          try { fs.unlinkSync(path.join(snapshotsDir, oldSnap)); } catch (_) {}
+        }
+      }
+    } catch (_) {}
   }
 
   const historyLine = JSON.stringify({
