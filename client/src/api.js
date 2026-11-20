@@ -7,7 +7,7 @@ const defaultBase = (() => {
       return `${protocol}//${hostname}:4000`
     }
     if (hostname.endsWith('.vercel.app')) {
-      return 'https://avapartner-app-production.up.railway.app'
+      return 'https://avapartner.up.railway.app'
     }
     return ''
   }

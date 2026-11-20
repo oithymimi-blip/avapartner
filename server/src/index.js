@@ -343,6 +343,15 @@ async function handleShutdown(signal) {
 
 process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 process.on('SIGINT', () => handleShutdown('SIGINT'));
+process.on('unhandledRejection', (reason) => {
+  console.error('[PROCESS] Unhandled promise rejection (kept alive):', reason?.message || reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[PROCESS] Uncaught exception (kept alive):', err?.message || err);
+});
+
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 66000;
 
 if (!IS_SERVERLESS) {
   ensureInitialized()
@@ -351,14 +360,14 @@ if (!IS_SERVERLESS) {
         const status = getPersistenceStatus(db);
         console.log(`Server listening on http://0.0.0.0:${PORT} [Storage: ${status.driver}, Durable: ${status.durable}]`);
 
-        // Keep persistent free instance awake & prevent spin-downs (pings every 8 minutes)
+        // Keep 24/7 container active & healthcheck warm every 60s
         const externalUrl =
           process.env.RENDER_EXTERNAL_URL ||
           (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '');
         if (externalUrl) {
           setInterval(() => {
-            fetch(`${externalUrl}/health`).catch(() => {});
-          }, 8 * 60 * 1000);
+            fetch(`${externalUrl}/api/health`).catch(() => {});
+          }, 60 * 1000);
         }
       });
     })

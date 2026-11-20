@@ -5,7 +5,7 @@ import path from 'path';
 import zlib from 'zlib';
 
 const PORT = Number(process.env.PORT || 3000);
-const TARGET_API_URL = (process.env.TARGET_API_URL || 'https://avapartner.vercel.app').replace(/\/+$/, '');
+const TARGET_API_URL = (process.env.TARGET_API_URL || 'https://avapartner.up.railway.app').replace(/\/+$/, '');
 const CRON_SECRET = (process.env.CRON_SECRET || '').trim();
 const BACKUP_DIR = (process.env.BACKUP_DIR || '').trim() || (
   fs.existsSync('/var/data') ? '/var/data/mirror' : path.resolve('./mirror')
@@ -231,4 +231,10 @@ server.listen(PORT, '0.0.0.0', () => {
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('unhandledRejection', (reason) => {
+    console.error('[BACKUP WORKER] Unhandled rejection (kept alive):', reason?.message || reason);
+  });
+  process.on('uncaughtException', (err) => {
+    console.error('[BACKUP WORKER] Uncaught exception (kept alive):', err?.message || err);
+  });
 });

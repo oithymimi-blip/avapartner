@@ -219,16 +219,31 @@ const BINANCE_WS_URLS = [
   'wss://stream.binance.com:9443/ws/!miniTicker@arr'
 ];
 let currentWsIndex = 0;
+let wsReconnectTimer = null;
+let lastWsMessageAt = Date.now();
+
+function scheduleBinanceReconnect() {
+  if (wsReconnectTimer) return;
+  wsReconnectTimer = setTimeout(() => {
+    wsReconnectTimer = null;
+    connectBinance();
+  }, 5000);
+}
 
 function connectBinance() {
   const wsUrl = BINANCE_WS_URLS[currentWsIndex % BINANCE_WS_URLS.length];
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+    try { ws.terminate(); } catch (_) {}
+  }
   ws = new WebSocket(wsUrl);
-  
+
   ws.on('open', () => {
+    lastWsMessageAt = Date.now();
     console.log(`[Market Engine] Connected to live Binance WebSocket (${wsUrl})`);
   });
 
   ws.on('message', (data) => {
+    lastWsMessageAt = Date.now();
     try {
       const tickers = JSON.parse(data);
       const now = nowTs();
@@ -297,7 +312,7 @@ function connectBinance() {
 
   ws.on('close', () => {
     currentWsIndex++;
-    setTimeout(connectBinance, 5000);
+    scheduleBinanceReconnect();
   });
 
   ws.on('error', (err) => {
@@ -463,6 +478,16 @@ export function startMarketBackgroundLoops() {
   const all = getAllSettings();
   connectBinance();
   startLivePriceFetcher(handleLiveTick);
+
+  // Reconnect Binance WS automatically if stream goes stale > 45s
+  setInterval(() => {
+    if (ws && ws.readyState === WebSocket.OPEN && Date.now() - lastWsMessageAt > 45000) {
+      console.warn('[Market Engine] Binance WS stream stale > 45s, reconnecting...');
+      currentWsIndex++;
+      try { ws.terminate(); } catch (_) {}
+      scheduleBinanceReconnect();
+    }
+  }, 30000);
 
   (async () => {
     for (const s of all) {
