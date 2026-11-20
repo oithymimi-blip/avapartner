@@ -40,7 +40,7 @@ export const DATABASE_URL = cleanEnv(
 );
 export const TURSO_DATABASE_URL = cleanEnv(process.env.TURSO_DATABASE_URL || process.env.LIBSQL_URL);
 export const TURSO_AUTH_TOKEN = cleanEnv(process.env.TURSO_AUTH_TOKEN || process.env.LIBSQL_AUTH_TOKEN);
-export const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173')
+export const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173,https://avapartner.app,https://www.avapartner.app,https://avapartner.up.railway.app')
   .split(',')
   .map(s => s.trim())
   .filter(Boolean);

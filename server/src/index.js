@@ -85,7 +85,15 @@ app.use(express.json({ limit: '50mb' }));
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin) return cb(null, true);
-    if (CORS_ORIGINS.includes(origin) || origin.endsWith('.vercel.app')) return cb(null, true);
+    if (
+      CORS_ORIGINS.includes(origin) ||
+      origin === 'https://avapartner.app' ||
+      origin === 'https://www.avapartner.app' ||
+      origin === 'https://avapartner.up.railway.app' ||
+      origin.endsWith('.vercel.app')
+    ) {
+      return cb(null, true);
+    }
     cb(null, true); // fallback: allow all
   },
   credentials: true

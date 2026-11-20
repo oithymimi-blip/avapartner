@@ -218,7 +218,7 @@ async function sendDepositEmail(userEmail, amount, txHash) {
         <p style="font-size: 16px; color: #e5e7eb;">Your deposit of <strong style="color: #10b981;">${amount} USDT (BEP-20)</strong> has been credited to your AvaPartner account.</p>
         <p style="font-size: 14px; color: #9ca3af; margin-top: 30px;">Transaction Reference: <br><span style="font-size: 12px; word-break: break-all;">${txHash}</span></p>
         <div style="text-align: center; margin-top: 40px; margin-bottom: 20px;">
-          <a href="https://avapartner.vercel.app/wallet/deposit" style="background-color: #10b981; color: #04130d; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; font-size: 16px;">View Wallet</a>
+          <a href="https://avapartner.app/wallet/deposit" style="background-color: #10b981; color: #04130d; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; font-size: 16px;">View Wallet</a>
         </div>
       </div>
     `;

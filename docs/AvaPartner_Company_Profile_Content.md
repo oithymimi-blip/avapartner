@@ -3,7 +3,7 @@
 > **Official Global Financial & Forex Affiliate Partner Network of the AvaTrade Group (Est. 2006)**  
 > **Global Headquarters:** Five Lamps Place, Amiens Street, Dublin 1, D01 E4X0, Ireland  
 > **Primary Regulatory Reference:** Central Bank of Ireland (CBI) License No. C53877  
-> **Official Web Portals:** `avapartner.com` | **Affiliate & Sub-Company Portal:** `https://avapartner.vercel.app/` | `avatrade.com` | `avapartner.marketing`  
+> **Official Web Portals:** `avapartner.com` | **Affiliate & Sub-Company Portal:** `https://avapartner.app/` | `avatrade.com` | `avapartner.marketing`  
 > **Partner & Compliance Desk:** `partners@avapartner.com` | `+353 1 513 7860` (Mon–Fri, 24/5 Desk)
 
 ---
@@ -52,7 +52,7 @@ Built on uncompromising regulatory transparency, punctual settlements, and propr
 | :--- | :--- | :--- |
 | **Regulated Parent Brokerage Group** | **AvaTrade Group** (`avatrade.com`) | Founded 2006 in Dublin. Holds 9 Tier-1 and regional brokerage licenses globally across Europe, APAC, MENA, Africa & International regions. |
 | **Core Global Affiliate & IB Network** | **AvaPartner** (`avapartner.com` · `avapartner.marketing`) | Launched 2009. Distributes **$300M+** (`$314.8M+`) across 150,000+ affiliates & IBs via CPA, RevShare, and Hybrid structures in 20+ languages. |
-| **Official Affiliate & Sub-Company Trading Portal** | **AvaPartner Digital Portal** (`https://avapartner.vercel.app/`) | Official partner & sub-company operational web platform hosting instant partner onboarding (`/signup`), live multi-asset execution (Forex CFDs, Binary, Spot, Copy), Quantum AI Engine, BEP-20 crypto treasury (`/wallet/deposit`), and real-time 2-tier IB dashboards (`/ib-dashboard`). |
+| **Official Affiliate & Sub-Company Trading Portal** | **AvaPartner Digital Portal** (`https://avapartner.app/`) | Official partner & sub-company operational web platform hosting instant partner onboarding (`/signup`), live multi-asset execution (Forex CFDs, Binary, Spot, Copy), Quantum AI Engine, BEP-20 crypto treasury (`/wallet/deposit`), and real-time 2-tier IB dashboards (`/ib-dashboard`). |
 
 ### Key Institutional Metrics at a Glance
 
@@ -134,7 +134,7 @@ AvaPartner operates as a borderless, around-the-clock financial partnership ente
 
 To support **150,000+ partners** and traders in **150+ countries**, AvaPartner’s international workforce is structured into six specialized operational divisions:
 
-1. **Global Affiliate & Performance Media Division (`avapartner.com` & `https://avapartner.vercel.app/`):** Manages high-intent search publishers, comparison portals, SEO communities, API S2S postbacks, and conversion funnels localized across **20+ languages**.
+1. **Global Affiliate & Performance Media Division (`avapartner.com` & `https://avapartner.app/`):** Manages high-intent search publishers, comparison portals, SEO communities, API S2S postbacks, and conversion funnels localized across **20+ languages**.
 2. **Institutional Master IB & Sub-Company B2B Desk:** Structures multi-tier Level-1 / Level-2 commission deals, custom VIP spread/lot overrides, regional sub-company portal enablement, and seminar sponsorships for high-volume Introducing Brokers.
 3. **24/5 Multilingual Client Conversion & Retention Desks:** Native-speaking sales, onboarding, and retention specialists supporting referred traders through KYC verification, deposit activation, and long-term platform engagement.
 4. **Quantitative Trading, Quantum AI & Platform R&D Division (Tel Aviv & Dublin):** Develops and maintains high-frequency price feeds, 1-second Socket.IO telemetry, the Quantum AI 4-slot engine, Spot/Binary execution routers, MT4/MT5 bridges, and mobile apps.
@@ -154,13 +154,13 @@ To support **150,000+ partners** and traders in **150+ countries**, AvaPartner�
 
 ### 4.4 Global Business Model, 5-Continent Market Playbook & Sub-Company Ecosystem
 
-AvaPartner grows global business through a **dual B2B + Retail acquisition flywheel** combining regulated local entities with unified digital infrastructure on `avapartner.com` and **`https://avapartner.vercel.app/`**:
+AvaPartner grows global business through a **dual B2B + Retail acquisition flywheel** combining regulated local entities with unified digital infrastructure on `avapartner.com` and **`https://avapartner.app/`**:
 
 - **Europe & EEA Institutional Hub (Ireland, Italy, Poland, Cyprus):** Anchored by **Central Bank of Ireland (#C53877)**, **CySEC (#347/17)**, and **KNF MiFID II** passporting. Focuses on Tier-1 CPA acquisition (up to `$1,000/FTD`), institutional RevShare, compliant European educational academies, and multilingual retention.
 - **Asia-Pacific & Japan High-Liquidity Corridor (Tokyo & Sydney):** Regulated via **FSA Japan (#1662) / FFAJ (#1574)** and **ASIC Australia (#406684)**. Drives deep FX/Commodities lot volume, gold (`XAUUSD`) turnover, and automated AI Trade Master IB networks across East and Southeast Asia.
 - **Middle East, Gulf & Fintech R&D Axis (Abu Dhabi & Tel Aviv):** Backed by **ADGM FSRA (#190018)** and **ISA (#514666577)**. Combines flagship MENA institutional Master IB relationships and VIP wealth networks with Tel Aviv algorithmic execution and AdTech engineering.
 - **Latin America & Africa Fast-Growth Corridor (Mexico City, São Paulo, Johannesburg):** Supported by **FSCA (#45984)** and Spanish/Portuguese acquisition teams. Scales grassroots Introducing Brokers, regional live trading seminars, Spot/Crypto CFD adoption, and 2-tier Sub-IB expansion.
-- **Turnkey Affiliate & Sub-Company Portal Role (`https://avapartner.vercel.app/`):** Rather than requiring regional Master IBs, trading academies, or sub-company operators to build brokerage infrastructure from scratch, AvaPartner’s digital partner portal delivers instant referral attribution (`?ref=CODE`), unified multi-asset execution (Forex CFDs, Binary Options, Top-100 Spot, Copy Trading, Quantum AI), BEP-20 USDT deposit rails, and real-time Bronze → Silver → Gold commission payouts in one responsive web & mobile experience.
+- **Turnkey Affiliate & Sub-Company Portal Role (`https://avapartner.app/`):** Rather than requiring regional Master IBs, trading academies, or sub-company operators to build brokerage infrastructure from scratch, AvaPartner’s digital partner portal delivers instant referral attribution (`?ref=CODE`), unified multi-asset execution (Forex CFDs, Binary Options, Top-100 Spot, Copy Trading, Quantum AI), BEP-20 USDT deposit rails, and real-time Bronze → Silver → Gold commission payouts in one responsive web & mobile experience.
 
 ### 4.5 Global Financial Summits, Partner Academies & International Careers
 AvaPartner hosts partner pavilions, private Master IB dinners, and regulatory workshops at premier global expos—including **iFX EXPO** (Dubai & Limassol), **Finance Magnates London**, **Affiliate World** (Europe & Asia/Bangkok), and **Forex Expo Dubai** (winner of **Best Global Financial Affiliate Program, Sept 2026**).  
@@ -400,7 +400,7 @@ To reward genuine trading volume while preventing bonus abuse, promotional credi
 
 ## 10. Step-by-Step User & Partner Quick-Start Guide
 
-All routes below operate live on AvaPartner's Official Digital Partner & Sub-Company Portal (**`https://avapartner.vercel.app/`**) in synchronization with the core `avapartner.com` network.
+All routes below operate live on AvaPartner's Official Digital Partner & Sub-Company Portal (**`https://avapartner.app/`**) in synchronization with the core `avapartner.com` network.
 
 | Step | Action | Platform Section | Key Details & Safeguards |
 | :---: | :--- | :--- | :--- |
@@ -450,7 +450,7 @@ All routes below operate live on AvaPartner's Official Digital Partner & Sub-Com
 ## 12. Legal Policies: Privacy Policy, Terms & Conditions & Risk Disclosure
 
 ### 12.1 Privacy Policy
-**AvaPartner** ("we", "us", or "our"), operating as the official partner network of the AvaTrade Group (headquartered at Five Lamps Place, Amiens Street, Dublin 1, Ireland), respects your privacy and is committed to protecting your personal data in accordance with the **EU General Data Protection Regulation (GDPR)** and international data protection laws across `avapartner.com`, **`https://avapartner.vercel.app/`**, and our affiliate services.
+**AvaPartner** ("we", "us", or "our"), operating as the official partner network of the AvaTrade Group (headquartered at Five Lamps Place, Amiens Street, Dublin 1, Ireland), respects your privacy and is committed to protecting your personal data in accordance with the **EU General Data Protection Regulation (GDPR)** and international data protection laws across `avapartner.com`, **`https://avapartner.app/`**, and our affiliate services.
 
 1. **Important Information & Who We Are:** This policy informs you how AvaPartner collects and processes personal data through your use of our website, trading dashboard, and affiliate tracking network.
 2. **The Data We Collect About You:**
@@ -469,7 +469,7 @@ All routes below operate live on AvaPartner's Official Digital Partner & Sub-Com
 ---
 
 ### 12.2 Terms and Conditions
-1. **Introduction & Acceptance:** These Terms and Conditions ("Agreement") govern participation in the **AvaPartner Affiliate & Introducing Broker Program** operated by **AvaPartner / AVA Trade EU Ltd**, Five Lamps Place, Amiens Street, Dublin 1, Ireland. Registering via `avapartner.com` or the official digital partner sub-portal **`https://avapartner.vercel.app/`** binds you ("Partner", "Affiliate", "IB") to this Agreement.
+1. **Introduction & Acceptance:** These Terms and Conditions ("Agreement") govern participation in the **AvaPartner Affiliate & Introducing Broker Program** operated by **AvaPartner / AVA Trade EU Ltd**, Five Lamps Place, Amiens Street, Dublin 1, Ireland. Registering via `avapartner.com` or the official digital partner sub-portal **`https://avapartner.app/`** binds you ("Partner", "Affiliate", "IB") to this Agreement.
 2. **Enrollment:** Partner applicants must submit accurate registration details. We evaluate all applications in good faith and reserve the right to accept or decline applications at our sole discretion. Promotional channels must comply with regional financial promotion laws.
 3. **Partner Obligations & Regulatory Marketing Guidelines:** Partners must promote AvaPartner and AvaTrade ethically in strict compliance with **CBI, ESMA, ASIC, FSA, ADGM, and FSCA** regulations:
    - Use only approved creatives or accurate educational content.
@@ -507,7 +507,7 @@ All routes below operate live on AvaPartner's Official Digital Partner & Sub-Com
 - **Regulator:** Central Bank of Ireland (License #C53877)
 - **Phone:** `+353 1 513 7860` (Mon–Fri, 24/5 Multilingual Partner Desk)
 - **General Inquiries:** `partners@avapartner.com`
-- **Official Web Portals:** `avapartner.com` | **Affiliate & Sub-Company Portal:** `https://avapartner.vercel.app/` | `avatrade.com` | `avapartner.marketing`
+- **Official Web Portals:** `avapartner.com` | **Affiliate & Sub-Company Portal:** `https://avapartner.app/` | `avatrade.com` | `avapartner.marketing`
 
 ### Direct Department Contacts
 - **CPA & Media Buying:** `cpa@avapartner.com`
