@@ -40,7 +40,7 @@ async function fetchBinanceHistory(symbol) {
     if (symbol === 'XAUUSD') binanceSymbol = 'XAUTUSDT';
     else if (symbol.endsWith('USD')) binanceSymbol = symbol + 'T';
     
-    const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${binanceSymbol}&interval=1m&limit=1000`);
+    const res = await fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${binanceSymbol}&interval=1m&limit=1000`);
     if (!res.ok) return null;
     const data = await res.json();
     return data.map(d => ({
@@ -254,7 +254,6 @@ function connectBinance() {
           
           st.lastPrice = price;
           st.lastWsTick = now;
-          db.prepare('UPDATE market_settings SET base_price = ?, updated_at = CURRENT_TIMESTAMP WHERE symbol = ?').run(price, symbol);
           const volPerSec = parseFloat(t.v) / 86400; // rough 1s volume
           
           // Update candle
@@ -317,7 +316,6 @@ export function handleLiveTick(symbol, price) {
   st.lastWsTick = now;
 
   try {
-    db.prepare('UPDATE market_settings SET base_price = ?, updated_at = CURRENT_TIMESTAMP WHERE symbol = ?').run(price, symbol);
     const insertTickStmt = db.prepare('INSERT INTO ticks (symbol, price, ts) VALUES (?, ?, ?)');
     insertTickStmt.run(symbol, price, now);
 

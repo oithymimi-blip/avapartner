@@ -20,25 +20,12 @@
           "destination": "/index.html"
         }
       ]
-    },
-    "backend": {
-      "root": "server",
-      "entrypoint": "src/index.js",
-      "functions": {
-        "src/index.js": {
-          "maxDuration": 60
-        }
-      }
     }
   },
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": { "service": "backend" }
-    },
-    {
-      "source": "/socket.io/(.*)",
-      "destination": { "service": "backend" }
+      "destination": "https://avapartner-app-production.up.railway.app/api/$1"
     },
     {
       "source": "/(.*)",

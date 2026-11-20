@@ -6,6 +6,9 @@ const defaultBase = (() => {
     if (import.meta.env.DEV) {
       return `${protocol}//${hostname}:4000`
     }
+    if (hostname.endsWith('.vercel.app')) {
+      return 'https://avapartner-app-production.up.railway.app'
+    }
     return ''
   }
   return 'http://localhost:4000'

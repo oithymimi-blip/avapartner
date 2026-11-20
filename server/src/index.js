@@ -1,4 +1,7 @@
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -66,8 +69,16 @@ async function ensureInitialized() {
   return initPromise;
 }
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const CLIENT_DIST = path.resolve(__dirname, '../../client/dist');
+const HAS_CLIENT_DIST = fs.existsSync(path.join(CLIENT_DIST, 'index.html'));
+
 const app = express();
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false
+}));
 // Allow larger JSON bodies so base64 document/selfie/backup uploads are accepted.
 app.use(express.json({ limit: '50mb' }));
 
@@ -131,7 +142,6 @@ app.use(async (req, res, next) => {
   next();
 });
 
-app.get('/', (req, res) => res.json({ ok: true, name: 'OTC Market Server' }));
 const buildHealthPayload = () => {
   const status = getPersistenceStatus(db);
   return {
@@ -154,6 +164,47 @@ app.get('/api/health', (req, res) => {
 app.get('/health', (req, res) => {
   res.json(buildHealthPayload());
 });
+
+if (HAS_CLIENT_DIST) {
+  const indexHtmlPath = path.join(CLIENT_DIST, 'index.html');
+  app.use((req, res, next) => {
+    if (
+      req.method === 'GET' &&
+      !req.path.startsWith('/api/') &&
+      !req.path.startsWith('/socket.io/') &&
+      req.path !== '/health' &&
+      !req.headers.authorization &&
+      (req.headers.accept || '').includes('text/html') &&
+      !/\.[a-zA-Z0-9]{1,8}$/.test(req.path)
+    ) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      return res.sendFile(indexHtmlPath);
+    }
+    return next();
+  });
+
+  app.get('/AvaPartner_Company_Profile.pdf', (req, res, next) => {
+    const pdfPath = path.join(CLIENT_DIST, 'AvaPartner_Company_Profile.pdf');
+    if (!fs.existsSync(pdfPath)) return next();
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="AvaPartner_Company_Profile.pdf"');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    return res.sendFile(pdfPath);
+  });
+
+  app.use(express.static(CLIENT_DIST, {
+    index: false,
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.html') || filePath.endsWith('manifest.json')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    }
+  }));
+}
+
+app.get('/', (req, res) => res.json({ ok: true, name: 'OTC Market Server' }));
 
 // Dual route mounts for fail-safe Nginx proxy compatibility
 app.use('/api/auth', authRoutes);
@@ -228,15 +279,17 @@ app.all('/api/internal/minute-backup', async (req, res) => {
   }
   try {
     await ensureInitialized();
-    await ensureLatestFromCloud();
-    runAITradeCycleNow({ runTick: true });
-    checkMonthlyIBBonuses();
-    await runMarketPriceSyncOnce({ force: true, includeYahoo: true }).catch(() => {});
-    await Promise.race([
-      checkMissedDeposits().catch(() => {}),
-      new Promise((resolve) => setTimeout(resolve, 6000))
-    ]);
-    const backup = await runMinuteBackupCycle({ createArchive: !IS_SERVERLESS });
+    if (IS_SERVERLESS) {
+      await ensureLatestFromCloud();
+      runAITradeCycleNow({ runTick: true });
+      checkMonthlyIBBonuses();
+      await runMarketPriceSyncOnce({ force: true, includeYahoo: true }).catch(() => {});
+      await Promise.race([
+        checkMissedDeposits().catch(() => {}),
+        new Promise((resolve) => setTimeout(resolve, 6000))
+      ]);
+    }
+    const backup = await runMinuteBackupCycle({ createArchive: IS_SERVERLESS ? false : null });
     const status = getPersistenceStatus(db);
     const includeSnapshot = String(req.query.snapshot || '') === '1';
     res.json({
@@ -250,6 +303,19 @@ app.all('/api/internal/minute-backup', async (req, res) => {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
+
+if (HAS_CLIENT_DIST) {
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/') || req.path.startsWith('/socket.io/')) {
+      return next();
+    }
+    if (/\.[a-zA-Z0-9]{1,8}$/.test(req.path)) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    return res.sendFile(path.join(CLIENT_DIST, 'index.html'));
+  });
+}
 
 const server = http.createServer(app);
 const io = new SocketIOServer(server, {

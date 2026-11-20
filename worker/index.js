@@ -142,7 +142,71 @@ async function runBackupTick() {
 ensureDirs();
 state.mirrorSnapshotFiles = countMirrorFiles(path.join(BACKUP_DIR, 'snapshots'));
 
+function verifyCronSecret(req) {
+  if (!CRON_SECRET) return false;
+  const authHeader = String(req.headers.authorization || '');
+  const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  const provided = String(req.headers['x-cron-secret'] || bearer || '');
+  if (!provided || provided.length !== CRON_SECRET.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(provided, 'utf8'), Buffer.from(CRON_SECRET, 'utf8'));
+}
+
+function readLatestMirrorSnapshot() {
+  const latestPath = path.join(BACKUP_DIR, 'latest-snapshot.json.gz');
+  let targetFile = latestPath;
+  if (!fs.existsSync(targetFile)) {
+    const snapsDir = path.join(BACKUP_DIR, 'snapshots');
+    if (fs.existsSync(snapsDir)) {
+      const files = fs.readdirSync(snapsDir).filter((f) => f.endsWith('.json.gz')).sort();
+      if (files.length > 0) {
+        targetFile = path.join(snapsDir, files[files.length - 1]);
+      }
+    }
+  }
+  if (!fs.existsSync(targetFile)) return null;
+  const gz = fs.readFileSync(targetFile);
+  const raw = zlib.gunzipSync(gz).toString('utf8');
+  return { file: path.basename(targetFile), snapshot: JSON.parse(raw) };
+}
+
 const server = http.createServer((req, res) => {
+  const reqPath = (req.url || '/').split('?')[0];
+
+  if (reqPath === '/internal/mirror/latest') {
+    if (!verifyCronSecret(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Unauthorized' }));
+    }
+    try {
+      const data = readLatestMirrorSnapshot();
+      if (!data) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'No mirror snapshot available yet' }));
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: true, ...data }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: err.message }));
+    }
+  }
+
+  if (reqPath === '/internal/mirror/list') {
+    if (!verifyCronSecret(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Unauthorized' }));
+    }
+    try {
+      const snapsDir = ensureDirs();
+      const files = fs.readdirSync(snapsDir).filter((f) => f.endsWith('.json.gz')).sort().reverse().slice(0, 50);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: true, files }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: err.message }));
+    }
+  }
+
   res.writeHead(200, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({
     service: 'avapartner-backup-worker',

@@ -100,7 +100,7 @@ let localRevision = 0;
 let refreshInFlight = null;
 let syncInFlight = null;
 
-function buildPgPoolConfig(rawUrl) {
+function buildPgPoolConfig(rawUrl, forceNoSsl = false) {
   try {
     const u = new URL(rawUrl);
     const isLocal = u.hostname === 'localhost' || u.hostname === '127.0.0.1';
@@ -108,7 +108,7 @@ function buildPgPoolConfig(rawUrl) {
     u.searchParams.delete('channel_binding');
     return {
       connectionString: u.toString(),
-      ssl: isLocal ? false : { rejectUnauthorized: false },
+      ssl: (isLocal || forceNoSsl) ? false : { rejectUnauthorized: false },
       max: 3,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000
@@ -117,7 +117,7 @@ function buildPgPoolConfig(rawUrl) {
     const isLocal = rawUrl.includes('localhost') || rawUrl.includes('127.0.0.1');
     return {
       connectionString: rawUrl,
-      ssl: isLocal ? false : { rejectUnauthorized: false },
+      ssl: (isLocal || forceNoSsl) ? false : { rejectUnauthorized: false },
       max: 3,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000
@@ -542,74 +542,91 @@ export function importDatabaseSnapshot(db = dbRef, snapshot, { mode = 'merge' } 
 
 async function initRemoteDriver() {
   if (DATABASE_URL) {
-    try {
-      pgPool = new Pool(buildPgPoolConfig(DATABASE_URL));
-      pgPool.on('error', (err) => {
-        lastSyncError = `PostgreSQL pool error: ${err.message}`;
-        console.error('[CLOUD SYNC POOL ERROR]', err.message);
-      });
-      await pgPool.query(`
-        CREATE TABLE IF NOT EXISTS avapartner_cloud_state (
-          id TEXT PRIMARY KEY,
-          payload TEXT NOT NULL,
-          user_count INTEGER DEFAULT 0,
-          revision INTEGER DEFAULT 1,
-          updated_at TIMESTAMPTZ DEFAULT NOW()
-        );
-      `);
-      await pgPool.query(`ALTER TABLE avapartner_cloud_state ADD COLUMN IF NOT EXISTS revision INTEGER DEFAULT 1;`);
-      await pgPool.query(`
-        CREATE TABLE IF NOT EXISTS avapartner_cloud_blobs (
-          hash TEXT PRIMARY KEY,
-          payload TEXT NOT NULL,
-          user_count INTEGER DEFAULT 0,
-          byte_size INTEGER DEFAULT 0,
-          created_at TIMESTAMPTZ DEFAULT NOW()
-        );
-      `);
-      await pgPool.query(`
-        CREATE TABLE IF NOT EXISTS avapartner_cloud_backups (
-          id SERIAL PRIMARY KEY,
-          minute_bucket TEXT UNIQUE NOT NULL,
-          snapshot_hash TEXT NOT NULL,
-          user_count INTEGER DEFAULT 0,
-          total_balance DOUBLE PRECISION DEFAULT 0,
-          trade_count INTEGER DEFAULT 0,
-          activity_count INTEGER DEFAULT 0,
-          revision INTEGER DEFAULT 0,
-          changed INTEGER DEFAULT 0,
-          created_at TIMESTAMPTZ DEFAULT NOW()
-        );
-      `);
-      await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_cloud_backups_created ON avapartner_cloud_backups(created_at DESC);`);
-      await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_cloud_backups_changed ON avapartner_cloud_backups(changed, created_at);`);
-
+    for (const forceNoSsl of [false, true]) {
       try {
-        const latestRow = await pgPool.query('SELECT snapshot_hash, created_at FROM avapartner_cloud_backups ORDER BY id DESC LIMIT 1');
-        if (latestRow.rows[0]) {
-          lastCloudBackupHash = latestRow.rows[0].snapshot_hash;
-          lastCloudBackupAt = new Date(latestRow.rows[0].created_at).toISOString();
-        }
-        const countsRes = await pgPool.query(`
-          SELECT
-            (SELECT COUNT(*) FROM avapartner_cloud_backups) AS backup_count,
-            (SELECT COUNT(*) FROM avapartner_cloud_blobs) AS blob_count
+        pgPool = new Pool(buildPgPoolConfig(DATABASE_URL, forceNoSsl));
+        pgPool.on('error', (err) => {
+          lastSyncError = `PostgreSQL pool error: ${err.message}`;
+          console.error('[CLOUD SYNC POOL ERROR]', err.message);
+        });
+        await pgPool.query(`
+          CREATE TABLE IF NOT EXISTS avapartner_cloud_state (
+            id TEXT PRIMARY KEY,
+            payload TEXT NOT NULL,
+            user_count INTEGER DEFAULT 0,
+            revision INTEGER DEFAULT 1,
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+          );
         `);
-        cloudBackupCount = Number(countsRes.rows[0]?.backup_count || 0);
-        cloudBlobCount = Number(countsRes.rows[0]?.blob_count || 0);
-      } catch (_) {}
-
-      activeDriver = 'postgres';
-      lastSyncError = null;
-      console.log('[CLOUD SYNC] Connected to persistent PostgreSQL (DATABASE_URL).');
-      return;
-    } catch (err) {
-      lastSyncError = `PostgreSQL connection failed: ${err.message}`;
-      console.error('[CLOUD SYNC ERROR]', lastSyncError);
-      if (pgPool) {
-        await pgPool.end().catch(() => {});
+        break;
+      } catch (err) {
+        if (pgPool) {
+          await pgPool.end().catch(() => {});
+          pgPool = null;
+        }
+        const canRetryWithoutSsl =
+          !forceNoSsl && String(err?.message || '').toLowerCase().includes('does not support ssl');
+        if (canRetryWithoutSsl) continue;
+        lastSyncError = `PostgreSQL connection failed: ${err.message}`;
+        console.error('[CLOUD SYNC ERROR]', lastSyncError);
       }
-      pgPool = null;
+    }
+    if (pgPool) {
+      try {
+        await pgPool.query(`ALTER TABLE avapartner_cloud_state ADD COLUMN IF NOT EXISTS revision INTEGER DEFAULT 1;`);
+        await pgPool.query(`
+          CREATE TABLE IF NOT EXISTS avapartner_cloud_blobs (
+            hash TEXT PRIMARY KEY,
+            payload TEXT NOT NULL,
+            user_count INTEGER DEFAULT 0,
+            byte_size INTEGER DEFAULT 0,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+          );
+        `);
+        await pgPool.query(`
+          CREATE TABLE IF NOT EXISTS avapartner_cloud_backups (
+            id SERIAL PRIMARY KEY,
+            minute_bucket TEXT UNIQUE NOT NULL,
+            snapshot_hash TEXT NOT NULL,
+            user_count INTEGER DEFAULT 0,
+            total_balance DOUBLE PRECISION DEFAULT 0,
+            trade_count INTEGER DEFAULT 0,
+            activity_count INTEGER DEFAULT 0,
+            revision INTEGER DEFAULT 0,
+            changed INTEGER DEFAULT 0,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+          );
+        `);
+        await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_cloud_backups_created ON avapartner_cloud_backups(created_at DESC);`);
+        await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_cloud_backups_changed ON avapartner_cloud_backups(changed, created_at);`);
+
+        try {
+          const latestRow = await pgPool.query('SELECT snapshot_hash, created_at FROM avapartner_cloud_backups ORDER BY id DESC LIMIT 1');
+          if (latestRow.rows[0]) {
+            lastCloudBackupHash = latestRow.rows[0].snapshot_hash;
+            lastCloudBackupAt = new Date(latestRow.rows[0].created_at).toISOString();
+          }
+          const countsRes = await pgPool.query(`
+            SELECT
+              (SELECT COUNT(*) FROM avapartner_cloud_backups) AS backup_count,
+              (SELECT COUNT(*) FROM avapartner_cloud_blobs) AS blob_count
+          `);
+          cloudBackupCount = Number(countsRes.rows[0]?.backup_count || 0);
+          cloudBlobCount = Number(countsRes.rows[0]?.blob_count || 0);
+        } catch (_) {}
+
+        activeDriver = 'postgres';
+        lastSyncError = null;
+        console.log('[CLOUD SYNC] Connected to persistent PostgreSQL (DATABASE_URL).');
+        return;
+      } catch (err) {
+        lastSyncError = `PostgreSQL connection failed: ${err.message}`;
+        console.error('[CLOUD SYNC ERROR]', lastSyncError);
+        if (pgPool) {
+          await pgPool.end().catch(() => {});
+        }
+        pgPool = null;
+      }
     }
   }
 
